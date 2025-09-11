@@ -41,7 +41,7 @@ module.exports = (app) => {
     swaggerUi.setup(specs, {
       explorer: true,
       customCss: ".swagger-ui .topbar { display: none }",
-      customSiteTitle: "Wedding Studio API Documentation",
+      customSiteTitle: "Edy API Documentation",
     })
   );
 };
