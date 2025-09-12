@@ -2,11 +2,24 @@ const {getNewestDocuments} = require("../services/document.service");
 
 exports.getNewestDocuments = async (req, res) => {
     try {
-        let page = parseInt(req.query.page) || 1;
-        let limit = parseInt(req.query.limit) || 5;
-        page = page < 1 ? 1 : page;
-        limit = limit < 1 ? 1 : limit;
-        const result = await getNewestDocuments(req.user, page, limit);
+        const {
+            search,
+            ordering = 'createdAt',
+            order = -1,
+            page = 1,
+            limit = 5,
+            ...filters
+        } = req.query;
+
+        const result = await getNewestDocuments({
+            payload: req.user,
+            search,
+            ordering,
+            order,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            ...filters
+        });
         res.json(result);
     } catch (error) {
         console.error(error);
