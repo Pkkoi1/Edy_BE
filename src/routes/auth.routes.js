@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/auth.controller");
+const {requireLoggedIn} = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
@@ -17,13 +18,16 @@ const authController = require("../controllers/auth.controller");
  *             properties:
  *               email:
  *                 type: string
+ *                 example: "emailngungoc123@gmail.com"
  *               password:
  *                 type: string
+ *                 example: "password"
  *     responses:
  *       200:
  *         description: Đăng nhập thành công
  *       401:
  *         description: Sai tài khoản hoặc mật khẩu
+ *     
  */
 router.post("/login", authController.login);
 
@@ -55,5 +59,43 @@ router.post("/login", authController.login);
  *         description: Email đã được sử dụng
  */
 router.post("/register", authController.register);
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     summary: Đăng xuất khỏi hệ thống
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Đăng xuất thành công
+ */
+router.post("/logout", requireLoggedIn,authController.logout);
+/**
+ * @swagger
+ * /auth/refresh-token:
+ *   post:
+ *     summary: Làm mới token
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Refresh token thành công
+ *       401:
+ *         description: Refresh token không hợp lệ
+ */
+router.post("/refresh-token", requireLoggedIn, authController.refreshToken);
+
+/**
+ * @swagger
+ * /auth/me:
+ *   get:
+ *     summary: Lấy thông tin người dùng hiện tại
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin người dùng hiện tại thành công
+ *       401:
+ *         description: Không có token hoặc token không hợp lệ
+ * */
+router.get("/me", requireLoggedIn, authController.me);
 
 module.exports = router;

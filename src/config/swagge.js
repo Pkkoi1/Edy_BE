@@ -42,6 +42,10 @@ module.exports = (app) => {
       explorer: true,
       customCss: ".swagger-ui .topbar { display: none }",
       customSiteTitle: "Edy API Documentation",
+      requestInterceptor: (req) => {
+        req.withCredentials = true;
+        return req;
+      },
     })
   );
 };

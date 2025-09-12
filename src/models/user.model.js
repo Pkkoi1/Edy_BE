@@ -3,26 +3,39 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   first_name: { type: String, required: true },
   last_name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  contact_email: { type: String, required: true, unique: true },
   avatar: String,
-//   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
+  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   follower: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   field_of_study: [String],
   point: { type: Number, default: 0 },
   rank_point: { type: Number, default: 0 },
   strike: { type: Number, default: 0 },
-  free_download_count: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-  search_history: [String],
-//   read_history: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Document' }],
-//   shared_documents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Document' }],
-//   favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Document' }],
+  free_download_count: { type: Number, default: 3 },
+  search_history: [{
+    keyword: String,
+    searched_at: { type: Date, default: Date.now }
+  }],
+  read_history: [{
+    document: { type: mongoose.Schema.Types.ObjectId, ref: 'Document' },
+    read_at: { type: Date, default: Date.now }
+  }],
+  shared_documents: [{
+    document: { type: mongoose.Schema.Types.ObjectId, ref: 'Document' },
+    shared_at: { type: Date, default: Date.now }
+  }],
+  favorites: [{
+    document: { type: mongoose.Schema.Types.ObjectId, ref: 'Document' },
+    added_at: { type: Date, default: Date.now }
+  }],
   status: {
     type: String,
     enum: ['active', 'inactive', 'banned'],
     default: 'active'
   }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('User', userSchema);

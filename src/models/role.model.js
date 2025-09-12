@@ -18,17 +18,18 @@ const roleSchema = new mongoose.Schema({
   permissions: [{
     type: String,
     enum: [
-      'APPROVE_DOC',
-      'APPROVE_SUMMARY',
-      'REJECT_DOC',
+      'MANAGE_DOCUMENT',
       'HANDLE_REPORT',
-      'BAN_USER',
-      'DELETE_COMMENT',
+      'MANAGE_USER',
+      'MANAGE_COMMENT',
       'MANAGE_SERVER',
-      'MANAGE_ACCOUNT',
+      'MANAGE_ENTITY', // quản lý thực thể trong hệ thống, ví dụ như subject, organization
+      'MANAGE_ROLE',
       'ALL'
     ]
   }]
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('Role', roleSchema);
