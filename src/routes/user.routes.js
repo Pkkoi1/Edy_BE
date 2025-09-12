@@ -1,13 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/user.controller");
-const { requireUserRole, requireLoggedIn, refreshToken } = require("../middlewares/auth.middleware");
+const { requireUserRole, requireLoggedIn, refreshToken, requiredAdminPermission, requireAdminPermission } = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
  * /users:
  *   get:
- *     summary: Lấy danh sách người dùng
+ *     summary: Lấy danh sách người dùng yêu cầu quyền quản lý người dùng
  *     tags: [Users]
  *     responses:
  *       200:
@@ -20,9 +20,13 @@ const { requireUserRole, requireLoggedIn, refreshToken } = require("../middlewar
  *                 type: object
  *       500:
  *         description: Lỗi server
+ *       401:
+ *         description: Chưa xác thực
+ *       403:
+ *         description: Không có quyền
  */
 
-router.get("/", requireUserRole, userController.getUsers);
+router.get("/", requireAdminPermission(['MANAGE_USER']), userController.getUsers);
 
 /**
  * @swagger

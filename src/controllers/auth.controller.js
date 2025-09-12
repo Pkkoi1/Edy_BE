@@ -21,16 +21,25 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: "Sai tài khoản hoặc mật khẩu" });
     }
     // Lấy danh sách vai trò đã đc gán
-    const assignments = await Assignment.find({
-      account: account._id,
-    }).populate("role");
-    const roles =
-      assignments.length > 0 ? assignments.map((a) => a.role.code) : ["USER"];
+    let roles = [];
+    if (!account.is_verified) 
+      roles = ["NOT_VERIFY"];
+    else if (!account.is_admin)
+      roles = ["USER"];
+    else {
+      roles = await Assignment.find({ account: account._id }).populate("role");
+      if (roles.length === 0) {
+        roles = ["USER"];
+      }
+    }
+    if (roles.length > 0 && roles[0] !== "NOT_VERIFY" && roles[0] !== "USER") {
+      roles = roles.map(a => a.role.code);
+    }
 
     const payload = {
       accountId: account._id,
       userId: account.user._id,
-      roles,
+      roles: roles
     };
     const { accessToken, refreshToken } = generateTokens(payload);
 
@@ -136,22 +145,24 @@ exports.me = async (req, res) => {
         }
       ]);
 
-    const assignments = await Assignment.find({
+    const roles = await Assignment.find({
       account: account._id,
     }).populate("role");
 
-    let responseAssignments = ['USER']
-    if (assignments.length > 0) {
-      responseAssignments = assignments;
+    let responseRoles = ['USER']
+
+    if (roles.length > 0) {
+      responseRoles = roles;
     }
 
     if (!account.is_verified) {
-      responseAssignments = ['NOT_VERIFIED']
+      responseRoles = ['NOT_VERIFIED']
     }
+
     res.json({
       account: account,
       user: user,
-      assignments: responseAssignments,
+      roles: responseRoles,
     })
   } catch (error) {
     console.error(error);
