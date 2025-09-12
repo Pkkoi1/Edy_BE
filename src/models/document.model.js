@@ -11,6 +11,17 @@ const documentSchema = new mongoose.Schema({
   published_year: { type: Number, default: null },
   publisher: { type: String, default: null },
   intensive: { type: Boolean, default: false },
+  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null },
+  level: { type: String,
+    enum: [
+        'Student',
+        'University',
+        'Lecturer',
+        'Researcher',
+        'Other'
+    ]
+   }, 
+  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
   status: {
     type: String,
     enum: [
@@ -28,11 +39,10 @@ const documentSchema = new mongoose.Schema({
       'public',
       'private',
       'private_shared',
-      'anonymous'
+      'share_organization'
     ],
     default: 'public'
   },
-  share_organization: { type: Boolean, default: false },
   page: { type: Number },
   file_type: {
     type: String,
@@ -56,17 +66,6 @@ const documentSchema = new mongoose.Schema({
     ],
     required: true
   },
-  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null },
-  level: { type: String,
-    enum: [
-        'Student',
-        'University',
-        'Lecturer',
-        'Researcher',
-        'Other'
-    ]
-   }, 
-  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
   view: { type: Number, default: 0 },
   comment_count: { type: Number, default: 0 },
   download_count: { type: Number, default: 0 }

@@ -18,6 +18,22 @@ exports.requireUserRole = (req, res, next) => {
     next();
 };
 
+exports.userOrUnauthenticated = (req, res, next) => {
+    const token = req.cookies.accessToken;
+    if (!token) {
+        req.user = null;
+        return next();
+    }
+    const payload = verifyToken(token, process.env.JWT_SECRET);
+    if (!payload) {
+        req.user = null;
+        return next();
+    }
+
+    req.user = payload;
+    next();
+}
+
 exports.requireLoggedIn = (req, res, next) => {
     const token = req.cookies.accessToken;
     if (!token) return res.status(401).json({ message: 'Chưa xác thực' });

@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   contact_email: { type: String, required: true, unique: true },
   avatar: String,
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
+  last_organization_change: { type: Date, default: null },
   follower: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   field_of_study: [String],

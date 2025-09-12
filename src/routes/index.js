@@ -3,9 +3,11 @@ const router = express.Router();
 // Import sub-routes
 const authRouter = require("./auth.routes");
 const userRouter = require("./user.routes");
+const documentRouter = require("./document.routes");
 
 // Main routes configuration
 router.use("/auth", authRouter);
 router.use("/users", userRouter);
+router.use("/documents", documentRouter);
 
 module.exports = router;

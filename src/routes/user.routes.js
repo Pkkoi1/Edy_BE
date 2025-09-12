@@ -26,7 +26,7 @@ const { requireUserRole, requireLoggedIn, refreshToken, requiredAdminPermission,
  *         description: Không có quyền
  */
 
-router.get("/", requireAdminPermission(['MANAGE_USER']), userController.getUsers);
+// router.get("/", requireAdminPermission(['MANAGE_USER']), userController.getUsers);
 
 /**
  * @swagger
