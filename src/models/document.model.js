@@ -19,7 +19,8 @@ const documentSchema = new mongoose.Schema({
         'Lecturer',
         'Researcher',
         'Other'
-    ]
+    ],
+    requred: true
    }, 
   subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
   status: {
@@ -68,7 +69,8 @@ const documentSchema = new mongoose.Schema({
   },
   view: { type: Number, default: 0 },
   comment_count: { type: Number, default: 0 },
-  download_count: { type: Number, default: 0 }
+  download_count: { type: Number, default: 0 },
+  is_deleted: { type: Boolean, default: false }
 }, {
   timestamps: true
 });

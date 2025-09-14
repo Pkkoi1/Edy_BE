@@ -1,14 +1,14 @@
-const { verifyUser } = require('../services/user.service');
+const {getUsers ,verifyUser } = require('../services/user.service');
 
 
-// exports.getUsers = async (req, res) => {
-//     try{
-//         const users = await User.find();
-//         res.json(users);
-//     } catch (error) {
-//         res.status(500).json({ message: error.message }) 
-//     }
-// };
+exports.getUsers = async (req, res) => {
+    try{
+        const users = await getUsers();
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: error.message }) 
+    }
+};
 
 exports.verifyUser = async (req, res) => {
     try {

@@ -95,4 +95,94 @@ const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, r
  */
 router.get("/newest", userOrUnauthenticated, documentController.getNewestDocuments);
 
+/**
+ * @swagger
+ * /documents:
+ *   post:
+ *     summary: Tải lên tài liệu mới
+ *     tags:
+ *       - Documents
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 example: "https://res.cloudinary.com/demo/document.pdf"
+ *               title:
+ *                 type: string
+ *                 example: "Giáo trình Toán cao cấp"
+ *               doc_type:
+ *                 type: string
+ *                 enum:
+ *                   - Research Report
+ *                   - Video
+ *                   - Study Guide
+ *                   - Textbook
+ *                   - Essay
+ *                   - Solution Set
+ *                   - Thesis
+ *                   - Lecture
+ *                   - Other
+ *                 example: "Research Report"
+ *               file_type:
+ *                 type: string
+ *                 enum:
+ *                   - Word
+ *                   - PDF
+ *                   - Excel
+ *                   - Video
+ *                   - Powerpoint
+ *                 example: "PDF"
+ *               subject:
+ *                 type: string
+ *                 example: "652e1c8e2f8b9c0012345679"
+ *               author:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["Nguyễn Văn A", "Trần Thị B"]
+ *               published_year:
+ *                 type: integer
+ *                 example: 2024
+ *               publisher:
+ *                 type: string
+ *                 example: "NXB Giáo dục"
+ *               organization:
+ *                 type: string
+ *                 example: "652e1c8e2f8b9c0012345678"
+ *               level:
+ *                 type: string
+ *                 enum:
+ *                   - Student
+ *                   - University
+ *                   - Lecturer
+ *                   - Researcher
+ *                   - Other
+ *                 example: "University"
+ *               intensive:
+ *                 type: boolean
+ *                 example: false
+ *               keyword:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["toán", "cao cấp"]
+ *               description:
+ *                 type: string
+ *                 example: "Tài liệu toán cao cấp dành cho sinh viên năm nhất."
+ *               page:
+ *                 type: integer
+ *                 example: 120
+ *     responses:
+ *       201:
+ *         description: Tải lên tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ */
+router.post("/", requireUserRole, documentController.uploadDocument);
+
 module.exports = router;

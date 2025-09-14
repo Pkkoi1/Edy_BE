@@ -3,6 +3,10 @@ const Account = require('../models/account.model');
 const Organization = require('../models/organization.model');
 const mongoose = require('mongoose');
 
+const getUsers = async () => {
+    return await User.find();
+}
+
 const verifyUser = async (accountId, userId, field_of_study, organization) => {
     const account = await Account.findById(accountId);
     if (!account) throw new Error("Tài khoản không tồn tại");

@@ -11,32 +11,52 @@ const getNewestDocuments = async ({
     ...filters
 }) => {
     let user = null;
+    let sharedDocIds = [];
     if (payload && payload.userId) {
-        user = await User.findById(payload.userId);
+        user = await User.findById(payload.userId).select('organization shared_documents');
+        if (user && user.shared_documents && user.shared_documents.length > 0) {
+            sharedDocIds = user.shared_documents.map(item => item.document);
+        }
     }
 
     const skip = (page - 1) * limit;
 
-    // Query cơ bản
-    let query = { status: "approved" };
-
-    // Quyền truy cập
+     // Điều kiện quyền truy cập
+    let accessOr = [];
     if (user && user.organization) {
-        query.$or = [
+        accessOr = [
             { public_mode: "public" },
             { public_mode: "share_organization", organization: user.organization }
         ];
+        if (sharedDocIds.length > 0) {
+            accessOr.push({ _id: { $in: sharedDocIds } });
+        }
     } else {
-        query.public_mode = "public";
+        accessOr = [{ public_mode: "public" }];
+        if (sharedDocIds.length > 0) {
+            accessOr.push({ _id: { $in: sharedDocIds } });
+        }
     }
 
-    // Search theo từ khóa, title, author, keyword
+    // Điều kiện tìm kiếm
+    let searchOr = [];
     if (search) {
-        query.$or = [
+        searchOr = [
             { title: { $regex: search, $options: 'i' } },
             { author: { $elemMatch: { $regex: search, $options: 'i' } } },
             { keyword: { $elemMatch: { $regex: search, $options: 'i' } } }
         ];
+    }
+
+    // Kết hợp quyền truy cập và tìm kiếm
+    let query = { status: "approved" };
+    if (searchOr.length > 0) {
+        query.$and = [
+            { $or: accessOr },
+            { $or: searchOr }
+        ];
+    } else {
+        query.$or = accessOr;
     }
 
     // Filter các trường
@@ -79,6 +99,32 @@ const getNewestDocuments = async ({
 };
 // const getDocumentsAccessible = async (user, page = 1, limit = 5) 
 
+const createDocument = async (data) => {
+    const doc = new Document(data);
+    await doc.save();
+    return doc;
+};
+
+const deleteDocument = async (id) => {
+    const doc = await Document.findByIdAndUpdate(id, { is_deleted: true }, { new: true });
+    return doc;
+};
+
+const updateDocument = async (id, data) => {
+    // Không cho sửa trường is_deleted qua update này
+    if ('is_deleted' in data) delete data.is_deleted;
+    const doc = await Document.findByIdAndUpdate(id, data, { new: true });
+    return doc;
+};
+
+const getDocumentById = async (id) => {
+    return Document.findOne({ _id: id, is_deleted: false });
+};
+
 module.exports = {
-    getNewestDocuments
+    getNewestDocuments,
+    createDocument,
+    deleteDocument,
+    updateDocument,
+    getDocumentById
 };

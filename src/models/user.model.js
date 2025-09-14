@@ -4,7 +4,7 @@ const userSchema = new mongoose.Schema({
   first_name: { type: String, required: true },
   last_name: { type: String, required: true },
   contact_email: { type: String, required: true, unique: true },
-  avatar: String,
+  avatar: { type: String, default: null },
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   last_organization_change: { type: Date, default: null },
   follower: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

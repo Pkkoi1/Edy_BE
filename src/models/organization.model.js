@@ -2,16 +2,16 @@ const mongoose = require('mongoose');
 
 const organizationSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  code: { type: String, required: true },
+  code: { type: String, unique: true, required: true },
   created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   description: { type: String },
   subjects: [{
     subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
     count: { type: Number, default: 0 }
   }],
-  country: { type: String },
-  address: { type: String },
-  website: { type: String },
+  country: { type: String, required: true },
+  address: { type: String, required: true },
+  website: { type: String, required: true },
   content_categories: [
     {
       doc_type: {
@@ -29,7 +29,8 @@ const organizationSchema = new mongoose.Schema({
       },
       document_count: { type: Number, default: 0 }
     }
-  ]
+  ],
+  is_deleted: { type: Boolean, default: false }
 }, {
   timestamps: true
 });
