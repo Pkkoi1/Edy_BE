@@ -10,7 +10,7 @@ exports.requireUserRole = (req, res, next) => {
     const payload = verifyToken(token, process.env.JWT_SECRET);
     if (!payload) return res.status(401).json({ message: 'Mã xác thực hông hợp lệ' });
 
-    if (!payload.roles || payload.roles.includes('NOT_VERIFY')) {
+    if (!payload.roles || payload.roles.includes('NOT_VERIFIED')) {
         return res.status(403).json({ message: 'Không có quyền' });
     }
 
@@ -73,7 +73,7 @@ exports.requireAdminPermission = (permissions = []) => {
             'CUSTOM_ROLE'
         ];
         const userAdminRoles = payload.roles.filter(role => adminRoles.includes(role));
-        if (userAdminRoles.length === 0 || payload.roles.includes('NOT_VERIFY')) {
+        if (userAdminRoles.length === 0 || payload.roles.includes('NOT_VERIFIED')) {
             return res.status(403).json({ message: 'Không có quyền admin' });
         }
         

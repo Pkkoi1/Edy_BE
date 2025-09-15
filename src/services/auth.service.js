@@ -22,7 +22,7 @@ const loginService = async ({ email, password }) => {
 
     // Lấy roles
     let roles = [];
-    if (!account.is_verified) roles = ["NOT_VERIFY"];
+    if (!account.is_verified) roles = ["NOT_VERIFIED"];
     else if (!account.is_admin) roles = ["USER"];
     else {
         const assignments = await Assignment.find({ account: account._id }).populate("role");
@@ -70,7 +70,7 @@ const getMeService = async (payload) => {
     const roles = await Assignment.find({ account: account._id }).populate("role");
     let responseRoles = ['USER'];
     if (roles.length > 0) responseRoles = roles.map(a => a.role.code);
-    if (!account.is_verified) responseRoles = ['NOT_VERIFY'];
+    if (!account.is_verified) responseRoles = ['NOT_VERIFIED'];
     return { account, user, roles: responseRoles };
 };
 

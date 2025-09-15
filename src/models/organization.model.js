@@ -12,6 +12,7 @@ const organizationSchema = new mongoose.Schema({
   country: { type: String, required: true },
   address: { type: String, required: true },
   website: { type: String, required: true },
+  logo: { type: String, default: null },
   content_categories: [
     {
       doc_type: {
@@ -30,6 +31,9 @@ const organizationSchema = new mongoose.Schema({
       document_count: { type: Number, default: 0 }
     }
   ],
+  is_checked: { type: Boolean, default: false },
+  checked_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  checked_at: { type: Date, default: null },
   is_deleted: { type: Boolean, default: false }
 }, {
   timestamps: true

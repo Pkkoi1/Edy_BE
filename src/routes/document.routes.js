@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const documentController = require("../controllers/document.controller");
-const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, requiredAdminPermission, requireAdminPermission } = require("../middlewares/auth.middleware");
+const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, requireAdminPermission } = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
@@ -184,5 +184,29 @@ router.get("/newest", userOrUnauthenticated, documentController.getNewestDocumen
  *         description: Yêu cầu không hợp lệ
  */
 router.post("/", requireUserRole, documentController.uploadDocument);
+
+/**
+ * @swagger
+ * /documents/approve/{id}:
+ *   put:
+ *     summary: Phê duyệt tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Phê duyệt tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền
+ */
+router.put("/approve/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.approveDocument);
 
 module.exports = router;

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const organizationController = require("../controllers/organization.controller");
-const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, requiredAdminPermission, requireAdminPermission } = require("../middlewares/auth.middleware");
+const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, requireAdminPermission } = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
@@ -56,6 +56,6 @@ router.get("/", organizationController.getOrganizations);
  *       400:
  *         description: Yêu cầu không hợp lệ
  */
-router.post("/", requireUserRole, organizationController.createOrganization);
+router.post("/", requireLoggedIn, organizationController.createOrganization);
 
 module.exports = router;
