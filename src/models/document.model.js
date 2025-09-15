@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const documentSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   description: {
-    summary_by_user: { type: String },
-    summary_by_ai: { type: String }
+    summary_by_user: { type: String, default: null},
+    summary_by_ai: { type: String, default: null}
   },
   author: [{ type: String }],
   url: { type: String, required: true },

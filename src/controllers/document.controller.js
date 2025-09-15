@@ -1,5 +1,6 @@
 const {getNewestDocuments, createDocument} = require("../services/document.service");
 const {getOrganizationById} = require("../services/organization.service");
+const {createApprovalRequest, approveRequest} = require("../services/approval_request.service");
 
 exports.getNewestDocuments = async (req, res) => {
     try {
@@ -52,7 +53,15 @@ exports.uploadDocument = async (req, res) => {
         if (!org) {
             return res.status(400).json({ message: "Tổ chức không hợp lệ" });
         }
-        
+
+        let descriptionObj = {
+            summary_by_user: null,
+            summary_by_ai: null
+        }
+        if (description && description.length > 30) {
+            descriptionObj.summary_by_user = description;
+        }
+
         const document = await createDocument({
             user: req.user.userId, // người đăng
             url,
@@ -67,15 +76,33 @@ exports.uploadDocument = async (req, res) => {
             level,
             intensive,
             keyword,
-            description,
+            description: descriptionObj,
             page
+        });
+
+        //Tạo approval request
+        await createApprovalRequest({
+            documentId: document._id,
+            requesterId: req.user.userId,
         });
         
         res.status(201).json({ message: "Tải lên tài liệu thành công", document });
-        //Tạo approval request để sau
-
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Đã xảy ra lỗi khi tải lên tài liệu" });
     }
 }
+
+// Admin
+exports.approveDocument = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const approverId = req.user.userId;
+
+        const approvalRequest = await approveRequest(requestId, approverId);
+        res.json({ message: "Phê duyệt tài liệu thành công", approvalRequest });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi phê duyệt tài liệu" });
+    }
+};
