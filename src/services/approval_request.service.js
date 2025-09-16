@@ -1,4 +1,6 @@
 const ApprovalRequest = require("../models/approval_request.model");
+const User = require("../models/user.model");
+const Document = require("../models/document.model");
 
 const createApprovalRequest = async (documentId, requesterId) => {
     const requester = await User.findById(requesterId);

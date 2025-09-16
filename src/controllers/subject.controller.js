@@ -19,7 +19,7 @@ exports.createSubject = async (req, res) => {
 
 exports.getSubjectsByOrganization = async (req, res) => {
   try {
-    const { organizationId } = req.params;
+    const { organizationId } = req.query;
     const subjects = await getSubjectsByOrganization(organizationId);
     res.status(200).json(subjects);
   } catch (error) {
