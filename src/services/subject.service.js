@@ -1,8 +1,15 @@
 const Subject = require('../models/subject.model');
+const Organization = require('../models/organization.model');
 
 const createSubject = async (data) => {
   try {
     const newSubject = new Subject(data);
+    
+    const org = Organization.findById(data.organization);
+    if (!org) {
+      throw new Error('Tổ chức không tồn tại');
+    }
+    
     await newSubject.save();
     return newSubject;
   } catch (error) {
@@ -28,7 +35,9 @@ const getSubjectById = async (id) => {
 
 const getSubjectsByOrganization = async (organizationId) => {
   try {
-    return await Subject.find({ organization: organizationId }).populate('created_by').populate('organization');
+    return await Subject.find({ organization: organizationId })
+      .populate({path: 'created_by', select: '_id name email avatar'})
+      .populate({path: 'organization', select: '_id name'});
   } catch (error) {
     throw error;
   }

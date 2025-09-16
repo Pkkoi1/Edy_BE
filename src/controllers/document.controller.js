@@ -37,6 +37,7 @@ exports.uploadDocument = async (req, res) => {
             title,
             doc_type,
             file_type,
+            cover_page,
             subject,
             author,
             published_year,
@@ -68,6 +69,7 @@ exports.uploadDocument = async (req, res) => {
             title,
             doc_type,
             file_type,
+            cover_page,
             subject,
             author,
             published_year,
@@ -81,10 +83,7 @@ exports.uploadDocument = async (req, res) => {
         });
 
         //Tạo approval request
-        await createApprovalRequest({
-            documentId: document._id,
-            requesterId: req.user.userId,
-        });
+        await createApprovalRequest( document._id, req.user.userId);
         
         res.status(201).json({ message: "Tải lên tài liệu thành công", document });
     } catch (error) {

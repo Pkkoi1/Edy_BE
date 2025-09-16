@@ -8,6 +8,7 @@ const documentSchema = new mongoose.Schema({
   },
   author: [{ type: String }],
   url: { type: String, required: true },
+  cover_page: { type: String, default: null },
   published_year: { type: Number, default: null },
   publisher: { type: String, default: null },
   intensive: { type: Boolean, default: false },
