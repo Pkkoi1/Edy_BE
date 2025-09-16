@@ -87,9 +87,10 @@ const getNewestDocuments = async ({
             .sort(sort)
             .skip(skip)
             .limit(limit)
-            .select('_id user title author published_year publisher page file_type intensive organization view download_count comment_count createdAt')
+            .select('_id user title author published_year publisher page file_type intensive organization subject level view download_count comment_count createdAt')
             .populate({ path: 'user', select: '_id first_name last_name' })
-            .populate({ path: 'organization', select: '_id name' }),
+            .populate({ path: 'organization', select: '_id name' })
+            .populate({ path: 'subject', select: '_id name' }),
         Document.countDocuments(query)
     ]);
     const totalPages = Math.ceil(total / limit);
@@ -190,9 +191,10 @@ const getDocumentsBySubject = async ({
             .sort(sort)
             .skip(skip)
             .limit(limit)
-            .select('_id user title author published_year publisher page file_type intensive organization view download_count comment_count createdAt')
+            .select('_id user title author published_year publisher page file_type intensive organization subject level view download_count comment_count createdAt')
             .populate({ path: 'user', select: '_id first_name last_name' })
-            .populate({ path: 'organization', select: '_id name' }),
+            .populate({ path: 'organization', select: '_id name' })
+            .populate({ path: 'subject', select: '_id name' }),
         Document.countDocuments(query)
     ]);
     const totalPages = Math.ceil(total / limit);

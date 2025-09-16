@@ -11,7 +11,11 @@ const approvalRequestSchema = new mongoose.Schema({
     enum: ['Pending', 'Approved', 'Rejected'],
     default: 'Pending'
   },
-  message: { type: String, default: '' }
+  message: { type: String, default: '' },
+  ai_checked: { type: Boolean, default: false },
+  ai_violation_level: { type: String, enum: ['none', 'low', 'medium', 'high'], default: 'none' },
+  ai_action_suggest: { type: String, enum: ['auto_approve', 'manual_review', 'reject'], default: 'manual_review' },
+  ai_reason: { type: String, default: '' }
 }, {
   timestamps: true
 });

@@ -82,7 +82,7 @@ exports.uploadDocument = async (req, res) => {
             page
         });
 
-        //Tạo approval request
+        //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
         await createApprovalRequest( document._id, req.user.userId);
         
         res.status(201).json({ message: "Tải lên tài liệu thành công", document });
