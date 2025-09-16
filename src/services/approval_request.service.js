@@ -32,6 +32,12 @@ const createApprovalRequest = async (documentId, requesterId) => {
     for (const req of approvalRequests) {
         await req.save();
     }
+
+    // Kiểm duyệt mềm bằng AI
+    // checkDocumentWithAI(approvalRequests); ý tưởng ban đầu: đưa vào mảng request, is_summary false thì chỉ đưa context là tài liệu, true thì đưa context là summary_by_user cùng với tài liệu để check
+
+    //kiểm duyệt mềm nếu auto_approve thì tạo summary bằng ai (có thể để hàm check phía trên trả kết quả rồi dùng if để gọi hàm gen hoặc đưa hàm gen vào bên trong hàm check luôn)
+    // generateSummaryByAI(document._id, file_type, url);
 };
 
 const approveRequest = async (requestId, approverId) => {
@@ -45,6 +51,9 @@ const approveRequest = async (requestId, approverId) => {
     approvalRequest.approved_at = new Date();
     approvalRequest.status = "Approved";
     await approvalRequest.save();
+
+    //gửi thông báo cho người đăng (để sau)
+
     return approvalRequest;
 };
 
