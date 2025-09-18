@@ -46,22 +46,20 @@ exports.uploadDocument = async (req, res) => {
             level,
             intensive,
             keyword,
+            public_mode,
             description,
             page
         } = req.body;
-
-        const org = await getOrganizationById(organization);
-        if (!org) {
-            return res.status(400).json({ message: "Tổ chức không hợp lệ" });
-        }
 
         let descriptionObj = {
             summary_by_user: null,
             summary_by_ai: null
         }
-        if (description && description.length > 30) {
+        if (description && description.length > 10) {
             descriptionObj.summary_by_user = description;
         }
+
+        console.log(descriptionObj)
 
         const document = await createDocument({
             user: req.user.userId, // người đăng
@@ -78,6 +76,7 @@ exports.uploadDocument = async (req, res) => {
             level,
             intensive,
             keyword,
+            public_mode,
             description: descriptionObj,
             page
         });
@@ -88,7 +87,7 @@ exports.uploadDocument = async (req, res) => {
         res.status(201).json({ message: "Tải lên tài liệu thành công", document });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Đã xảy ra lỗi khi tải lên tài liệu" });
+        res.status(500).json({ message: error.message || "Đã xảy ra lỗi khi tải lên tài liệu" });
     }
 }
 

@@ -1,6 +1,9 @@
 const Document = require("../models/document.model");
 const User = require("../models/user.model");
+const Organization = require("../models/organization.model");
+const Subject = require("../models/subject.model");
 const cloudinary = require('cloudinary').v2;
+const mongoose = require('mongoose');
 
 const getNewestDocuments = async ({
     payload,
@@ -22,7 +25,7 @@ const getNewestDocuments = async ({
 
     const skip = (page - 1) * limit;
 
-     // Điều kiện quyền truy cập
+    // Điều kiện quyền truy cập
     let accessOr = [];
     if (user && user.organization) {
         accessOr = [
@@ -218,6 +221,22 @@ const getCoverPage = (url) => {
 
 const createDocument = async (data) => {
     const docData = { ...data, cover_page: data.cover_page || getCoverPage(data.url) };
+
+    if (data.organization && !mongoose.Types.ObjectId.isValid(data.organization)) {
+        throw new Error('ID tổ chức không hợp lệ');
+    }
+    const organization = data.organization ? await Organization.findById(data.organization) : null;
+    if (data.organization && !organization) {
+        throw new Error('Tổ chức không tồn tại');
+    }
+    
+    if (data.subject && !mongoose.Types.ObjectId.isValid(data.subject)) {
+        throw new Error('ID môn học không hợp lệ');
+    }
+    const subject = data.subject ? await Subject.findById(data.subject) : null;
+    if (!subject) {
+        throw new Error('Môn học không tồn tại');
+    }
     const doc = new Document(docData);
     await doc.save();
     return doc;

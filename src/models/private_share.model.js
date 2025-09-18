@@ -10,8 +10,8 @@ const privateShareSchema = new mongoose.Schema({
   doc: { type: mongoose.Schema.Types.ObjectId, ref: 'Document', required: true },
   status: {
     type: String,
-    enum: ['Active', 'Inactive', 'Blocked'],
-    default: 'Active'
+    enum: ['ACTIVE', 'INACTIVE', 'BLOCKED'],
+    default: 'ACTIVE'
   },
   user_accessed: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, {

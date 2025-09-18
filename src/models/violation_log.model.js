@@ -5,7 +5,7 @@ const violationLogSchema = new mongoose.Schema({
   target: {
     type: {
       type: String,
-      enum: ['Document', 'Comment'],
+      enum: ['DOCUMENT', 'COMMENT'],
       required: true
     },
     id: { type: mongoose.Schema.Types.ObjectId, required: true }

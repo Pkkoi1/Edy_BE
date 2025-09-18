@@ -4,7 +4,7 @@ const pointTransactionSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   type: {
     type: String,
-    enum: ['earn', 'spend'],
+    enum: ['EARN', 'SPEND'],
     required: true
   },
   point: { type: Number, required: true },

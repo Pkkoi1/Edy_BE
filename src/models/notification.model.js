@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema({
   cmt: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment', default: null },
   type: {
     type: String,
-    enum: ['Approved', 'Remove', 'Rejected', 'Hidden', 'System'],
+    enum: ['APPROVED', 'REMOVED', 'REJECTED', 'HIDDEN', 'SYSTEM', 'COMMENT', 'REPLY'],
     required: true
   },
   message: { type: String, required: true },
