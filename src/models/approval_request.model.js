@@ -8,13 +8,13 @@ const approvalRequestSchema = new mongoose.Schema({
   is_summary: { type: Boolean, default: false },
   status: {
     type: String,
-    enum: ['Pending', 'Approved', 'Rejected'],
-    default: 'Pending'
+    enum: ['PENDING', 'APPROVED', 'REJECTED'],
+    default: 'PENDING'
   },
   message: { type: String, default: '' },
   ai_checked: { type: Boolean, default: false },
-  ai_violation_level: { type: String, enum: ['none', 'low', 'medium', 'high'], default: 'none' },
-  ai_action_suggest: { type: String, enum: ['auto_approve', 'manual_review', 'reject'], default: 'manual_review' },
+  ai_violation_level: { type: String, enum: ['NONE', 'LOW', 'MEDIUM', 'HIGH'], default: 'NONE' },
+  ai_action_suggest: { type: String, enum: ['AUTO_APPROVE', 'MANUAL_REVIEW', 'REJECT'], default: 'MANUAL_REVIEW' },
   ai_reason: { type: String, default: '' }
 }, {
   timestamps: true

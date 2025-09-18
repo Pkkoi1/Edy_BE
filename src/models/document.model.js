@@ -15,40 +15,40 @@ const documentSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null },
   level: { type: String,
     enum: [
-        'Student',
-        'University',
-        'Lecturer',
-        'Researcher',
-        'Other'
+        'STUDENT',
+        'UNIVERSITY',
+        'LECTURER',
+        'RESEARCHER',
+        'OTHER'
     ],
-    requred: true
-   }, 
+    required: true
+  },
   subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
   status: {
     type: String,
     enum: [
-      'pending',
-      'approved',
-      'pending_summary',
-      'rejected',
-      'requested_edit'
+      'PENDING',
+      'APPROVED',
+      'PENDING_SUMMARY',
+      'REJECTED',
+      'REQUESTED_EDIT'
     ],
-    default: 'pending'
+    default: 'PENDING'
   },
   public_mode: {
     type: String,
     enum: [
-      'public',
-      'private',
-      'private_shared',
-      'share_organization'
+      'PUBLIC',
+      'PRIVATE',
+      'PRIVATE_SHARED',
+      'SHARE_ORGANIZATION'
     ],
-    default: 'public'
+    default: 'PUBLIC'
   },
   page: { type: Number },
   file_type: {
     type: String,
-    enum: ['Word', 'PDF', 'Excel', 'Video', 'Powerpoint'],
+    enum: ['WORD', 'PDF', 'EXCEL', 'VIDEO', 'POWERPOINT'],
     required: true
   },
   keyword: [{ type: String }],
@@ -56,15 +56,15 @@ const documentSchema = new mongoose.Schema({
   doc_type: {
     type: String,
     enum: [
-      'Research Report',
-      'Video',
-      'Study Guide',
-      'Textbook',
-      'Essay',
-      'Solution Set',
-      'Thesis',
-      'Lecture',
-      'Other'
+      'RESEARCH_REPORT',
+      'VIDEO',
+      'STUDY_GUIDE',
+      'TEXTBOOK',
+      'ESSAY',
+      'SOLUTION_SET',
+      'THESIS',
+      'LECTURE',
+      'OTHER'
     ],
     required: true
   },

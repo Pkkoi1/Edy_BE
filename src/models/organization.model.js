@@ -18,14 +18,15 @@ const organizationSchema = new mongoose.Schema({
       doc_type: {
         type: String,
         enum: [
-          'Research Report',
-          'Video',
-          'Study Guide',
-          'Textbook',
-          'Essay',
-          'Solution Set',
-          'Thesis',
-          'Lecture'
+          'RESEARCH_REPORT',
+          'VIDEO',
+          'STUDY_GUIDE',
+          'TEXTBOOK',
+          'ESSAY',
+          'SOLUTION_SET',
+          'THESIS',
+          'LECTURE',
+          'OTHER'
         ]
       },
       document_count: { type: Number, default: 0 }

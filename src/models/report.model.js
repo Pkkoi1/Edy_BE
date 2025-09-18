@@ -6,14 +6,14 @@ const reportSchema = new mongoose.Schema({
   reason: { type: String, required: true },
   status: {
     type: String,
-    enum: ['processing', 'resolved'],
-    default: 'processing'
+    enum: ['PROCESSING', 'RESOLVED'],
+    default: 'PROCESSING'
   },
   resolvedAt: { type: Date, default: null },
   resolveBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   action: {
     type: String,
-    enum: ['delete','false report']
+    enum: ['DELETE', 'FALSE_REPORT']
   },
   resolveReason: { type: String, default: null }
 }, {
