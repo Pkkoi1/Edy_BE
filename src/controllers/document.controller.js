@@ -1,4 +1,4 @@
-const {getNewestDocuments, createDocument} = require("../services/document.service");
+const {getNewestDocuments, createDocument, getDocumentById} = require("../services/document.service");
 const {getOrganizationById} = require("../services/organization.service");
 const {createApprovalRequest, approveRequest} = require("../services/approval_request.service");
 
@@ -29,11 +29,26 @@ exports.getNewestDocuments = async (req, res) => {
     }
 };
 
+exports.getDocumentById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const document = await getDocumentById(id, req.user);
+        if (!document) {
+            return res.status(404).json({ message: "Tài liệu không tồn tại hoặc bạn không có quyền truy cập" });
+        }
+        res.json(document);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu" });
+    }
+};
+
 exports.uploadDocument = async (req, res) => {
     try {
         // nhận thông tin tài liệu (url là link cloudinary)
         const {
             url,
+            preview_url,
             title,
             doc_type,
             file_type,
@@ -64,6 +79,7 @@ exports.uploadDocument = async (req, res) => {
         const document = await createDocument({
             user: req.user.userId, // người đăng
             url,
+            preview_url,
             title,
             doc_type,
             file_type,

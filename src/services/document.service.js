@@ -5,6 +5,13 @@ const Subject = require("../models/subject.model");
 const cloudinary = require('cloudinary').v2;
 const mongoose = require('mongoose');
 
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true
+});
+
 const getNewestDocuments = async ({
     payload,
     search,
@@ -29,14 +36,14 @@ const getNewestDocuments = async ({
     let accessOr = [];
     if (user && user.organization) {
         accessOr = [
-            { public_mode: "public" },
-            { public_mode: "share_organization", organization: user.organization }
+            { public_mode: "PUBLIC" },
+            { public_mode: "SHARE_ORGANIZATION", organization: user.organization }
         ];
         if (sharedDocIds.length > 0) {
             accessOr.push({ _id: { $in: sharedDocIds } });
         }
     } else {
-        accessOr = [{ public_mode: "public" }];
+        accessOr = [{ public_mode: "PUBLIC" }];
         if (sharedDocIds.length > 0) {
             accessOr.push({ _id: { $in: sharedDocIds } });
         }
@@ -53,7 +60,7 @@ const getNewestDocuments = async ({
     }
 
     // Kết hợp quyền truy cập và tìm kiếm
-    let query = { status: "approved", is_deleted: false };
+    let query = { status: "APPROVED", is_deleted: false };
     if (searchOr.length > 0) {
         query.$and = [
             { $or: accessOr },
@@ -90,7 +97,7 @@ const getNewestDocuments = async ({
             .sort(sort)
             .skip(skip)
             .limit(limit)
-            .select('_id user title author published_year publisher page file_type intensive organization subject level view download_count comment_count createdAt')
+            .select('_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count createdAt')
             .populate({ path: 'user', select: '_id first_name last_name' })
             .populate({ path: 'organization', select: '_id name' })
             .populate({ path: 'subject', select: '_id name' }),
@@ -132,14 +139,14 @@ const getDocumentsBySubject = async ({
     let accessOr = [];
     if (user && user.organization) {
         accessOr = [
-            { public_mode: "public" },
-            { public_mode: "share_organization", organization: user.organization }
+            { public_mode: "PUBLIC" },
+            { public_mode: "SHARE_ORGANIZATION", organization: user.organization }
         ];
         if (sharedDocIds.length > 0) {
             accessOr.push({ _id: { $in: sharedDocIds } });
         }
     } else {
-        accessOr = [{ public_mode: "public" }];
+        accessOr = [{ public_mode: "PUBLIC" }];
         if (sharedDocIds.length > 0) {
             accessOr.push({ _id: { $in: sharedDocIds } });
         }
@@ -156,7 +163,7 @@ const getDocumentsBySubject = async ({
     }
 
     // Kết hợp quyền truy cập, tìm kiếm và lọc subject
-    let query = { status: "approved", is_deleted: false, subject };
+    let query = { status: "APPROVED", is_deleted: false, subject };
     if (searchOr.length > 0) {
         query.$and = [
             { $or: accessOr },
@@ -194,7 +201,7 @@ const getDocumentsBySubject = async ({
             .sort(sort)
             .skip(skip)
             .limit(limit)
-            .select('_id user title author published_year publisher page file_type intensive organization subject level view download_count comment_count createdAt')
+            .select('_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count createdAt')
             .populate({ path: 'user', select: '_id first_name last_name' })
             .populate({ path: 'organization', select: '_id name' })
             .populate({ path: 'subject', select: '_id name' }),
@@ -254,10 +261,18 @@ const updateDocument = async (id, data) => {
     return doc;
 };
 
-const getDocumentById = async (id) => {
-    return Document.findOne({ _id: id, is_deleted: false });
+const getDocumentPreviewContent = async (doc) => {
+    
 };
 
+const getDocumentById = async (id) => {
+    const doc = await Document.findOne({ _id: id, is_deleted: false });
+    if (!doc) return null;
+
+    const docObj = doc.toObject();
+    
+    return docObj;
+};
 
 module.exports = {
     getNewestDocuments,
