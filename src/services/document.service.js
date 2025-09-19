@@ -266,12 +266,12 @@ const getDocumentPreviewContent = async (doc) => {
 };
 
 const getDocumentById = async (id) => {
-    const doc = await Document.findOne({ _id: id, is_deleted: false });
-    if (!doc) return null;
+    const doc = await Document.findOne({ _id: id, is_deleted: false })
+        .populate({ path: 'user', select: '_id first_name last_name' })
+        .populate({ path: 'organization', select: '_id name' })
+        .populate({ path: 'subject', select: '_id name' });
 
-    const docObj = doc.toObject();
-    
-    return docObj;
+    return doc;
 };
 
 module.exports = {
