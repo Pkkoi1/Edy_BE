@@ -187,6 +187,29 @@ router.post("/", requireUserRole, documentController.uploadDocument);
 
 /**
  * @swagger
+ * /documents/{id}:
+ *   get:
+ *     summary: Lấy thông tin chi tiết tài liệu theo ID
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin tài liệu thành công
+ *       404:
+ *         description: Tài liệu không tồn tại hoặc bạn không có quyền truy cập
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy tài liệu
+ */
+router.get("/:id", userOrUnauthenticated, documentController.getDocumentById);
+/**
+ * @swagger
  * /documents/approve/{id}:
  *   put:
  *     summary: Phê duyệt tài liệu
