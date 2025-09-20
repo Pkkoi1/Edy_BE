@@ -40,16 +40,34 @@ const createApprovalRequest = async (documentId, requesterId) => {
     // generateSummaryByAI(document._id, file_type, url);
 };
 
-const approveRequest = async (requestId, approverId) => {
-    const approver = await User.findById(approverId);
-    if (!approver) throw new Error("Người duyệt không tồn tại");
+const approveRequest = async (requestId, reviewerId) => {
+    const reviewer = await User.findById(reviewerId);
+    if (!reviewer) throw new Error("Người duyệt không tồn tại");
 
     const approvalRequest = await ApprovalRequest.findById(requestId);
     if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
 
-    approvalRequest.approved_by = approver._id;
-    approvalRequest.approved_at = new Date();
+    approvalRequest.reviewed_by = reviewer._id;
+    approvalRequest.reviewed_at = new Date();
     approvalRequest.status = "Approved";
+    await approvalRequest.save();
+
+    //gửi thông báo cho người đăng (để sau)
+
+    return approvalRequest;
+};
+
+const rejectDocument = async (requestId, reviewerId, reason) => {
+    const reviewer = await User.findById(reviewerId);
+    if (!reviewer) throw new Error("Người duyệt không tồn tại");
+
+    const approvalRequest = await ApprovalRequest.findById(requestId);
+    if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
+
+    approvalRequest.reviewed_by = reviewer._id;
+    approvalRequest.reviewed_at = new Date();
+    approvalRequest.status = "Rejected";
+    approvalRequest.reason = reason;
     await approvalRequest.save();
 
     //gửi thông báo cho người đăng (để sau)
