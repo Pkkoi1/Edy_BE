@@ -220,7 +220,7 @@ exports.approveDocument = async (req, res) => {
 exports.rejectDocument = async (req, res) => {
     try {
         const { requestId } = req.params;
-        const { message } = req.body;
+        const { message = ""} = req.body;
         const reviewerId = req.user.userId;
 
         const approvalRequest = await rejectRequest(requestId, reviewerId, message);

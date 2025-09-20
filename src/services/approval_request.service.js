@@ -84,6 +84,7 @@ const approveRequest = async (requestId, reviewerId) => {
         }
         // Nếu còn document pending thì giữ nguyên status PENDING
     }
+
     //gửi thông báo cho người đăng (để sau)
 
     return approvalRequest;
@@ -101,6 +102,56 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     approvalRequest.status = "REJECTED";
     approvalRequest.message = reason;
     await approvalRequest.save();
+
+    const document = await Document.findById(approvalRequest.doc);
+    if (!document) throw new Error("Tài liệu không tồn tại");
+
+    // Kiểm tra nếu đang reject summary request
+    if (approvalRequest.is_summary) {
+        // Tìm document request gần nhất (không phải summary)
+        const latestDocumentRequest = await ApprovalRequest.findOne({
+            doc: approvalRequest.doc,
+            is_summary: false
+        }).sort({ createdAt: -1 });
+
+        // Kiểm tra xem có pending request nào khác không (trừ summary request vừa reject)
+        const hasPendingRequests = await ApprovalRequest.exists({
+            doc: approvalRequest.doc,
+            _id: { $ne: requestId },
+            status: "PENDING"
+        });
+
+        // Nếu document request gần nhất đã approve và không còn pending request nào khác
+        if (latestDocumentRequest && latestDocumentRequest.status === "APPROVED" && !hasPendingRequests) {
+            document.status = "APPROVED";
+            await document.save();
+
+            const user = await User.findById(approvalRequest.requester);
+            if (user) {
+                // Kiểm tra xem đã tăng doc_count chưa dựa vào thời gian approve document request
+                if (latestDocumentRequest.reviewed_at && latestDocumentRequest.reviewed_at < approvalRequest.reviewed_at) {
+                    // Document đã được approve trước đó, không cần tăng doc_count nữa
+                } else {
+                    user.doc_count = (user.doc_count || 0) + 1;
+                    await user.save();
+                }
+            }
+        }
+    } else {
+        // Nếu reject document request, tìm document request gần nhất khác
+        const latestApprovedDocumentRequest = await ApprovalRequest.findOne({
+            doc: approvalRequest.doc,
+            is_summary: false,
+            status: "APPROVED",
+            _id: { $ne: requestId }
+        }).sort({ createdAt: -1 });
+
+        // Chỉ chuyển về REJECTED nếu không có document request nào khác được approve
+        if (!latestApprovedDocumentRequest) {
+            document.status = "REJECTED";
+            await document.save();
+        }
+    }
 
     //gửi thông báo cho người đăng (để sau)
 

@@ -248,8 +248,8 @@ router.get("/pending-requests/:documentId", requireAdminPermission(['MANAGE_DOCU
  *       403:
  *         description: Không có quyền
  */
-router.put("/approve/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.approveDocument);
 
+router.put("/approve/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.approveDocument);
 /**
  * @swagger
  * /documents/reject/{id}:
@@ -263,7 +263,18 @@ router.put("/approve/:id", requireAdminPermission(['MANAGE_DOCUMENT']), document
  *         required: true
  *         schema:
  *           type: string
- *         description: ID tài liệu
+ *         description: ID request
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: "Tài liệu không phù hợp với quy định của hệ thống."
+ *                 description: Tin nhắn từ chối (nếu có)
  *     responses:
  *       200:
  *         description: Từ chối tài liệu thành công
