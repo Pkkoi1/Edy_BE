@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const subjectController = require("../controllers/subject.controller");
+const documentController = require("../controllers/document.controller");
 const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, requireAdminPermission } = require("../middlewares/auth.middleware");
 
 /**
@@ -60,7 +61,53 @@ router.post("/", requireUserRole, subjectController.createSubject);
 router.get("/", requireUserRole, subjectController.getSubjectsByOrganization);
 
 // router.get("/:id", requireUserRole, subjectController.getSubjectById);
+/**
+ * @swagger
+ * /subjects/{id}:
+ *   get:
+ *     summary: Lấy thông tin môn học theo ID
+ *     tags:
+ *       - Subjects
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của môn học
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin môn học thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Môn học không tồn tại
+ */
+router.get("/:id", requireUserRole, subjectController.getSubjectById);
 
+/**
+ * @swagger
+ * /subjects/{id}/documents:
+ *   get:
+ *     summary: Lấy danh sách tài liệu theo môn học
+ *     tags:
+ *       - Subjects
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của môn học
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Môn học không tồn tại
+ */
+router.get("/:id/documents", userOrUnauthenticated, documentController.getDocumentsBySubject);
 /**
  * @swagger
  * /subjects/{id}:

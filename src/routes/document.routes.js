@@ -208,6 +208,8 @@ router.post("/", requireUserRole, documentController.uploadDocument);
  *         description: Đã xảy ra lỗi khi lấy tài liệu
  */
 router.get("/:id", userOrUnauthenticated, documentController.getDocumentById);
+
+router.get("/pending", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.getPendingDocuments);
 /**
  * @swagger
  * /documents/approve/{id}:
