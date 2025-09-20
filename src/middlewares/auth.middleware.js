@@ -62,7 +62,6 @@ exports.requireAdminPermission = (permissions = []) => {
         if (!token) return res.status(401).json({ message: 'Chưa xác thực' });
 
         const payload = verifyToken(token, process.env.JWT_SECRET);
-        console.log('Payload from token:', payload);
         if (!payload) return res.status(401).json({ message: 'Mã xác thực không hợp lệ' });
 
         const adminRoles = [
