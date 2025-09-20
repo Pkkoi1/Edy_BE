@@ -204,25 +204,25 @@ router.get("/pending", requireAdminPermission(['MANAGE_DOCUMENT']), documentCont
 
 /**
  * @swagger
- * /documents/pending-requests/{documentId}:
- *  get:
- *   summary: Lấy danh sách các yêu cầu phê duyệt cho một tài liệu
- *   tags:
- *    - Documents
- *   parameters:
- *      - in: path
- *        name: documentId
- *        required: true
- *        schema:
- *          type: string
- *          description: ID tài liệu
- *  responses:
- *    200:
- *      description: Lấy danh sách yêu cầu phê duyệt thành công
- *    403:
- *      description: Không có quyền
- *    500:
- *      description: Lỗi server
+ * /documents/pending-requests/{id}:
+ *   get:
+ *     summary: Lấy danh sách yêu cầu phê duyệt tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách yêu cầu phê duyệt tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền
  */
 router.get("/pending-requests/:documentId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.getPendingRequestsByDocument);
 
@@ -239,7 +239,7 @@ router.get("/pending-requests/:documentId", requireAdminPermission(['MANAGE_DOCU
  *         required: true
  *         schema:
  *           type: string
- *         description: ID tài liệu
+ *         description: ID request
  *     responses:
  *       200:
  *         description: Phê duyệt tài liệu thành công
@@ -248,7 +248,6 @@ router.get("/pending-requests/:documentId", requireAdminPermission(['MANAGE_DOCU
  *       403:
  *         description: Không có quyền
  */
-
 router.put("/approve/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.approveDocument);
 /**
  * @swagger
@@ -283,7 +282,7 @@ router.put("/approve/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), d
  *       403:
  *         description: Không có quyền
  */
-router.put("/reject/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.rejectDocument);
+router.put("/reject/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.rejectDocument);
 
 /**
  * @swagger

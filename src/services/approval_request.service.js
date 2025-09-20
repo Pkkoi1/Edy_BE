@@ -100,7 +100,7 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     approvalRequest.reviewed_by = reviewer._id;
     approvalRequest.reviewed_at = new Date();
     approvalRequest.status = "REJECTED";
-    approvalRequest.message = reason;
+    approvalRequest.message = message;
     await approvalRequest.save();
 
     const document = await Document.findById(approvalRequest.doc);
