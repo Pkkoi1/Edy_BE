@@ -84,6 +84,7 @@ const approveRequest = async (requestId, reviewerId) => {
         }
         // Nếu còn document pending thì giữ nguyên status PENDING
     }
+
     //gửi thông báo cho người đăng (để sau)
 
     return approvalRequest;
@@ -124,6 +125,17 @@ const rejectRequest = async (requestId, reviewerId, message) => {
         if (latestDocumentRequest && latestDocumentRequest.status === "APPROVED" && !hasPendingRequests) {
             document.status = "APPROVED";
             await document.save();
+
+            const user = await User.findById(approvalRequest.requester);
+            if (user) {
+                // Kiểm tra xem đã tăng doc_count chưa dựa vào thời gian approve document request
+                if (latestDocumentRequest.reviewed_at && latestDocumentRequest.reviewed_at < approvalRequest.reviewed_at) {
+                    // Document đã được approve trước đó, không cần tăng doc_count nữa
+                } else {
+                    user.doc_count = (user.doc_count || 0) + 1;
+                    await user.save();
+                }
+            }
         }
     } else {
         // Nếu reject document request, tìm document request gần nhất khác
