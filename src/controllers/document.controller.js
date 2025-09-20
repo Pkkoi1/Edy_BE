@@ -1,6 +1,6 @@
-const {getNewestDocuments, createDocument, getDocumentById} = require("../services/document.service");
-const {getOrganizationById} = require("../services/organization.service");
-const {createApprovalRequest, approveRequest} = require("../services/approval_request.service");
+const { getNewestDocuments, createDocument, getDocumentById, getPendingDocuments } = require("../services/document.service");
+const { getOrganizationById } = require("../services/organization.service");
+const { createApprovalRequest, approveRequest } = require("../services/approval_request.service");
 
 exports.getNewestDocuments = async (req, res) => {
     try {
@@ -14,6 +14,34 @@ exports.getNewestDocuments = async (req, res) => {
         } = req.query;
 
         const result = await getNewestDocuments({
+            payload: req.user,
+            search,
+            ordering,
+            order,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            ...filters
+        });
+        res.json(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu" });
+    }
+};
+
+exports.getDocumentBySubjects = async (req, res) => {
+    try {
+        const {
+            search,
+            ordering = 'createdAt',
+            order = -1,
+            page = 1,
+            limit = 5,
+            ...filters
+        } = req.query;
+
+        const result = await getDocumentsBySubject({
+            subject: req.params.subjectId,
             payload: req.user,
             search,
             ordering,
@@ -98,8 +126,8 @@ exports.uploadDocument = async (req, res) => {
         });
 
         //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
-        await createApprovalRequest( document._id, req.user.userId);
-        
+        await createApprovalRequest(document._id, req.user.userId);
+
         res.status(201).json({ message: "Tải lên tài liệu thành công", document });
     } catch (error) {
         console.error(error);
@@ -107,7 +135,61 @@ exports.uploadDocument = async (req, res) => {
     }
 }
 
+exports.getDocumentsByUser = async (req, res) => {
+    try {
+        const {
+            search,
+            ordering = 'createdAt',
+            order = -1,
+            page = 1,
+            limit = 5,
+            ...filters
+        } = req.query;
+
+        const result = await getDocumentsByUser({
+            payload: req.user,
+            search,
+            ordering,
+            order,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            ...filters
+        });
+        res.json(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu chờ duyệt" });
+    }
+}
+
 // Admin
+exports.getPendingDocuments = async (req, res) => {
+    try {
+        const {
+            search,
+            ordering = 'createdAt',
+            order = -1,
+            page = 1,
+            limit = 5,
+            ...filters
+        } = req.query;
+
+        const result = await getPendingDocuments({
+            payload: req.user,
+            search,
+            ordering,
+            order,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            ...filters
+        });
+        res.json(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu chờ duyệt" });
+    }
+}
+
 exports.approveDocument = async (req, res) => {
     try {
         const { requestId } = req.params;
