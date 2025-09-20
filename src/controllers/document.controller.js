@@ -1,4 +1,4 @@
-const { getNewestDocuments, createDocument, getDocumentById, getPendingDocuments } = require("../services/document.service");
+const { getNewestDocuments, createDocument, getDocumentById, getMyDocuments, getPendingDocuments, getDocumentsBySubject } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const { createApprovalRequest, approveRequest } = require("../services/approval_request.service");
 
@@ -29,7 +29,7 @@ exports.getNewestDocuments = async (req, res) => {
     }
 };
 
-exports.getDocumentBySubjects = async (req, res) => {
+exports.getDocumentsBySubject = async (req, res) => {
     try {
         const {
             search,
@@ -135,7 +135,7 @@ exports.uploadDocument = async (req, res) => {
     }
 }
 
-exports.getDocumentsByUser = async (req, res) => {
+exports.getMyDocuments = async (req, res) => {
     try {
         const {
             search,
@@ -146,7 +146,7 @@ exports.getDocumentsByUser = async (req, res) => {
             ...filters
         } = req.query;
 
-        const result = await getDocumentsByUser({
+        const result = await getMyDocuments({
             payload: req.user,
             search,
             ordering,

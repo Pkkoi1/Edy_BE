@@ -253,6 +253,109 @@ const getDocumentsBySubject = async ({
     };
 };
 
+const getMyDocuments = async ({
+    payload,
+    search,
+    ordering = "createdAt",
+    order = -1,
+    page = 1,
+    limit = 5,
+    ...filters
+}) => {
+    if (!payload || !payload.userId) {
+        throw new Error("Người dùng chưa đăng nhập");
+    }
+    let user = await User.findById(payload.userId);
+    if (!user) {
+        throw new Error("Người dùng không tồn tại");
+    }
+    const skip = (page - 1) * limit;
+
+    // Điều kiện tìm kiếm
+    let searchOr = [];
+    if (search) {
+        searchOr = [
+            { title: { $regex: search, $options: "i" } },
+            { author: { $elemMatch: { $regex: search, $options: "i" } } },
+            { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+        ];
+    }
+
+    //chỉ lấy document của user hiện tại
+    let query = { 
+        user: user._id, 
+        is_deleted: false 
+    };
+
+    // Thêm điều kiện search nếu có
+    if (searchOr.length > 0) {
+        query.$and = [
+            { user: user._id },
+            { $or: searchOr },
+            { is_deleted: false }
+        ];
+    }
+
+    // Filter các trường
+    const filterFields = [
+        "organization",
+        "publisher",
+        "published_year",
+        "intensive",
+        "author",
+        "keyword",
+        "doc_type",
+        "level",
+        "subject",
+        "status"
+    ];
+
+    filterFields.forEach((field) => {
+        if (filters[field] !== undefined) {
+            if (Array.isArray(filters[field])) {
+                query[field] = { $in: filters[field] };
+            } else {
+                query[field] = filters[field];
+            }
+        }
+    });
+
+    // Sắp xếp
+    const sort = {};
+    sort[ordering] = parseInt(order);
+
+    const [documents, total] = await Promise.all([
+        Document.find(query)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .select(
+                "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status createdAt"
+            )
+            .populate({
+                path: "user",
+                select: "_id first_name last_name avatar doc_count",
+                populate: {
+                    path: "organization",
+                    select: "_id name",
+                },
+            })
+            .populate({ path: "organization", select: "_id name" })
+            .populate({ path: "subject", select: "_id name" }),
+        Document.countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+    const have_next = page < totalPages;
+    return {
+        documents,
+        total,
+        page,
+        totalPages,
+        have_next,
+    };
+};
+
 // const getDocumentsAccessible = async (user, page = 1, limit = 5)
 
 const getCoverPage = (url) => {
@@ -448,6 +551,17 @@ const getPendingDocuments = async ({
     };
 };
 
+module.exports = {
+    getNewestDocuments,
+    createDocument,
+    deleteDocument,
+    updateDocument,
+    getDocumentById,
+    getDocumentsBySubject,
+    getPendingDocuments,
+    getMyDocuments,
+};
+
 const validateSubjects = async (subjectId) => {
     if (!mongoose.Types.ObjectId.isValid(subjectId)) {
         return false;
@@ -465,13 +579,3 @@ const validateOrganization = async (organizationId) => {
     const organization = await Organization.findById(organizationId);
     return !!organization;
 }
-
-module.exports = {
-    getNewestDocuments,
-    createDocument,
-    deleteDocument,
-    updateDocument,
-    getDocumentById,
-    getDocumentsBySubject,
-    getPendingDocuments
-};

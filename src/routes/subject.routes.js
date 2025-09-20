@@ -108,6 +108,7 @@ router.get("/:id", requireUserRole, subjectController.getSubjectById);
  *         description: Môn học không tồn tại
  */
 router.get("/:id/documents", userOrUnauthenticated, documentController.getDocumentsBySubject);
+
 /**
  * @swagger
  * /subjects/{id}:
@@ -149,6 +150,6 @@ router.get("/:id/documents", userOrUnauthenticated, documentController.getDocume
  *       403:
  *         description: Không có quyền
  */
-// router.put("/:id", requireAdminPermission(['MANAGE_ENTITY']), subjectController.updateSubject);
+//router.put("/:id", requireAdminPermission(['MANAGE_ENTITY']), subjectController.updateSubject);
 
 module.exports = router;
