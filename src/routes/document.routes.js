@@ -234,4 +234,23 @@ router.get("/pending", requireAdminPermission(['MANAGE_DOCUMENT']), documentCont
  */
 router.put("/approve/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.approveDocument);
 
+
+//router.put("/reject/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.rejectDocument);
+
+/**
+ * @swagger
+ * /documents/my-documents:
+ *   get:
+ *     summary: Lấy danh sách tài liệu của người dùng hiện tại
+ *     tags:
+ *       - Documents
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu thành công
+ *       401:
+ *         description: Chưa đăng nhập hoặc token không hợp lệ
+ */
+
+router.get("/my-documents", requireLoggedIn, documentController.getMyDocuments);
+
 module.exports = router;

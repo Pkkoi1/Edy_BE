@@ -17,6 +17,18 @@ exports.createSubject = async (req, res) => {
   }
 };
 
+exports.getSubjectById = async (req, res) => {
+  try {
+    const subject = await getSubjectById(req.params.id);
+    if (!subject) {
+      return res.status(404).json({ error: 'Môn học không tồn tại' });
+    } 
+    res.status(200).json(subject);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.getSubjectsByOrganization = async (req, res) => {
   try {
     const { organizationId } = req.query;
