@@ -194,7 +194,7 @@ exports.getPendingRequestsByDocument = async (req, res) => {
     try {
         const { documentId } = req.params;
         const requests = await getPendingRequestsByDocument(documentId);
-        res.json({ requests });
+        res.status(200).json({ requests });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Đã xảy ra lỗi khi lấy yêu cầu phê duyệt" });
