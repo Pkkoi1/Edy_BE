@@ -1,6 +1,7 @@
 const User = require("../models/user.model");
 const Account = require("../models/account.model");
 const Organization = require("../models/organization.model");
+const Document = require("../models/document.model");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
@@ -148,4 +149,25 @@ const changePassword = async (
   }
 };
 
-module.exports = { getUsers, verifyUser, updateUserProfile, changePassword };
+const updateUserDocCount = async (userId) => {
+  try {
+    const docCount = await Document.countDocuments({
+      user: userId,
+      is_deleted: false,
+    });
+
+    await User.findByIdAndUpdate(userId, { doc_count: docCount });
+    return docCount;
+  } catch (error) {
+    console.error("Error updating user doc count:", error);
+    return 0;
+  }
+};
+
+module.exports = {
+  getUsers,
+  verifyUser,
+  updateUserProfile,
+  changePassword,
+  updateUserDocCount,
+};
