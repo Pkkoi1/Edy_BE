@@ -182,7 +182,7 @@ const getDocumentsBySubject = async ({
     }
 
     // Kết hợp quyền truy cập, tìm kiếm và lọc subject
-    let query = { status: "APPROVED", is_deleted: false, subject };
+    let query = { status: { $in: ["APPROVED", "PENDING_SUMMARY"] }, is_deleted: false, subject };
     if (searchOr.length > 0) {
         query.$and = [
             { $or: accessOr },

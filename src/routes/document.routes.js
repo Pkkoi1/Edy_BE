@@ -187,29 +187,45 @@ router.post("/", requireUserRole, documentController.uploadDocument);
 
 /**
  * @swagger
- * /documents/{id}:
- *   get:
- *     summary: Lấy thông tin chi tiết tài liệu theo ID
+ * /documents/pending:
+ *    get:
+ *     summary: Lấy danh sách tài liệu đang chờ phê duyệt
  *     tags:
  *       - Documents
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID tài liệu
  *     responses:
  *       200:
- *         description: Lấy thông tin tài liệu thành công
- *       404:
- *         description: Tài liệu không tồn tại hoặc bạn không có quyền truy cập
+ *         description: Lấy danh sách tài liệu thành công
+ *       403:
+ *         description: Không có quyền
  *       500:
- *         description: Đã xảy ra lỗi khi lấy tài liệu
+ *         description: Lỗi server
  */
-router.get("/:id", userOrUnauthenticated, documentController.getDocumentById);
-
 router.get("/pending", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.getPendingDocuments);
+
+/**
+ * @swagger
+ * /documents/pending-requests/{documentId}:
+ *  get:
+ *   summary: Lấy danh sách các yêu cầu phê duyệt cho một tài liệu
+ *   tags:
+ *    - Documents
+ *   parameters:
+ *      - in: path
+ *        name: documentId
+ *        required: true
+ *        schema:
+ *          type: string
+ *          description: ID tài liệu
+ *  responses:
+ *    200:
+ *      description: Lấy danh sách yêu cầu phê duyệt thành công
+ *    403:
+ *      description: Không có quyền
+ *    500:
+ *      description: Lỗi server
+ */
+router.get("/pending-requests/:documentId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.getPendingRequestsByDocument);
+
 /**
  * @swagger
  * /documents/approve/{id}:
@@ -234,8 +250,29 @@ router.get("/pending", requireAdminPermission(['MANAGE_DOCUMENT']), documentCont
  */
 router.put("/approve/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.approveDocument);
 
-
-//router.put("/reject/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.rejectDocument);
+/**
+ * @swagger
+ * /documents/reject/{id}:
+ *   put:
+ *     summary: Từ chối tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Từ chối tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền
+ */
+router.put("/reject/:id", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.rejectDocument);
 
 /**
  * @swagger
@@ -252,5 +289,30 @@ router.put("/approve/:id", requireAdminPermission(['MANAGE_DOCUMENT']), document
  */
 
 router.get("/my-documents", requireLoggedIn, documentController.getMyDocuments);
+
+/**
+ * @swagger
+ * /documents/{id}:
+ *   get:
+ *     summary: Lấy thông tin chi tiết tài liệu theo ID
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin tài liệu thành công
+ *       404:
+ *         description: Tài liệu không tồn tại hoặc bạn không có quyền truy cập
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy tài liệu
+ */
+router.get("/:id", userOrUnauthenticated, documentController.getDocumentById);
+
 
 module.exports = router;
