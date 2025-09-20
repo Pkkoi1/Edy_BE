@@ -1,6 +1,6 @@
 const { getNewestDocuments, createDocument, getDocumentById, getMyDocuments, getPendingDocuments, getDocumentsBySubject } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
-const { createApprovalRequest, approveRequest } = require("../services/approval_request.service");
+const { createApprovalRequest, getPendingRequestsByDocument ,approveRequest, rejectRequest} = require("../services/approval_request.service");
 
 exports.getNewestDocuments = async (req, res) => {
     try {
@@ -190,15 +190,46 @@ exports.getPendingDocuments = async (req, res) => {
     }
 }
 
+exports.getPendingRequestsByDocument = async (req, res) => {
+    try {
+        const { documentId } = req.params;
+        const requests = await getPendingRequestsByDocument(documentId);
+        res.json({ requests });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi lấy yêu cầu phê duyệt" });
+    }
+};
+
 exports.approveDocument = async (req, res) => {
     try {
         const { requestId } = req.params;
-        const approverId = req.user.userId;
+        const reviewerId = req.user.userId;
 
-        const approvalRequest = await approveRequest(requestId, approverId);
-        res.json({ message: "Phê duyệt tài liệu thành công", approvalRequest });
+        const approvalRequest = await approveRequest(requestId, reviewerId);
+        if (!approvalRequest) {
+            return res.status(404).json({ message: "Yêu cầu phê duyệt không tồn tại" });
+        }
+        res.json({ message: "Phê duyệt tài liệu thành công" });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Đã xảy ra lỗi khi phê duyệt tài liệu" });
+    }
+};
+
+exports.rejectDocument = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const { message } = req.body;
+        const reviewerId = req.user.userId;
+
+        const approvalRequest = await rejectRequest(requestId, reviewerId, message);
+        if (!approvalRequest) {
+            return res.status(404).json({ message: "Yêu cầu phê duyệt không tồn tại" });
+        }
+        res.json({ message: "Từ chối tài liệu thành công"});
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi từ chối tài liệu" });
     }
 };

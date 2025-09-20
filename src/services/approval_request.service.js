@@ -40,6 +40,10 @@ const createApprovalRequest = async (documentId, requesterId) => {
     // generateSummaryByAI(document._id, file_type, url);
 };
 
+const getPendingRequestsByDocument = async (documentId) => {
+    return ApprovalRequest.find({ doc: documentId, status: "PENDING" })
+};
+
 const approveRequest = async (requestId, reviewerId) => {
     const reviewer = await User.findById(reviewerId);
     if (!reviewer) throw new Error("Người duyệt không tồn tại");
@@ -49,15 +53,43 @@ const approveRequest = async (requestId, reviewerId) => {
 
     approvalRequest.reviewed_by = reviewer._id;
     approvalRequest.reviewed_at = new Date();
-    approvalRequest.status = "Approved";
+    approvalRequest.status = "APPROVED";
     await approvalRequest.save();
 
+    const pendingRequests = await getPendingRequestsByDocument(approvalRequest.doc);
+    const document = await Document.findById(approvalRequest.doc);
+    
+    if (!document) throw new Error("Tài liệu không tồn tại");
+
+    if (pendingRequests.length === 0) {
+        // Không còn request pending nào -> APPROVED hoàn toàn
+        document.status = "APPROVED";
+        await document.save();
+        
+        // Tăng doc_count cho user
+        const user = await User.findById(approvalRequest.requester);
+        if (user) {
+            user.doc_count = (user.doc_count || 0) + 1;
+            await user.save();
+        }
+    } else {
+        // Còn request pending -> kiểm tra loại
+        const hasSummaryPending = pendingRequests.some(req => req.is_summary === true);
+        const hasDocumentPending = pendingRequests.some(req => req.is_summary === false);
+        
+        if (hasSummaryPending && !hasDocumentPending) {
+            // Chỉ còn summary pending -> chuyển sang PENDING_SUMMARY
+            document.status = "PENDING_SUMMARY";
+            await document.save();
+        }
+        // Nếu còn document pending thì giữ nguyên status PENDING
+    }
     //gửi thông báo cho người đăng (để sau)
 
     return approvalRequest;
 };
 
-const rejectDocument = async (requestId, reviewerId, reason) => {
+const rejectRequest = async (requestId, reviewerId, message) => {
     const reviewer = await User.findById(reviewerId);
     if (!reviewer) throw new Error("Người duyệt không tồn tại");
 
@@ -66,8 +98,8 @@ const rejectDocument = async (requestId, reviewerId, reason) => {
 
     approvalRequest.reviewed_by = reviewer._id;
     approvalRequest.reviewed_at = new Date();
-    approvalRequest.status = "Rejected";
-    approvalRequest.reason = reason;
+    approvalRequest.status = "REJECTED";
+    approvalRequest.message = reason;
     await approvalRequest.save();
 
     //gửi thông báo cho người đăng (để sau)
@@ -77,5 +109,7 @@ const rejectDocument = async (requestId, reviewerId, reason) => {
 
 module.exports = {
     createApprovalRequest,
+    getPendingRequestsByDocument,
     approveRequest,
+    rejectRequest
 };
