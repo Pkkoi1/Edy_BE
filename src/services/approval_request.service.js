@@ -58,14 +58,14 @@ const approveRequest = async (requestId, reviewerId) => {
 
     const pendingRequests = await getPendingRequestsByDocument(approvalRequest.doc);
     const document = await Document.findById(approvalRequest.doc);
-
+    
     if (!document) throw new Error("Tài liệu không tồn tại");
 
     if (pendingRequests.length === 0) {
         // Không còn request pending nào -> APPROVED hoàn toàn
         document.status = "APPROVED";
         await document.save();
-
+        
         // Tăng doc_count cho user
         const user = await User.findById(approvalRequest.requester);
         if (user) {
@@ -76,7 +76,7 @@ const approveRequest = async (requestId, reviewerId) => {
         // Còn request pending -> kiểm tra loại
         const hasSummaryPending = pendingRequests.some(req => req.is_summary === true);
         const hasDocumentPending = pendingRequests.some(req => req.is_summary === false);
-
+        
         if (hasSummaryPending && !hasDocumentPending) {
             // Chỉ còn summary pending -> chuyển sang PENDING_SUMMARY
             document.status = "PENDING_SUMMARY";
@@ -100,7 +100,7 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     approvalRequest.reviewed_by = reviewer._id;
     approvalRequest.reviewed_at = new Date();
     approvalRequest.status = "REJECTED";
-    approvalRequest.message = message;
+    approvalRequest.message = reason;
     await approvalRequest.save();
 
     const document = await Document.findById(approvalRequest.doc);
