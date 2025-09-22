@@ -44,7 +44,7 @@ const getPendingRequestsByDocument = async (documentId) => {
     return ApprovalRequest.find({ doc: documentId, status: "PENDING" })
 };
 
-const approveRequest = async (requestId, reviewerId) => {
+const approveRequest = async (requestId, reviewerId, isIntensive) => {
     const reviewer = await User.findById(reviewerId);
     if (!reviewer) throw new Error("Người duyệt không tồn tại");
 
@@ -61,11 +61,13 @@ const approveRequest = async (requestId, reviewerId) => {
     
     if (!document) throw new Error("Tài liệu không tồn tại");
 
+    let documentChanged = false;
+
     if (pendingRequests.length === 0) {
         // Không còn request pending nào -> APPROVED hoàn toàn
         document.status = "APPROVED";
-        await document.save();
-        
+        documentChanged = true;
+
         // Tăng doc_count cho user
         const user = await User.findById(approvalRequest.requester);
         if (user) {
@@ -80,11 +82,19 @@ const approveRequest = async (requestId, reviewerId) => {
         if (hasSummaryPending && !hasDocumentPending) {
             // Chỉ còn summary pending -> chuyển sang PENDING_SUMMARY
             document.status = "PENDING_SUMMARY";
-            await document.save();
+            documentChanged = true;
         }
         // Nếu còn document pending thì giữ nguyên status PENDING
     }
 
+    if(isIntensive) {
+        //nếu bản duyệt có đánh dấu chuyên sâu, true cho intensive của doc
+        document.intensive = true;
+        documentChanged = true;
+    }
+
+    if (documentChanged) await document.save();
+    
     //gửi thông báo cho người đăng (để sau)
 
     return approvalRequest;
