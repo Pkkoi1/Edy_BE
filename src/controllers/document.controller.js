@@ -230,9 +230,10 @@ exports.getPendingRequestsByDocument = async (req, res) => {
 exports.approveDocument = async (req, res) => {
   try {
     const { requestId } = req.params;
+    const { isIntensive = false } = req.body || {};
     const reviewerId = req.user.userId;
 
-    const approvalRequest = await approveRequest(requestId, reviewerId);
+    const approvalRequest = await approveRequest(requestId, reviewerId, isIntensive);
     if (!approvalRequest) {
       return res
         .status(404)
