@@ -1,7 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const documentController = require("../controllers/document.controller");
-const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, requireAdminPermission } = require("../middlewares/auth.middleware");
+const {
+  requireUserRole,
+  userOrUnauthenticated,
+  requireLoggedIn,
+  refreshToken,
+  requireAdminPermission,
+} = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
@@ -93,7 +99,11 @@ const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, r
  *       400:
  *         description: Yêu cầu không hợp lệ
  */
-router.get("/newest", userOrUnauthenticated, documentController.getNewestDocuments);
+router.get(
+  "/newest",
+  userOrUnauthenticated,
+  documentController.getNewestDocuments
+);
 
 /**
  * @swagger
@@ -200,7 +210,11 @@ router.post("/", requireUserRole, documentController.uploadDocument);
  *       500:
  *         description: Lỗi server
  */
-router.get("/pending", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.getPendingDocuments);
+router.get(
+  "/pending",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.getPendingDocuments
+);
 
 /**
  * @swagger
@@ -224,7 +238,11 @@ router.get("/pending", requireAdminPermission(['MANAGE_DOCUMENT']), documentCont
  *       403:
  *         description: Không có quyền
  */
-router.get("/pending-requests/:documentId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.getPendingRequestsByDocument);
+router.get(
+  "/pending-requests/:documentId",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.getPendingRequestsByDocument
+);
 
 /**
  * @swagger
@@ -248,7 +266,11 @@ router.get("/pending-requests/:documentId", requireAdminPermission(['MANAGE_DOCU
  *       403:
  *         description: Không có quyền
  */
-router.put("/approve/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.approveDocument);
+router.put(
+  "/approve/:requestId",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.approveDocument
+);
 /**
  * @swagger
  * /documents/reject/{id}:
@@ -282,7 +304,11 @@ router.put("/approve/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), d
  *       403:
  *         description: Không có quyền
  */
-router.put("/reject/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.rejectDocument);
+router.put(
+  "/reject/:requestId",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.rejectDocument
+);
 
 /**
  * @swagger
@@ -291,6 +317,83 @@ router.put("/reject/:requestId", requireAdminPermission(['MANAGE_DOCUMENT']), do
  *     summary: Lấy danh sách tài liệu của người dùng hiện tại
  *     tags:
  *       - Documents
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo từ khóa, tiêu đề, tác giả, keyword
+ *       - in: query
+ *         name: ordering
+ *         schema:
+ *           type: string
+ *         description: "Trường sắp xếp (vd: title, createdAt, published_year)"
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: integer
+ *           enum: [1, -1]
+ *         description: 1 là tăng dần, -1 là giảm dần
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *       - in: query
+ *         name: organization
+ *         schema:
+ *           type: string
+ *         description: Lọc theo tổ chức
+ *       - in: query
+ *         name: publisher
+ *         schema:
+ *           type: string
+ *         description: Lọc theo nhà xuất bản
+ *       - in: query
+ *         name: published_year
+ *         schema:
+ *           type: integer
+ *         description: Lọc theo năm xuất bản
+ *       - in: query
+ *         name: intensive
+ *         schema:
+ *           type: boolean
+ *         description: Lọc theo chuyên ngành
+ *       - in: query
+ *         name: author
+ *         schema:
+ *           type: string
+ *         description: Lọc theo tác giả
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *         description: Lọc theo từ khóa
+ *       - in: query
+ *         name: doc_type
+ *         schema:
+ *           type: string
+ *         description: Lọc theo loại tài liệu
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: string
+ *         description: Lọc theo trình độ
+ *       - in: query
+ *         name: subject
+ *         schema:
+ *           type: string
+ *         description: Lọc theo môn
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Lọc theo trạng thái tài liệu
  *     responses:
  *       200:
  *         description: Lấy danh sách tài liệu thành công
@@ -323,6 +426,5 @@ router.get("/my-documents", requireLoggedIn, documentController.getMyDocuments);
  *         description: Đã xảy ra lỗi khi lấy tài liệu
  */
 router.get("/:id", userOrUnauthenticated, documentController.getDocumentById);
-
 
 module.exports = router;
