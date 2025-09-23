@@ -138,4 +138,63 @@ router.put("/profile", requireLoggedIn, userController.updateProfile);
  */
 router.put("/change-password", requireLoggedIn, userController.changePassword);
 
+/**
+ * @swagger
+ * /users/favorites:
+ *   get:
+ *     summary: Lấy danh sách tài liệu yêu thích của người dùng hiện tại
+ *     tags:
+ *       - Users
+ *     responses:
+ *       200:
+ *         description: Danh sách tài liệu yêu thích
+ *       401:
+ *         description: Chưa xác thực
+ */
+router.get("/favorites", requireUserRole, userController.getFavoriteDocuments);
+
+/**
+ * @swagger
+ * /users/favorites/{documentId}:
+ *   post:
+ *     summary: Thêm tài liệu vào danh sách yêu thích
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của tài liệu
+ *     responses:
+ *       200:
+ *         description: Thêm tài liệu yêu thích thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ (ví dụ đã yêu thích, vượt quá giới hạn)
+ */
+router.post("/favorites/:documentId", requireUserRole, userController.addFavoriteDocument);
+
+/**
+ * @swagger
+ * /users/favorites/{documentId}:
+ *   delete:
+ *     summary: Xóa tài liệu khỏi danh sách yêu thích
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của tài liệu
+ *     responses:
+ *       200:
+ *         description: Xóa tài liệu yêu thích thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ (ví dụ tài liệu không trong danh sách yêu thích)
+ */
+router.delete("/favorites/:documentId", requireUserRole, userController.removeFavoriteDocument);
+
 module.exports = router;
