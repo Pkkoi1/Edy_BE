@@ -2,10 +2,16 @@ const mongoose = require('mongoose');
 
 const approveEditSchema = new mongoose.Schema({
     doc: { type: mongoose.Schema.Types.ObjectId, ref: 'Document', required: true },
+    edit_doc: { type: mongoose.Schema.Types.ObjectId, ref: 'EditDocument', required: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     reviewed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     reviewed_at: { type: Date, default: null },
     is_summary: { type: Boolean, default: false },
+    edit_type: {
+        type: String,
+        enum: ['DOCUMENT_EDIT', 'SUMMARY_EDIT', 'BOTH'],
+        required: true
+    },
     status: {
         type: String,
         enum: ['PENDING', 'APPROVED', 'REJECTED'],
