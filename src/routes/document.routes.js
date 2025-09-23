@@ -258,6 +258,16 @@ router.get(
  *         schema:
  *           type: string
  *         description: ID request
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               isIntensive:
+ *                 type: boolean
+ *                 example: false
  *     responses:
  *       200:
  *         description: Phê duyệt tài liệu thành công
