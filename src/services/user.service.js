@@ -164,10 +164,206 @@ const updateUserDocCount = async (userId) => {
   }
 };
 
+const addFavoriteDocument = async (userId, documentId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      throw new Error('ID tài liệu không hợp lệ');
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('Người dùng không tồn tại');
+    }
+    
+    const document = await Document.findOne({ 
+      _id: documentId, 
+      is_deleted: false
+    });
+    if (!document) {
+      throw new Error('Tài liệu không tồn tại hoặc đã bị xóa');
+    }
+
+    // Kiểm tra xem tài liệu đã có trong favorites chưa
+    const existingFavorite = user.favorites.find(
+      fav => fav.document.toString() === documentId
+    );
+    
+    if (existingFavorite) {
+      throw new Error('Tài liệu đã có trong danh sách yêu thích');
+    }
+
+    // Kiểm tra giới hạn danh sách yêu thích (tối đa 10)
+    if (user.favorites.length >= 10) {
+      throw new Error('Danh sách yêu thích đã đạt giới hạn tối đa 10 tài liệu. Vui lòng xóa bớt để thêm tài liệu mới.');
+    }
+
+    user.favorites.push({
+      document: documentId,
+      added_at: new Date()
+    });
+    
+    await user.save();
+    return { 
+      success: true, 
+      message: "Thêm tài liệu vào danh sách yêu thích thành công",
+      favorites_count: user.favorites.length,
+      remaining_slots: 10- user.favorites.length
+    };
+  } catch (error) {
+    console.error("Error adding favorite document:", error);
+    return { error: "Lỗi khi thêm tài liệu vào danh sách yêu thích: " + error.message };
+  }
+};
+
+const removeFavoriteDocument = async (userId, documentId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('Người dùng không tồn tại');
+    }
+
+    // Xóa tài liệu khỏi danh sách yêu thích
+    const originalLength = user.favorites.length;
+    user.favorites = user.favorites.filter(
+      fav => fav.document.toString() !== documentId
+    );
+    
+    if (user.favorites.length === originalLength) {
+      throw new Error('Tài liệu không có trong danh sách yêu thích');
+    }
+    
+    await user.save();
+    return { 
+      success: true, 
+      message: "Xóa tài liệu khỏi danh sách yêu thích thành công",
+      favorites_count: user.favorites.length,
+      remaining_slots: 10 - user.favorites.length
+    };
+  } catch (error) {
+    console.error("Error removing favorite document:", error);
+    return { error: "Lỗi khi xóa tài liệu khỏi danh sách yêu thích: " + error.message };
+  }
+};
+
+const getFavoriteDocuments = async (userId) => {
+  try {
+    const user = await User.findById(userId)
+      .populate({
+        path: 'favorites.document',
+        select: '_id title author published_year publisher organization subject level view download_count comment_count status summary_status public_mode is_deleted createdAt',
+        populate: [
+          { path: 'organization', select: '_id name' },
+          { path: 'subject', select: '_id name' },
+          { path: 'user', select: '_id first_name last_name avatar' }
+        ]
+      });
+      
+    if (!user) {
+      throw new Error('Người dùng không tồn tại');
+    }
+    
+    const favoriteDocuments = user.favorites.map(fav => {
+      if (fav.document) {
+        const doc = fav.document.toObject();
+        
+        // Kiểm tra quyền truy cập
+        let hasAccess = false;
+        
+        // Chỉ cho phép truy cập document đã được approve
+        if (doc.status === 'APPROVED') {
+          if (doc.public_mode === 'PUBLIC') {
+            hasAccess = true;
+          } else if (doc.public_mode === 'PRIVATE') {
+            
+            hasAccess = doc.user._id.toString() === userId;
+          } else if (doc.public_mode === 'SHARE_ORGANIZATION') {
+            // Chia sẻ trong tổ chức -> kiểm tra cùng organization
+            if (user.organization && doc.user.organization) {
+              hasAccess = user.organization.toString() === doc.user.organization.toString();
+            }
+          } else if (doc.public_mode === 'PRIVATE_SHARED') {
+            // Kiểm tra trong shared_documents của user
+            const isSharedToUser = user.shared_documents.some(
+              sharedDoc => sharedDoc.document.toString() === doc._id.toString()
+            );
+            // Hoặc là chủ sở hữu document
+            hasAccess = isSharedToUser || doc.user._id.toString() === userId;
+          }
+        } else {
+          // Document chưa approve -> chỉ chủ sở hữu mới xem được
+          hasAccess = doc.user._id.toString() === userId;
+        }
+
+        if (!hasAccess) {
+          return {
+            _id: doc._id,
+            title: "Bạn không có quyền xem tài liệu này",
+            is_deleted: doc.is_deleted,
+            added_at: fav.added_at,
+            has_access: false,
+          };
+        }
+        
+        return {
+          ...doc,
+          added_at: fav.added_at,
+          has_access: hasAccess
+        };
+      } else {
+        // Trường hợp document bị xóa hoàn toàn khỏi DB
+        return {
+          _id: null,
+          title: "Tài liệu đã bị xóa",
+          is_deleted: true,
+          added_at: fav.added_at,
+          has_access: false
+        };
+      }
+    });
+    
+    return {
+      documents: favoriteDocuments,
+      total: user.favorites.length,
+      max_favorites: 10,
+      remaining_slots: 10 - user.favorites.length
+    };
+  } catch (error) {
+    console.error("Error getting favorite documents:", error);
+    return { error: "Lỗi khi lấy danh sách tài liệu yêu thích: " + error.message };
+  }
+};
+
+const checkIsFavorite = async (userId, documentId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: 'Người dùng không tồn tại' };
+    }
+    
+    const isFavorite = user.favorites.some(
+      fav => fav.document && fav.document.toString() === documentId
+    );
+    
+    return { 
+      is_favorite: isFavorite,
+      favorites_count: user.favorites.length,
+      max_favorites: 10,
+      remaining_slots: 10 - user.favorites.length
+    };
+  } catch (error) {
+    console.error("Error checking favorite status:", error);
+    return { error: "Lỗi khi kiểm tra trạng thái yêu thích: " + error.message };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
   updateUserProfile,
   changePassword,
   updateUserDocCount,
+  addFavoriteDocument,
+  removeFavoriteDocument,
+  getFavoriteDocuments,
+  checkIsFavorite
 };

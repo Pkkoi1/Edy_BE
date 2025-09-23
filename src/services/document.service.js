@@ -183,7 +183,7 @@ const getDocumentsBySubject = async ({
 
   // Kết hợp quyền truy cập, tìm kiếm và lọc subject
   let query = {
-    status: { $in: ["APPROVED", "PENDING_SUMMARY"] },
+    status: "APPROVED",
     is_deleted: false,
     subject,
   };
@@ -308,6 +308,8 @@ const getMyDocuments = async ({
     "level",
     "subject",
     "status",
+    "summary_status",
+    "public_mode",
   ];
 
   filterFields.forEach((field) => {
@@ -330,7 +332,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status public_mode createdAt"
+        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt"
       )
       .populate({
         path: "user",
@@ -421,7 +423,7 @@ const updateDocument = async (id, data) => {
   return doc;
 };
 
-const getDocumentPreviewContent = async (doc) => {};
+const getDocumentPreviewContent = async (doc) => { };
 
 const getDocumentById = async (id) => {
   const doc = await Document.findOne({ _id: id, is_deleted: false })
@@ -436,6 +438,15 @@ const getDocumentById = async (id) => {
     })
     .populate({ path: "organization", select: "_id name" })
     .populate({ path: "subject", select: "_id name" });
+
+  if (doc && doc.summary_status !== "APPROVED") {
+    if (doc.description && doc.description.summary_by_user == "NONE") {
+      doc.description.summary_by_user = "Tài liệu không được tóm tắt bởi người đăng.";
+    }
+    if (doc.description && (doc.description.summary_by_user == "PENDING" || doc.description.summary_by_user == "PENDING_EDIT")) {
+      doc.description.summary_by_user = "Tóm tắt đang chờ phê duyệt, hãy kiên nhẫn để admin duyệt bạn nhé!";
+    }
+  }
 
   return doc;
 };
@@ -463,16 +474,24 @@ const getPendingDocuments = async ({
 
   // Query cơ bản cho pending documents
   let query = {
-    status: { $in: ["PENDING", "PENDING_SUMMARY"] },
+    $or: [
+      { status: "PENDING" },
+      { summary_status: "PENDING" }
+    ],
     is_deleted: false,
   };
 
   // Thêm điều kiện search nếu có
   if (searchOr.length > 0) {
     query.$and = [
-      { status: { $in: ["PENDING", "PENDING_SUMMARY"] } },
+      {
+        $or: [
+          { status: "PENDING" },
+          { summary_status: "PENDING" }
+        ]
+      },
       { $or: searchOr },
-      { is_deleted: false },
+      { is_deleted: false }
     ];
   }
 
@@ -488,31 +507,14 @@ const getPendingDocuments = async ({
     "doc_type",
     "level",
     "subject",
-    "status",
   ];
 
   filterFields.forEach((field) => {
     if (filters[field] !== undefined) {
-      // Xử lý đặc biệt cho status để không ghi đè query cơ bản
-      if (field === "status") {
-        const allowedStatuses = ["PENDING", "PENDING_SUMMARY"];
-        if (Array.isArray(filters[field])) {
-          const validStatuses = filters[field].filter((s) =>
-            allowedStatuses.includes(s)
-          );
-          if (validStatuses.length > 0) {
-            query.status = { $in: validStatuses };
-          }
-        } else if (allowedStatuses.includes(filters[field])) {
-          query.status = filters[field];
-        }
+      if (Array.isArray(filters[field])) {
+        query[field] = { $in: filters[field] };
       } else {
-        // Xử lý các field khác
-        if (Array.isArray(filters[field])) {
-          query[field] = { $in: filters[field] };
-        } else {
-          query[field] = filters[field];
-        }
+        query[field] = filters[field];
       }
     }
   });
@@ -527,7 +529,7 @@ const getPendingDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status createdAt"
+        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status createdAt"
       )
       .populate({
         path: "user",

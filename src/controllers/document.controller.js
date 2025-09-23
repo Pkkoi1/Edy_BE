@@ -14,6 +14,8 @@ const {
   rejectRequest,
 } = require("../services/approval_request.service");
 
+const {checkIsFavorite} = require("../services/user.service");
+
 exports.getNewestDocuments = async (req, res) => {
   try {
     const {
@@ -73,11 +75,17 @@ exports.getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
     const document = await getDocumentById(id, req.user);
+
     if (!document) {
       return res.status(404).json({
         message: "Tài liệu không tồn tại hoặc bạn không có quyền truy cập",
       });
     }
+
+    // Kiểm tra xem tài liệu có trong danh sách yêu thích của người dùng không
+    const isFavorite = await checkIsFavorite(req.user.userId, document._id);
+    document.is_favorite = isFavorite;
+
     res.json(document);
   } catch (error) {
     console.error(error);
@@ -115,8 +123,6 @@ exports.uploadDocument = async (req, res) => {
     if (description && description.length > 10) {
       descriptionObj.summary_by_user = description;
     }
-
-    console.log(descriptionObj);
 
     const document = await createDocument({
       user: req.user.userId, // người đăng

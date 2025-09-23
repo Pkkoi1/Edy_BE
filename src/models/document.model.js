@@ -29,11 +29,23 @@ const documentSchema = new mongoose.Schema({
     enum: [
       'PENDING',
       'APPROVED',
-      'PENDING_SUMMARY',
       'REJECTED',
-      'REQUESTED_EDIT'
+      'REQUESTED_EDIT',
+      'PENDING_EDIT',
     ],
     default: 'PENDING'
+  },
+  summary_status:{
+    type: String,
+    enum: [
+      'PENDING',
+      'APPROVED',
+      'REJECTED',
+      'REQUESTED_EDIT',
+      'PENDING_EDIT',
+      'NONE'
+    ],
+    default: 'NONE'
   },
   public_mode: {
     type: String,
@@ -71,7 +83,9 @@ const documentSchema = new mongoose.Schema({
   view: { type: Number, default: 0 },
   comment_count: { type: Number, default: 0 },
   download_count: { type: Number, default: 0 },
-  is_deleted: { type: Boolean, default: false }
+  is_deleted: { type: Boolean, default: false },
+
+  last_approved_at: { type: Date, default: null }
 }, {
   timestamps: true
 });
