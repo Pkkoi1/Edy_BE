@@ -25,11 +25,19 @@ const editDocumentSchema = new mongoose.Schema({
     enum: [
       'PENDING',
       'APPROVED',
-      'PENDING_SUMMARY',
       'REJECTED',
-      'REQUESTED_EDIT'
     ],
     default: 'PENDING'
+  },
+  summary_status: {
+    type: String,
+    enum: [
+      'PENDING',
+        'APPROVED',
+        'REJECTED',
+        'NONE'
+    ],
+    default: 'NONE'
   },
   public_mode: {
     type: String,
