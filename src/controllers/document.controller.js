@@ -74,7 +74,10 @@ exports.getDocumentsBySubject = async (req, res) => {
 exports.getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const document = await getDocumentById(id);
+    const document = await getDocumentById(
+      id,
+      req.user ? req.user.userId : null
+    );
 
     if (!document) {
       return res.status(404).json({
@@ -83,8 +86,8 @@ exports.getDocumentById = async (req, res) => {
     }
 
     // Kiểm tra xem tài liệu có trong danh sách yêu thích của người dùng không
-    // const isFavorite = await checkIsFavorite(req.user.userId, document._id);
-    // document.is_favorite = isFavorite;
+    const isFavorite = await checkIsFavorite(req.user.userId, document._id);
+    document.is_favorite = isFavorite;
 
     res.json(document);
   } catch (error) {
@@ -143,7 +146,7 @@ exports.uploadDocument = async (req, res) => {
       public_mode,
       description: descriptionObj,
       page,
-      summary_status: descriptionObj.summary_by_user ? "PENDING" : "NONE"
+      summary_status: descriptionObj.summary_by_user ? "PENDING" : "NONE",
     });
 
     //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
