@@ -1,5 +1,6 @@
 const Document = require("../models/document.model");
 const User = require("../models/user.model");
+const Account = require("../models/account.model");
 const Organization = require("../models/organization.model");
 const Subject = require("../models/subject.model");
 const { updateUserDocCount } = require("./user.service");
@@ -425,7 +426,7 @@ const updateDocument = async (id, data) => {
 
 const getDocumentPreviewContent = async (doc) => { };
 
-const getDocumentById = async (id) => {
+const getDocumentById = async (id, userId) => {
   const doc = await Document.findOne({ _id: id, is_deleted: false })
     .populate({
       path: "user",
@@ -439,12 +440,16 @@ const getDocumentById = async (id) => {
     .populate({ path: "organization", select: "_id name" })
     .populate({ path: "subject", select: "_id name" });
 
-  if (doc && doc.summary_status !== "APPROVED") {
-    if (doc.description && doc.description.summary_by_user == "NONE") {
-      doc.description.summary_by_user = "Tài liệu không được tóm tắt bởi người đăng.";
-    }
-    if (doc.description && (doc.description.summary_by_user == "PENDING" || doc.description.summary_by_user == "PENDING_EDIT")) {
-      doc.description.summary_by_user = "Tóm tắt đang chờ phê duyệt, hãy kiên nhẫn để admin duyệt bạn nhé!";
+  // nếu không phải admin thì mới check phía dưới
+  const isAdmin = await Account.findOne({ user: userId, is_admin: true });
+  if (!isAdmin) {
+    if (doc && doc.summary_status !== "APPROVED") {
+      if (doc.description && (doc.summary_status !== "REJECTED" || doc.summary_status !== "NONE")) {
+        doc.description.summary_by_user = "Tài liệu không được tóm tắt bởi người đăng.";
+      }
+      if (doc.description && (doc.summary_status == "PENDING" || doc.summary_status == "PENDING_EDIT")) {
+        doc.description.summary_by_user = "Tóm tắt đang chờ phê duyệt, hãy kiên nhẫn để admin duyệt bạn nhé!";
+      }
     }
   }
 
