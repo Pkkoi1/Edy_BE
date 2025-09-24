@@ -14,7 +14,7 @@ const {
   rejectRequest,
 } = require("../services/approval_request.service");
 
-const {checkIsFavorite} = require("../services/user.service");
+const { checkIsFavorite } = require("../services/user.service");
 
 exports.getNewestDocuments = async (req, res) => {
   try {
@@ -74,7 +74,10 @@ exports.getDocumentsBySubject = async (req, res) => {
 exports.getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const document = await getDocumentById(id, req.user ? req.user.userId : null);
+    const document = await getDocumentById(
+      id,
+      req.user ? req.user.userId : null
+    );
 
     if (!document) {
       return res.status(404).json({
@@ -143,7 +146,7 @@ exports.uploadDocument = async (req, res) => {
       public_mode,
       description: descriptionObj,
       page,
-      summary_status: descriptionObj.summary_by_user ? "PENDING" : "NONE"
+      summary_status: descriptionObj.summary_by_user ? "PENDING" : "NONE",
     });
 
     //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
@@ -240,7 +243,11 @@ exports.approveDocument = async (req, res) => {
     const { isIntensive = false } = req.body || {};
     const reviewerId = req.user.userId;
 
-    const approvalRequest = await approveRequest(requestId, reviewerId, isIntensive);
+    const approvalRequest = await approveRequest(
+      requestId,
+      reviewerId,
+      isIntensive
+    );
     if (!approvalRequest) {
       return res
         .status(404)

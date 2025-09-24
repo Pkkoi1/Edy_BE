@@ -5,7 +5,8 @@ const {
   changePassword,
   getFavoriteDocuments,
   addFavoriteDocument,
-  removeFavoriteDocument
+  removeFavoriteDocument,
+  getUserById,
 } = require("../services/user.service");
 
 exports.getUsers = async (req, res) => {
@@ -89,7 +90,9 @@ exports.getFavoriteDocuments = async (req, res) => {
     res.json(documents);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu yêu thích" });
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi lấy tài liệu yêu thích" });
   }
 };
 
@@ -108,7 +111,9 @@ exports.addFavoriteDocument = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi thêm tài liệu yêu thích" });
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi thêm tài liệu yêu thích" });
   }
 };
 
@@ -127,6 +132,29 @@ exports.removeFavoriteDocument = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi xóa tài liệu yêu thích" });
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi xóa tài liệu yêu thích" });
+  }
+};
+
+exports.getUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    const result = await getUserById(userId);
+    if (result.error) {
+      return res.status(404).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi lấy thông tin người dùng" });
   }
 };
