@@ -14,7 +14,7 @@ const {
   rejectRequest,
 } = require("../services/approval_request.service");
 
-const {checkIsFavorite} = require("../services/user.service");
+const { checkIsFavorite } = require("../services/user.service");
 
 exports.getNewestDocuments = async (req, res) => {
   try {
@@ -74,7 +74,7 @@ exports.getDocumentsBySubject = async (req, res) => {
 exports.getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const document = await getDocumentById(id, req.user);
+    const document = await getDocumentById(id);
 
     if (!document) {
       return res.status(404).json({
@@ -83,8 +83,8 @@ exports.getDocumentById = async (req, res) => {
     }
 
     // Kiểm tra xem tài liệu có trong danh sách yêu thích của người dùng không
-    const isFavorite = await checkIsFavorite(req.user.userId, document._id);
-    document.is_favorite = isFavorite;
+    // const isFavorite = await checkIsFavorite(req.user.userId, document._id);
+    // document.is_favorite = isFavorite;
 
     res.json(document);
   } catch (error) {
@@ -239,7 +239,11 @@ exports.approveDocument = async (req, res) => {
     const { isIntensive = false } = req.body || {};
     const reviewerId = req.user.userId;
 
-    const approvalRequest = await approveRequest(requestId, reviewerId, isIntensive);
+    const approvalRequest = await approveRequest(
+      requestId,
+      reviewerId,
+      isIntensive
+    );
     if (!approvalRequest) {
       return res
         .status(404)
