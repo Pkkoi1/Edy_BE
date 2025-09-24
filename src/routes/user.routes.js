@@ -173,7 +173,11 @@ router.get("/favorites", requireUserRole, userController.getFavoriteDocuments);
  *       400:
  *         description: Yêu cầu không hợp lệ (ví dụ đã yêu thích, vượt quá giới hạn)
  */
-router.post("/favorites/:documentId", requireUserRole, userController.addFavoriteDocument);
+router.post(
+  "/favorites/:documentId",
+  requireUserRole,
+  userController.addFavoriteDocument
+);
 
 /**
  * @swagger
@@ -195,6 +199,52 @@ router.post("/favorites/:documentId", requireUserRole, userController.addFavorit
  *       400:
  *         description: Yêu cầu không hợp lệ (ví dụ tài liệu không trong danh sách yêu thích)
  */
-router.delete("/favorites/:documentId", requireUserRole, userController.removeFavoriteDocument);
+router.delete(
+  "/favorites/:documentId",
+  requireUserRole,
+  userController.removeFavoriteDocument
+);
+
+/**
+ * @swagger
+ * /users/{userId}:
+ *   get:
+ *     summary: Lấy thông tin chi tiết của một người dùng theo ID
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     responses:
+ *       200:
+ *         description: Thông tin người dùng
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 account:
+ *                   type: object
+ *                   description: Thông tin tài khoản
+ *                 user:
+ *                   type: object
+ *                   description: Thông tin người dùng với organization, read_history, shared_documents, favorites
+ *                 roles:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: Danh sách vai trò
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ */
+router.get("/:userId", requireLoggedIn, userController.getUserById);
 
 module.exports = router;

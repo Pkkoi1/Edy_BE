@@ -394,6 +394,43 @@ const checkIsFavorite = async (userId, documentId) => {
   }
 };
 
+const getUserById = async (userId) => {
+  try {
+    const user = await User.findById(userId)
+      .select('-__v')
+      .populate([
+        { path: 'organization', select: '_id name' },
+        { path: 'read_history.document', select: '_id title' },
+        { path: 'shared_documents.document', select: '_id title' },
+        { path: 'favorites.document', select: '_id title' }
+      ]);
+
+    if (!user) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    const account = await Account.findOne({ user: userId }).select('-password -__v');
+    if (!account) {
+      return { error: "Tài khoản không tồn tại" };
+    }
+
+    const roles = await Assignment.find({ account: account._id }).populate("role");
+    let responseRoles = ['USER'];
+    if (roles.length > 0) responseRoles = roles.map(a => a.role.code);
+    if (!account.is_verified) responseRoles = ['NOT_VERIFIED'];
+
+    return { 
+      success: true,
+      account, 
+      user, 
+      roles: responseRoles 
+    };
+  } catch (error) {
+    console.error("Error getting user by ID:", error);
+    return { error: "Lỗi khi lấy thông tin người dùng: " + error.message };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
@@ -404,4 +441,5 @@ module.exports = {
   removeFavoriteDocument,
   getFavoriteDocuments,
   checkIsFavorite,
+  getUserById,
 };
