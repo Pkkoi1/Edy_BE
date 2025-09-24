@@ -74,11 +74,11 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
         documentChanged = true;
 
         // Tăng doc_count cho user chỉ khi approve document
-        const user = await User.findById(approvalRequest.requester);
-        if (user) {
-            user.doc_count = (user.doc_count || 0) + 1;
-            await user.save();
-        }
+        // const user = await User.findById(approvalRequest.requester);
+        // if (user) {
+        //     user.doc_count = (user.doc_count || 0) + 1;
+        //     await user.save();
+        // }
     }
 
     if (isIntensive && !approvalRequest.is_summary) {

@@ -143,6 +143,7 @@ exports.uploadDocument = async (req, res) => {
       public_mode,
       description: descriptionObj,
       page,
+      summary_status: descriptionObj.summary_by_user ? "PENDING" : "NONE"
     });
 
     //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
