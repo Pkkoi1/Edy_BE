@@ -74,7 +74,7 @@ exports.getDocumentsBySubject = async (req, res) => {
 exports.getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const document = await getDocumentById(id, req.user);
+    const document = await getDocumentById(id, req.user ? req.user.userId : null);
 
     if (!document) {
       return res.status(404).json({
@@ -143,6 +143,7 @@ exports.uploadDocument = async (req, res) => {
       public_mode,
       description: descriptionObj,
       page,
+      summary_status: descriptionObj.summary_by_user ? "PENDING" : "NONE"
     });
 
     //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
