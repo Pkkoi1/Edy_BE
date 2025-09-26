@@ -410,9 +410,67 @@ router.put(
  *       401:
  *         description: Chưa đăng nhập hoặc token không hợp lệ
  */
-
 router.get("/my-documents", requireLoggedIn, documentController.getMyDocuments);
 
+/**
+ * @swagger
+ * /documents/{documentId}/download:
+ *   post:
+ *     summary: Tạo link tải tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Tạo link tải tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       401:
+ *         description: Chưa đăng nhập hoặc token không hợp lệ
+ *       403:
+ *         description: Không có quyền truy cập tài liệu
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi tạo link tải tài liệu
+ */
+router.post("/:documentId/download", requireLoggedIn, documentController.createDownloadLink);
+
+/**
+ * @swagger
+ * /documents/download/{linkId}:
+ *   get:
+ *     summary: Tải tài liệu bằng link tải
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: linkId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID link tải
+ *     responses:
+ *       200:
+ *         description: Tải tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       401:
+ *         description: Chưa đăng nhập hoặc token không hợp lệ
+ *       403:
+ *         description: Link tải đã hết hạn hoặc bạn không có quyền truy cập tài liệu
+ *       404:
+ *         description: Link tải không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi tải tài liệu
+ */
+router.get("/download/:linkId", requireLoggedIn, documentController.downloadFile);
 /**
  * @swagger
  * /documents/{id}:

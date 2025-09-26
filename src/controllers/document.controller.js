@@ -1,3 +1,4 @@
+const axios = require("axios");
 const {
   getNewestDocuments,
   createDocument,
@@ -5,6 +6,9 @@ const {
   getMyDocuments,
   getPendingDocuments,
   getDocumentsBySubject,
+  processDownload,
+  createDownloadLink,
+  markDownloadSuccess
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -191,6 +195,60 @@ exports.getMyDocuments = async (req, res) => {
     res
       .status(500)
       .json({ message: "Đã xảy ra lỗi khi lấy tài liệu chờ duyệt" });
+  }
+};
+
+// Download
+exports.createDownloadLink = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    if (!documentId) {
+      return res.status(400).json({ message: "documentId là bắt buộc" });
+    }
+    const userId = req.user.userId;
+    const result = await createDownloadLink(userId, documentId);
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi tạo link download: " + error.message });
+  }
+}
+
+exports.downloadFile = async (req, res) => {
+  try {
+    const { linkId } = req.params;
+    if (!linkId) {
+      return res.status(400).json({ message: "linkId là bắt buộc" });
+    }
+    const userId = req.user.userId;
+    const result = await processDownload(linkId, userId);
+    if (result.error) {
+      return res.status(result.status || 400).json({ message: result.message });
+    }
+    const response = await axios.get(result.downloadUrl, { responseType: 'stream' });
+    const filename = result.filename || 'download';
+    const safeFilename = encodeURIComponent(filename)
+      .replace(/['()]/g, escape)
+      .replace(/\*/g, '%2A');
+
+    const contentType = result.contentType ||
+      response.headers['content-type'] ||
+      'application/octet-stream';
+
+    // Set headers theo chuẩn RFC 6266
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="download"; filename*=UTF-8''${safeFilename}`
+    );
+    res.setHeader('Content-Type', contentType);
+    response.data.pipe(res);
+
+    res.on('finish', () => {
+      markDownloadSuccess(linkId);
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi xử lý download: " + error.message });
   }
 };
 
