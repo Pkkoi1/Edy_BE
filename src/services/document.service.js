@@ -585,11 +585,11 @@ const createDownloadLink = async (userId, documentId) => {
     status: "PENDING",
   });
 
-  if (existingLink && existingLink.expiredAt > currentTime) {
-    throw new Error(
-      `Bạn đã có một link tải tài liệu đang chờ sử dụng. Vui lòng sử dụng link cũ hoặc đợi link hết hạn vào ${existingLink.expiredAt.toLocaleString()}.`
-    );
-  }
+  // if (existingLink && existingLink.expiredAt > currentTime) {
+  //   throw new Error(
+  //     `Bạn đã có một link tải tài liệu đang chờ sử dụng. Vui lòng sử dụng link cũ hoặc đợi link hết hạn vào ${existingLink.expiredAt.toLocaleString()}.`
+  //   );
+  // }
 
   const type = user.free_download_count > 0 ? "FREE" : "POINT";
   const cost = type === "FREE" ? 0 : await getDownloadPrice(documentId, user);
@@ -789,7 +789,7 @@ const getDownloadPrice = async (documentId, user) => {
   let basePrice = 4;
 
   if (document.intensive) {
-    basePrice += 6;
+    basePrice += 2;
   }
 
   // VIP user có giảm giá
