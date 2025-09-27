@@ -425,7 +425,7 @@ const updateDocument = async (id, data) => {
   return doc;
 };
 
-const getDocumentPreviewContent = async (doc) => { };
+const getDocumentPreviewContent = async (doc) => {};
 
 const getDocumentById = async (id, userId) => {
   const doc = await Document.findOne({ _id: id, is_deleted: false })
@@ -441,15 +441,26 @@ const getDocumentById = async (id, userId) => {
     .populate({ path: "organization", select: "_id name" })
     .populate({ path: "subject", select: "_id name" });
 
-  // nếu không phải admin thì mới check phía dưới
-  const isAdmin = await Account.findOne({ user: userId, is_admin: true });
-  if (!isAdmin) {
-    if (doc && doc.summary_status !== "APPROVED") {
-      if (doc.description && (doc.summary_status !== "REJECTED" || doc.summary_status !== "NONE")) {
-        doc.description.summary_by_user = "Tài liệu không được tóm tắt bởi người đăng.";
-      }
-      if (doc.description && (doc.summary_status == "PENDING" || doc.summary_status == "PENDING_EDIT")) {
-        doc.description.summary_by_user = "Tóm tắt đang chờ phê duyệt, hãy kiên nhẫn để admin duyệt bạn nhé!";
+  // Nếu có userId thì check quyền admin, nếu không thì bỏ qua
+  if (userId) {
+    const isAdmin = await Account.findOne({ user: userId, is_admin: true });
+    if (!isAdmin) {
+      if (doc && doc.summary_status !== "APPROVED") {
+        if (
+          doc.description &&
+          (doc.summary_status !== "REJECTED" || doc.summary_status !== "NONE")
+        ) {
+          doc.description.summary_by_user =
+            "Tài liệu không được tóm tắt bởi người đăng.";
+        }
+        if (
+          doc.description &&
+          (doc.summary_status == "PENDING" ||
+            doc.summary_status == "PENDING_EDIT")
+        ) {
+          doc.description.summary_by_user =
+            "Tóm tắt đang chờ phê duyệt, hãy kiên nhẫn để admin duyệt bạn nhé!";
+        }
       }
     }
   }
@@ -480,10 +491,7 @@ const getPendingDocuments = async ({
 
   // Query cơ bản cho pending documents
   let query = {
-    $or: [
-      { status: "PENDING" },
-      { summary_status: "PENDING" }
-    ],
+    $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
     is_deleted: false,
   };
 
@@ -491,13 +499,10 @@ const getPendingDocuments = async ({
   if (searchOr.length > 0) {
     query.$and = [
       {
-        $or: [
-          { status: "PENDING" },
-          { summary_status: "PENDING" }
-        ]
+        $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
       },
       { $or: searchOr },
-      { is_deleted: false }
+      { is_deleted: false },
     ];
   }
 
@@ -566,84 +571,92 @@ const createDownloadLink = async (userId, documentId) => {
   // Kiểm tra quyền xem tài liệu
   const canView = await canViewDocument(userId, documentId);
   if (!canView) {
-    throw new Error('Bạn không có quyền truy cập tài liệu này');
+    throw new Error("Bạn không có quyền truy cập tài liệu này");
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new Error('Người dùng không tồn tại');
+    throw new Error("Người dùng không tồn tại");
   }
 
   const existingLink = await DownloadLink.findOne({
     user: userId,
     doc: documentId,
-    status: 'PENDING',
+    status: "PENDING",
   });
- 
+
   if (existingLink && existingLink.expiredAt > currentTime) {
-    throw new Error(`Bạn đã có một link tải tài liệu đang chờ sử dụng. Vui lòng sử dụng link cũ hoặc đợi link hết hạn vào ${existingLink.expiredAt.toLocaleString()}.`);
+    throw new Error(
+      `Bạn đã có một link tải tài liệu đang chờ sử dụng. Vui lòng sử dụng link cũ hoặc đợi link hết hạn vào ${existingLink.expiredAt.toLocaleString()}.`
+    );
   }
-  
-  const type = user.free_download_count > 0 ? 'FREE' : 'POINT';
-  const cost = type === 'FREE' ? 0 : await getDownloadPrice(documentId, user);
-  if (type === 'POINT' && user.point < cost) {
-    throw new Error(`Không đủ điểm để tải tài liệu. Tài liệu cần ${cost} điểm, bạn hiện có ${user.point} điểm.`);
+
+  const type = user.free_download_count > 0 ? "FREE" : "POINT";
+  const cost = type === "FREE" ? 0 : await getDownloadPrice(documentId, user);
+  if (type === "POINT" && user.point < cost) {
+    throw new Error(
+      `Không đủ điểm để tải tài liệu. Tài liệu cần ${cost} điểm, bạn hiện có ${user.point} điểm.`
+    );
   }
 
   //Tạo download link
-  
+
   expiredAt = new Date(currentTime.getTime() + 10 * 60 * 1000);
   const downloadLink = new DownloadLink({
     user: userId,
     doc: documentId,
     type,
     cost,
-    status: 'PENDING',
+    status: "PENDING",
     expiredAt,
   });
 
   await downloadLink.save();
 
-  remaining_free_downloads = type === 'FREE' ? user.free_download_count - 1 : user.free_download_count;
+  remaining_free_downloads =
+    type === "FREE" ? user.free_download_count - 1 : user.free_download_count;
   return {
     downloadId: downloadLink._id,
     url: `/download/${downloadLink._id}`,
     type,
     cost,
     expiredAt,
-    expiresIn: '10 phút',
-    free_downloads_remaining: remaining_free_downloads
+    expiresIn: "10 phút",
+    free_downloads_remaining: remaining_free_downloads,
   };
 };
 
 const processDownload = async (downloadId, userId) => {
   const downloadLink = await DownloadLink.findById(downloadId)
-    .populate('user')
-    .populate('doc');
+    .populate("user")
+    .populate("doc");
 
   if (!downloadLink) {
-    throw new Error('Link download không tồn tại');
+    throw new Error("Link download không tồn tại");
   }
 
   if (downloadLink.user._id.toString() !== userId) {
-    throw new Error('Bạn không có quyền sử dụng link này');
+    throw new Error("Bạn không có quyền sử dụng link này");
   }
 
-  if (downloadLink.status === 'SUCCESS') {
-    throw new Error('Link này đã được sử dụng');
+  if (downloadLink.status === "SUCCESS") {
+    throw new Error("Link này đã được sử dụng");
   }
 
-  if (downloadLink.status === 'EXPIRED' || new Date() > downloadLink.expiredAt) {
-    downloadLink.status = 'EXPIRED';
+  if (
+    downloadLink.status === "EXPIRED" ||
+    new Date() > downloadLink.expiredAt
+  ) {
+    downloadLink.status = "EXPIRED";
     await downloadLink.save();
-    throw new Error('Link download đã hết hạn');
+    throw new Error("Link download đã hết hạn");
   }
 
   const user = downloadLink.user;
   const document = downloadLink.doc;
 
   // Tính điểm
-  if (downloadLink.type === 'FREE') {
+  if (downloadLink.type === "FREE") {
     user.free_download_count = Math.max(0, user.free_download_count - 1);
   } else {
     user.point = Math.max(0, user.point - downloadLink.cost);
@@ -652,11 +665,7 @@ const processDownload = async (downloadId, userId) => {
   // Cập nhật download count status
   document.download_count = (document.download_count || 0) + 1;
 
-  await Promise.all([
-    user.save(),
-    document.save(),
-    downloadLink.save()
-  ]);
+  await Promise.all([user.save(), document.save(), downloadLink.save()]);
 
   return {
     downloadUrl: document.url,
@@ -664,25 +673,25 @@ const processDownload = async (downloadId, userId) => {
     document: {
       id: document._id,
       title: document.title,
-      author: document.author
+      author: document.author,
     },
-    remaining_free_downloads: user.free_download_count
+    remaining_free_downloads: user.free_download_count,
   };
 };
 
 const markDownloadSuccess = async (downloadId) => {
   const downloadLink = await DownloadLink.findById(downloadId);
   if (!downloadLink) {
-    throw new Error('Link download không tồn tại');
+    throw new Error("Link download không tồn tại");
   }
-  if (downloadLink.status !== 'PENDING') {
-    throw new Error('Link download không ở trạng thái chờ');
+  if (downloadLink.status !== "PENDING") {
+    throw new Error("Link download không ở trạng thái chờ");
   }
-  downloadLink.status = 'SUCCESS';
+  downloadLink.status = "SUCCESS";
   downloadLink.accessedAt = new Date();
   await downloadLink.save();
   return downloadLink;
-}
+};
 
 module.exports = {
   getNewestDocuments,
@@ -695,7 +704,7 @@ module.exports = {
   getMyDocuments,
   createDownloadLink,
   processDownload,
-  markDownloadSuccess
+  markDownloadSuccess,
 };
 
 const validateSubjects = async (subjectId) => {
@@ -718,38 +727,41 @@ const validateOrganization = async (organizationId) => {
 
 // function check quyen xem doc
 const canViewDocument = async (userId, documentId) => {
-  const user = await User.findById(userId).populate('organization');
+  const user = await User.findById(userId).populate("organization");
   if (!user) return false;
 
   const document = await Document.findOne({
     _id: documentId,
-    is_deleted: false
-  }).populate('user organization');
+    is_deleted: false,
+  }).populate("user organization");
 
   if (!document) return false;
 
   // Document phải được approve
-  if (document.status !== 'APPROVED') {
+  if (document.status !== "APPROVED") {
     // Chỉ chủ sở hữu mới xem được document chưa approve
     return document.user._id.toString() === userId;
   }
 
   // Check quyền truy cập theo public mode
   switch (document.public_mode) {
-    case 'PUBLIC':
+    case "PUBLIC":
       return true;
 
-    case 'PRIVATE':
+    case "PRIVATE":
       return document.user._id.toString() === userId;
 
-    case 'SHARE_ORGANIZATION':
+    case "SHARE_ORGANIZATION":
       if (!user.organization || !document.user.organization) return false;
-      return user.organization._id.toString() === document.user.organization._id.toString();
+      return (
+        user.organization._id.toString() ===
+        document.user.organization._id.toString()
+      );
 
-    case 'PRIVATE_SHARED':
+    case "PRIVATE_SHARED":
       // Check trong shared_documents của user
       const isShared = user.shared_documents?.some(
-        shared => shared.document.toString() === documentId
+        (shared) => shared.document.toString() === documentId
       );
       return isShared || document.user._id.toString() === userId;
 
@@ -760,13 +772,13 @@ const canViewDocument = async (userId, documentId) => {
 
 const getFileExtension = (fileType) => {
   const extensions = {
-    'PDF': 'pdf',
-    'WORD': 'docx', 
-    'EXCEL': 'xlsx',
-    'POWERPOINT': 'pptx',
-    'VIDEO': 'mp4'
+    PDF: "pdf",
+    WORD: "docx",
+    EXCEL: "xlsx",
+    POWERPOINT: "pptx",
+    VIDEO: "mp4",
   };
-  return extensions[fileType] || 'file';
+  return extensions[fileType] || "file";
 };
 
 // function tinh diem download
@@ -775,11 +787,11 @@ const getDownloadPrice = async (documentId, user) => {
   if (!document) return 0;
 
   let basePrice = 4;
-  
+
   if (document.intensive) {
     basePrice += 2;
   }
-  
+
   // VIP user có giảm giá
   const account = await Account.findOne({ user: user._id });
   if (account?.is_vip) {
@@ -788,4 +800,3 @@ const getDownloadPrice = async (documentId, user) => {
 
   return basePrice;
 };
-
