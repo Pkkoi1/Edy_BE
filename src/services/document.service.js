@@ -777,7 +777,7 @@ const getDownloadPrice = async (documentId, user) => {
   let basePrice = 4;
   
   if (document.intensive) {
-    basePrice += 6;
+    basePrice += 2;
   }
   
   // VIP user có giảm giá
