@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 const cors = require('cors');
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: 'http://localhost:5173', credentials: true, exposedHeaders: ['X-Filename', 'X-Original-Title'] }));
 
 // Swagger docs
 const swaggerSetup = require("./src/config/swagge");

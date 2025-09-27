@@ -250,6 +250,8 @@ exports.downloadFile = async (req, res) => {
       `attachment; filename="download"; filename*=UTF-8''${safeFilename}`
     );
     res.setHeader("Content-Type", contentType);
+    res.setHeader("X-Filename", encodeURIComponent(filename)); // Custom header cho filename
+    res.setHeader("X-Original-Title", encodeURIComponent(result.document?.title || filename)); // Title gốc
     response.data.pipe(res);
 
     res.on("finish", () => {
