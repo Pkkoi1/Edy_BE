@@ -26,7 +26,7 @@ const {
  *         name: ordering
  *         schema:
  *           type: string
- *         description: "Trường sắp xếp (vd: title, createdAt, published_year)"
+ *         description: "Trường sắp xếp (vd: title, createdAt, published_year, last_approved_at)"
  *       - in: query
  *         name: order
  *         schema:

@@ -10,6 +10,12 @@ const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, r
  *     summary: Lấy danh sách tổ chức
  *     tags:
  *       - Organizations
+ *     parameters:
+ *       - in: query
+ *         name: is_dropdown
+ *         schema:
+ *           type: boolean
+ *         example: false
  *     responses:
  *       200:
  *         description: Lấy danh sách tổ chức thành công

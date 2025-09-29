@@ -24,7 +24,7 @@ exports.getNewestDocuments = async (req, res) => {
   try {
     const {
       search,
-      ordering = "createdAt",
+      ordering = "last_approved_at",
       order = -1,
       page = 1,
       limit = 5,

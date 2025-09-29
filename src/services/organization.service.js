@@ -34,9 +34,13 @@ const getOrganizations = async ({ is_dropdown = false, search } = {}) => {
         ];
     }
     if (is_dropdown) {
-        return Organization.find(query).select('_id name code');
+        return Organization.find(query).select('_id name code').populate({ path: 'created_by', select: '_id first_name last_name avatar' });
     }
-    return Organization.find(query);
+    return Organization.find(query)
+        .populate([
+            { path: 'created_by', select: '_id first_name last_name avatar' },
+            { path: 'subjects.subject', select: '_id name' } 
+        ]);
 };
 
 module.exports = {
