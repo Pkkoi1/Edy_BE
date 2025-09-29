@@ -1,6 +1,7 @@
 const ApprovalRequest = require("../models/approval_request.model");
 const User = require("../models/user.model");
 const Document = require("../models/document.model");
+const Organization = require("../models/organization.model");
 
 const createApprovalRequest = async (documentId, requesterId) => {
     const requester = await User.findById(requesterId);
@@ -53,13 +54,16 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     const approvalRequest = await ApprovalRequest.findById(requestId);
     if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
 
+    const current = new Date();
+
     approvalRequest.reviewed_by = reviewer._id;
-    approvalRequest.reviewed_at = new Date();
+    approvalRequest.reviewed_at = current;
     approvalRequest.status = "APPROVED";
     await approvalRequest.save();
 
     const document = await Document.findById(approvalRequest.doc);
     if (!document) throw new Error("Tài liệu không tồn tại");
+    const organization = await Organization.findById(document.organization);
 
     let documentChanged = false;
 
@@ -71,14 +75,54 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     } else {
         // Approve document request
         document.status = "APPROVED";
+        document.last_approved_at = current;
         documentChanged = true;
 
+
         // Tăng doc_count cho user chỉ khi approve document
-        // const user = await User.findById(approvalRequest.requester);
-        // if (user) {
-        //     user.doc_count = (user.doc_count || 0) + 1;
-        //     await user.save();
-        // }
+        const user = await User.findById(approvalRequest.requester);
+        if (user) {
+            user.doc_count = (user.doc_count || 0) + 1;
+            await user.save();
+        }
+
+        //Them vao subjects va content_categories cua org
+        if (organization) {
+            if (document.subject) {
+                const existingSubject = organization.subjects.find(s =>
+                    s.subject.toString() === document.subject.toString()
+                );
+
+                if (existingSubject) {
+                    // Tăng count cho subject đã tồn tại
+                    existingSubject.count = (existingSubject.count || 0) + 1;
+                } else {
+                    // Thêm subject mới
+                    organization.subjects.push({
+                        subject: document.subject,
+                        count: 1
+                    });
+                }
+            }
+
+            if (document.doc_type) {
+                const existingCategory = organization.content_categories.find(c =>
+                    c.doc_type === document.doc_type
+                );
+
+                if (existingCategory) {
+                    // Tăng document_count cho category đã tồn tại
+                    existingCategory.document_count = (existingCategory.document_count || 0) + 1;
+                } else {
+                    // Thêm category mới
+                    organization.content_categories.push({
+                        doc_type: document.doc_type,
+                        document_count: 1
+                    });
+                }
+            }
+            await organization.save();
+        }
     }
 
     if (isIntensive && !approvalRequest.is_summary) {
@@ -88,7 +132,7 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     }
 
     if (documentChanged) await document.save();
-    
+
     //gửi thông báo cho người đăng (để sau)
 
     //tính điểm lần đăng này (để sau)
@@ -126,7 +170,7 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     if (documentChanged) await document.save();
 
     //gửi thông báo cho người đăng (để sau)
-    
+
     return approvalRequest;
 };
 

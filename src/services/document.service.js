@@ -18,7 +18,7 @@ cloudinary.config({
 const getNewestDocuments = async ({
   payload,
   search,
-  ordering = "createdAt",
+  ordering = "last_approved_at",
   order = -1,
   page = 1,
   limit = 5,
@@ -105,7 +105,7 @@ const getNewestDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author cover_page published_year publisher page file_type intensive url organization subject level view download_count comment_count createdAt"
+        "_id user title author cover_page published_year publisher page file_type intensive url organization subject level view download_count comment_count createdAt last_approved_at"
       )
       .populate({
         path: "user",
@@ -601,7 +601,7 @@ const createDownloadLink = async (userId, documentId) => {
 
   //Tạo download link
 
-  expiredAt = new Date(currentTime.getTime() + 10 * 60 * 1000);
+  let expiredAt = new Date(currentTime.getTime() + 10 * 60 * 1000);
   const downloadLink = new DownloadLink({
     user: userId,
     doc: documentId,
@@ -613,7 +613,7 @@ const createDownloadLink = async (userId, documentId) => {
 
   await downloadLink.save();
 
-  remaining_free_downloads =
+  let remaining_free_downloads =
     type === "FREE" ? user.free_download_count - 1 : user.free_download_count;
   return {
     downloadId: downloadLink._id,
@@ -800,3 +800,4 @@ const getDownloadPrice = async (documentId, user) => {
 
   return basePrice;
 };
+
