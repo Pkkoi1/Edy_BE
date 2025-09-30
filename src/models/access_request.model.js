@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const accessRequestSchema = new mongoose.Schema({
   doc: { type: mongoose.Schema.Types.ObjectId, ref: 'Document', required: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  private_share: { type: mongoose.Schema.Types.ObjectId, ref: 'PrivateShare', required: true },
   expiredAt: { type: Date, default: null },
   content: { type: String, default: null },
   status: {
