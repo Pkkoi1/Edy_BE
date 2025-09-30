@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const documentController = require("../controllers/document.controller");
-const privateShareController = require('../controllers/private_share.controller');
+const privateShareController = require("../controllers/private_share.controller");
 const {
   requireUserRole,
   userOrUnauthenticated,
@@ -441,7 +441,11 @@ router.get("/my-documents", requireLoggedIn, documentController.getMyDocuments);
  *       500:
  *         description: Đã xảy ra lỗi khi tạo link tải tài liệu
  */
-router.post("/:documentId/download", requireLoggedIn, documentController.createDownloadLink);
+router.post(
+  "/:documentId/download",
+  requireLoggedIn,
+  documentController.createDownloadLink
+);
 
 /**
  * @swagger
@@ -471,7 +475,11 @@ router.post("/:documentId/download", requireLoggedIn, documentController.createD
  *       500:
  *         description: Đã xảy ra lỗi khi tải tài liệu
  */
-router.get("/download/:linkId", requireLoggedIn, documentController.downloadFile);
+router.get(
+  "/download/:linkId",
+  requireLoggedIn,
+  documentController.downloadFile
+);
 
 /**
  * @swagger
@@ -528,7 +536,11 @@ router.get("/download/:linkId", requireLoggedIn, documentController.downloadFile
  *       403:
  *         description: Không có quyền truy cập
  */
-router.post('/:documentId/share-links', requireUserRole, privateShareController.createShareLink);
+router.post(
+  "/:documentId/share-links",
+  requireUserRole,
+  privateShareController.createShareLink
+);
 
 /**
  * @swagger
@@ -553,7 +565,11 @@ router.post('/:documentId/share-links', requireUserRole, privateShareController.
  *       403:
  *         description: Không có quyền truy cập
  */
-router.get('/:documentId/share-links', requireUserRole, privateShareController.getShareLinks);
+router.get(
+  "/:documentId/share-links",
+  requireUserRole,
+  privateShareController.getShareLinks
+);
 
 /**
  * @swagger
@@ -582,7 +598,11 @@ router.get('/:documentId/share-links', requireUserRole, privateShareController.g
  *       404:
  *         description: Link chia sẻ không tồn tại
  */
-router.post('/share/:linkId/access', requireUserRole, privateShareController.accessShareLink);
+router.post(
+  "/share/:linkId/access",
+  requireUserRole,
+  privateShareController.accessShareLink
+);
 
 /**
  * @swagger
@@ -620,7 +640,108 @@ router.post('/share/:linkId/access', requireUserRole, privateShareController.acc
  *       404:
  *         description: Link chia sẻ không tồn tại
  */
-router.patch('/share-links/:linkId/status', requireUserRole, privateShareController.updateShareLinkStatus);
+router.patch(
+  "/share-links/:linkId/status",
+  requireUserRole,
+  privateShareController.updateShareLinkStatus
+);
+
+/**
+ * @swagger
+ * /documents/{id}/public-mode:
+ *   patch:
+ *     summary: Cập nhật chế độ công khai của tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               public_mode:
+ *                 type: string
+ *                 enum:
+ *                   - PUBLIC
+ *                   - PRIVATE
+ *                   - PRIVATE_SHARED
+ *                   - SHARE_ORGANIZATION
+ *                 example: "PUBLIC"
+ *                 description: Chế độ công khai mới
+ *     responses:
+ *       200:
+ *         description: Cập nhật chế độ công khai thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền thực hiện thao tác này
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.patch(
+  "/:id/public-mode",
+  requireUserRole,
+  documentController.updateDocumentPublicMode
+);
+
+/**
+ * @swagger
+ * /documents/{id}/status:
+ *   patch:
+ *     summary: Cập nhật trạng thái của tài liệu (Admin only)
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum:
+ *                   - PENDING
+ *                   - APPROVED
+ *                   - REJECTED
+ *                   - REQUESTED_EDIT
+ *                   - PENDING_EDIT
+ *                 example: "APPROVED"
+ *                 description: Trạng thái mới
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền thực hiện thao tác này
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.patch(
+  "/:id/status",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.updateDocumentStatus
+);
 
 /**
  * @swagger

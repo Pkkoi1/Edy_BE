@@ -9,6 +9,7 @@ const {
   processDownload,
   createDownloadLink,
   markDownloadSuccess,
+  updateDocument,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -99,7 +100,9 @@ exports.getDocumentById = async (req, res) => {
 
     res.json(document);
   } catch (error) {
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message });
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message });
   }
 };
 
@@ -250,7 +253,10 @@ exports.downloadFile = async (req, res) => {
     );
     res.setHeader("Content-Type", contentType);
     res.setHeader("X-Filename", encodeURIComponent(filename)); // Custom header cho filename
-    res.setHeader("X-Original-Title", encodeURIComponent(result.document?.title || filename)); // Title gốc
+    res.setHeader(
+      "X-Original-Title",
+      encodeURIComponent(result.document?.title || filename)
+    ); // Title gốc
     response.data.pipe(res);
 
     res.on("finish", () => {
@@ -346,5 +352,116 @@ exports.rejectDocument = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Đã xảy ra lỗi khi từ chối tài liệu" });
+  }
+};
+
+exports.updateDocumentPublicMode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { public_mode } = req.body;
+
+    if (!public_mode) {
+      return res.status(400).json({ message: "public_mode là bắt buộc" });
+    }
+
+    const allowedModes = [
+      "PUBLIC",
+      "PRIVATE",
+      "PRIVATE_SHARED",
+      "SHARE_ORGANIZATION",
+    ];
+    if (!allowedModes.includes(public_mode)) {
+      return res.status(400).json({
+        message: `public_mode phải là một trong: ${allowedModes.join(", ")}`,
+      });
+    }
+
+    // Kiểm tra quyền sở hữu tài liệu
+    const document = await getDocumentById(id, req.user.userId);
+    if (!document) {
+      return res.status(404).json({
+        message: "Tài liệu không tồn tại hoặc bạn không có quyền truy cập",
+      });
+    }
+
+    if (document.user._id.toString() !== req.user.userId) {
+      return res.status(403).json({
+        message:
+          "Chỉ chủ sở hữu mới có thể thay đổi chế độ công khai của tài liệu",
+      });
+    }
+
+    // Cập nhật public_mode
+    const updatedDocument = await updateDocument(id, { public_mode });
+
+    res.json({
+      message: "Cập nhật chế độ công khai thành công",
+      document: {
+        _id: updatedDocument._id,
+        title: updatedDocument.title,
+        public_mode: updatedDocument.public_mode,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi cập nhật chế độ công khai: " + error.message,
+    });
+  }
+};
+
+exports.updateDocumentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ message: "status là bắt buộc" });
+    }
+
+    const allowedStatuses = [
+      "PENDING",
+      "APPROVED",
+      "REJECTED",
+      "REQUESTED_EDIT",
+      "PENDING_EDIT",
+    ];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        message: `status phải là một trong: ${allowedStatuses.join(", ")}`,
+      });
+    }
+
+    // Kiểm tra tài liệu tồn tại
+    const document = await getDocumentById(id, req.user.userId);
+    if (!document) {
+      return res.status(404).json({
+        message: "Tài liệu không tồn tại hoặc bạn không có quyền truy cập",
+      });
+    }
+
+    // Cập nhật status và last_approved_at nếu status là APPROVED
+    const updateData = { status };
+    if (status === "APPROVED") {
+      updateData.last_approved_at = new Date();
+    }
+
+    const updatedDocument = await updateDocument(id, updateData);
+
+    res.json({
+      message: "Cập nhật trạng thái tài liệu thành công",
+      document: {
+        _id: updatedDocument._id,
+        title: updatedDocument.title,
+        status: updatedDocument.status,
+        last_approved_at: updatedDocument.last_approved_at,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message:
+        "Đã xảy ra lỗi khi cập nhật trạng thái tài liệu: " + error.message,
+    });
   }
 };
