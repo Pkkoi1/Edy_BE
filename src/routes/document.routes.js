@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const documentController = require("../controllers/document.controller");
+const privateShareController = require('../controllers/private_share.controller');
 const {
   requireUserRole,
   userOrUnauthenticated,
@@ -471,6 +472,156 @@ router.post("/:documentId/download", requireLoggedIn, documentController.createD
  *         description: Đã xảy ra lỗi khi tải tài liệu
  */
 router.get("/download/:linkId", requireLoggedIn, documentController.downloadFile);
+
+/**
+ * @swagger
+ * /documents/{documentId}/share-links:
+ *   post:
+ *     summary: Tạo link chia sẻ cho một tài liệu
+ *     tags:
+ *       - Private Shares
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "652e1c8e2f8b9c0012345678"
+ *         description: ID của tài liệu
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Link chia sẻ Toán cao cấp"
+ *               limited_access:
+ *                 type: integer
+ *                 example: 100
+ *                 description: Số người truy cập tối đa (null nếu không giới hạn)
+ *               request:
+ *                 type: boolean
+ *                 example: false
+ *                 description: Yêu cầu phê duyệt từ chủ sở hữu (true/false)
+ *               time_limited:
+ *                 type: boolean
+ *                 example: false
+ *                 description: Giới hạn thời gian truy cập (true/false)
+ *               start_date:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2024-01-01T00:00:00Z"
+ *                 description: Ngày bắt đầu (nếu time_limited = true)
+ *               end_date:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2024-12-31T23:59:59Z"
+ *                 description: Ngày kết thúc (nếu time_limited = true)
+ *     responses:
+ *       201:
+ *         description: Tạo link chia sẻ thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền truy cập
+ */
+router.post('/:documentId/share-links', requireUserRole, privateShareController.createShareLink);
+
+/**
+ * @swagger
+ * /documents/{documentId}/share-links:
+ *   get:
+ *     summary: Lấy danh sách link chia sẻ của một tài liệu
+ *     tags:
+ *       - Private Shares
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "652e1c8e2f8b9c0012345678"
+ *         description: ID của tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách link chia sẻ thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền truy cập
+ */
+router.get('/:documentId/share-links', requireUserRole, privateShareController.getShareLinks);
+
+/**
+ * @swagger
+ * /documents/share/{linkId}/access:
+ *   post:
+ *     summary: Truy cập tài liệu qua link chia sẻ
+ *     tags:
+ *       - Private Shares
+ *     parameters:
+ *       - in: path
+ *         name: linkId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "652e1c8e2f8b9c0012345678"
+ *         description: ID của link chia sẻ
+ *     responses:
+ *       200:
+ *         description: Truy cập thành công
+ *       202:
+ *         description: Link chia sẻ yêu cầu phê duyệt từ chủ sở hữu
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Link chia sẻ không tồn tại
+ */
+router.post('/share/:linkId/access', requireUserRole, privateShareController.accessShareLink);
+
+/**
+ * @swagger
+ * /documents/share-links/{linkId}/status:
+ *   patch:
+ *     summary: Cập nhật trạng thái (ACTIVE/INACTIVE/DISABLED) của link chia sẻ
+ *     tags:
+ *       - Private Shares
+ *     parameters:
+ *       - in: path
+ *         name: linkId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "652e1c8e2f8b9c0012345678"
+ *         description: ID của link chia sẻ
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 example: "ACTIVE"
+ *                 description: Trạng thái mới (ACTIVE, INACTIVE, DISABLED)
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Link chia sẻ không tồn tại
+ */
+router.patch('/share-links/:linkId/status', requireUserRole, privateShareController.updateShareLinkStatus);
+
 /**
  * @swagger
  * /documents/{id}:

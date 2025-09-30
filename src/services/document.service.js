@@ -425,8 +425,6 @@ const updateDocument = async (id, data) => {
   return doc;
 };
 
-const getDocumentPreviewContent = async (doc) => {};
-
 const getDocumentById = async (id, userId) => {
   const doc = await Document.findOne({ _id: id, is_deleted: false })
     .populate({
@@ -441,9 +439,13 @@ const getDocumentById = async (id, userId) => {
     .populate({ path: "organization", select: "_id name" })
     .populate({ path: "subject", select: "_id name" });
 
-  // Nếu có userId thì check quyền admin, nếu không thì bỏ qua
-  if (userId) {
-    const isAdmin = await Account.findOne({ user: userId, is_admin: true });
+  const canView = await canViewDocument(userId, id);
+  const isAdmin = await Account.findOne({ user: userId, is_admin: true });
+  if (!canView && !isAdmin) {
+    throw new Error("Bạn không có quyền truy cập tài liệu này");
+  }
+  
+  if (canView) {
     if (!isAdmin) {
       if (doc && doc.summary_status !== "APPROVED") {
         if (

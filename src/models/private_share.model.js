@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const privateShareSchema = new mongoose.Schema({
-  access_url: { type: String, required: true },
+  name: { type: String},
   limited_access: { type: Number, default: null },
   request: { type: Boolean, default: false },
   time_limited: { type: Boolean, default: false },
@@ -10,7 +10,7 @@ const privateShareSchema = new mongoose.Schema({
   doc: { type: mongoose.Schema.Types.ObjectId, ref: 'Document', required: true },
   status: {
     type: String,
-    enum: ['ACTIVE', 'INACTIVE', 'BLOCKED'],
+    enum: ['ACTIVE', 'INACTIVE', 'DISABLED'],
     default: 'ACTIVE'
   },
   user_accessed: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]

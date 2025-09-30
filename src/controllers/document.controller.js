@@ -99,8 +99,7 @@ exports.getDocumentById = async (req, res) => {
 
     res.json(document);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu" });
+    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message });
   }
 };
 
