@@ -53,7 +53,7 @@ exports.accessShareLink = async (req, res) => {
         const result = await accessShareLink(linkId, userId);
 
         if (result.request_access === true) {
-            return res.status(202).json({ message: 'Link chia sẻ yêu cầu phê duyệt từ chủ sở hữu' });
+            return res.status(202).json({ message: 'Link chia sẻ yêu cầu phê duyệt từ chủ sở hữu', required_access: true });
         }
 
         res.json({

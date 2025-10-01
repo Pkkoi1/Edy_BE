@@ -51,6 +51,9 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     const reviewer = await User.findById(reviewerId);
     if (!reviewer) throw new Error("Người duyệt không tồn tại");
 
+    const user = await User.findById(approvalRequest.requester);
+    if (!user) throw new Error("Người yêu cầu không tồn tại");
+
     const approvalRequest = await ApprovalRequest.findById(requestId);
     if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
 
@@ -133,9 +136,22 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
 
     if (documentChanged) await document.save();
 
+    //tính điểm lần đăng này
+    if (!approvalRequest.is_summary) {
+        const isFirstApproval = await ApprovalRequest.countDocuments({
+            requester: approvalRequest.requester,
+            status: "APPROVED",
+            doc: { $ne: approvalRequest.doc }
+        }) === 0;
+        const base = isFirstApproval ? 20 : 15;
+        const total = isIntensive ? base + 5 : base;
+        user.point = (user.point || 0) + total;
+        user.total_points = (user.total_points || 0) + total;
+        await user.save();
+    }
+
     //gửi thông báo cho người đăng (để sau)
 
-    //tính điểm lần đăng này (để sau)
     return approvalRequest;
 };
 

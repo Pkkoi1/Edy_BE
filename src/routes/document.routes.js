@@ -672,7 +672,6 @@ router.patch(
  *                 enum:
  *                   - PUBLIC
  *                   - PRIVATE
- *                   - PRIVATE_SHARED
  *                   - SHARE_ORGANIZATION
  *                 example: "PUBLIC"
  *                 description: Chế độ công khai mới

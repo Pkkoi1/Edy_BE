@@ -108,8 +108,8 @@ const accessShareLink = async (linkId, userId) => {
             return {
                 documentId: shareLink.doc._id,
                 documentTitle: shareLink.doc.title,
-                access_granted: true,
-                redirect_url: `/detail-document/${shareLink.doc._id}`
+                access_granted: false,
+                redirect_url: `/document-detail/${shareLink.doc._id}`
             };
         }
 
@@ -122,8 +122,8 @@ const accessShareLink = async (linkId, userId) => {
             return {
                 documentId: shareLink.doc._id,
                 documentTitle: shareLink.doc.title,
-                access_granted: true,
-                redirect_url: `/detail-document/${shareLink.doc._id}`
+                access_granted: false,
+                redirect_url: `/document-detail/${shareLink.doc._id}`
             };
         }
 
@@ -166,7 +166,7 @@ const accessShareLink = async (linkId, userId) => {
             documentId: shareLink.doc._id,
             documentTitle: shareLink.doc.title,
             access_granted: true,
-            redirect_url: `/detail-document/${shareLink.doc._id}`
+            redirect_url: `/document-detail/${shareLink.doc._id}`
         };
     } catch (error) {
         throw new Error(error.message);

@@ -4,6 +4,7 @@ const Account = require("../models/account.model");
 const Organization = require("../models/organization.model");
 const Subject = require("../models/subject.model");
 const DownloadLink = require("../models/download_link.model");
+const PrivateShare = require("../models/private_share.model");
 const { updateUserDocCount } = require("./user.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
@@ -422,6 +423,8 @@ const updateDocument = async (id, data) => {
   // Không cho sửa trường is_deleted qua update này
   if ("is_deleted" in data) delete data.is_deleted;
   const doc = await Document.findByIdAndUpdate(id, data, { new: true });
+
+  
   return doc;
 };
 
@@ -695,6 +698,22 @@ const markDownloadSuccess = async (downloadId) => {
   return downloadLink;
 };
 
+const changeAllShareLink = async (userId, documentId, newStatus) => {
+  const doc = await Document.findOne({
+    _id: documentId,
+    user: userId,
+    is_deleted: false,
+  });
+  if (!doc) {
+    throw new Error("Tài liệu không tồn tại hoặc bạn không có quyền thay đổi");
+  }
+
+  const allLinks = await PrivateShare.updateMany(
+    { doc: documentId, status: "ACTIVE" },
+    { status: newStatus }
+  );
+};
+
 module.exports = {
   getNewestDocuments,
   createDocument,
@@ -707,6 +726,7 @@ module.exports = {
   createDownloadLink,
   processDownload,
   markDownloadSuccess,
+  changeAllShareLink,
 };
 
 const validateSubjects = async (subjectId) => {
