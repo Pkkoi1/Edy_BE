@@ -745,6 +745,109 @@ router.patch(
 
 /**
  * @swagger
+ * /documents/{id}/update:
+ *   put:
+ *     summary: Cập nhật thông tin tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               cover_page:
+ *                 type: string
+ *                 example: "https://res.cloudinary.com/demo/image/upload/cover.jpg"
+ *                 description: URL ảnh bìa
+ *               title:
+ *                 type: string
+ *                 example: "Giáo trình Toán cao cấp"
+ *                 description: Tiêu đề tài liệu
+ *               subject:
+ *                 type: string
+ *                 example: "652e1c8e2f8b9c0012345679"
+ *                 description: ID môn học
+ *               organization:
+ *                 type: string
+ *                 example: "652e1c8e2f8b9c0012345678"
+ *                 description: ID tổ chức
+ *               doc_type:
+ *                 type: string
+ *                 enum:
+ *                   - RESEARCH_REPORT
+ *                   - VIDEO
+ *                   - STUDY_GUIDE
+ *                   - TEXTBOOK
+ *                   - ESSAY
+ *                   - SOLUTION_SET
+ *                   - THESIS
+ *                   - LECTURE
+ *                   - OTHER
+ *                 example: "TEXTBOOK"
+ *                 description: Loại tài liệu
+ *               page:
+ *                 type: integer
+ *                 example: 120
+ *                 description: Số trang
+ *               level:
+ *                 type: string
+ *                 enum:
+ *                   - STUDENT
+ *                   - UNIVERSITY
+ *                   - LECTURER
+ *                   - RESEARCHER
+ *                   - OTHER
+ *                 example: "UNIVERSITY"
+ *                 description: Trình độ
+ *               description:
+ *                 type: string
+ *                 example: "Tài liệu toán cao cấp dành cho sinh viên năm nhất"
+ *                 description: Tóm tắt do người dùng
+ *               publisher:
+ *                 type: string
+ *                 example: "NXB Giáo dục"
+ *                 description: Nhà xuất bản
+ *               published_year:
+ *                 type: integer
+ *                 example: 2024
+ *                 description: Năm xuất bản
+ *               author:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["Nguyễn Văn A", "Trần Thị B"]
+ *                 description: Danh sách tác giả
+ *               keyword:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["toán", "cao cấp", "đại học"]
+ *                 description: Từ khóa
+ *     responses:
+ *       200:
+ *         description: Cập nhật thông tin tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền thực hiện thao tác này
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.put("/:id/update", requireUserRole, documentController.updateDocumentInfo);
+
+/**
+ * @swagger
  * /documents/{id}:
  *   get:
  *     summary: Lấy thông tin chi tiết tài liệu theo ID

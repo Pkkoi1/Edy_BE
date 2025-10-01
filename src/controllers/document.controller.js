@@ -59,8 +59,24 @@ exports.getDocumentsBySubject = async (req, res) => {
       ...filters
     } = req.query;
 
+    const subjectId = req.params.id;
+
+    // Validation ngay tại controller
+    if (!subjectId) {
+      return res.status(400).json({ message: "Subject ID là bắt buộc" });
+    }
+
+    // Kiểm tra format ObjectId
+    if (!subjectId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res
+        .status(400)
+        .json({ message: "Subject ID không đúng định dạng" });
+    }
+
+    console.log("Subject ID:", subjectId); // Debug log
+
     const result = await getDocumentsBySubject({
-      subject: req.params.subjectId,
+      subject: subjectId,
       payload: req.user,
       search,
       ordering,
@@ -71,8 +87,18 @@ exports.getDocumentsBySubject = async (req, res) => {
     });
     res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu" });
+    console.error("Error in getDocumentsBySubject:", error);
+
+    // Xử lý các loại lỗi khác nhau
+    if (error.message === "Môn học không hợp lệ") {
+      return res
+        .status(404)
+        .json({ message: "Môn học không tồn tại hoặc đã bị xóa" });
+    }
+
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message,
+    });
   }
 };
 
@@ -462,6 +488,156 @@ exports.updateDocumentStatus = async (req, res) => {
     res.status(500).json({
       message:
         "Đã xảy ra lỗi khi cập nhật trạng thái tài liệu: " + error.message,
+    });
+  }
+};
+
+exports.updateDocumentInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      cover_page,
+      title,
+      subject,
+      organization,
+      doc_type,
+      page,
+      level,
+      description,
+      publisher,
+      published_year,
+      author,
+      keyword,
+    } = req.body;
+
+    // Kiểm tra quyền sở hữu tài liệu
+    const document = await getDocumentById(id, req.user.userId);
+    if (!document) {
+      return res.status(404).json({
+        message: "Tài liệu không tồn tại hoặc bạn không có quyền truy cập",
+      });
+    }
+
+    if (document.user._id.toString() !== req.user.userId) {
+      return res.status(403).json({
+        message: "Chỉ chủ sở hữu mới có thể chỉnh sửa thông tin tài liệu",
+      });
+    }
+
+    // Tạo object chứa các trường cần cập nhật (chỉ những trường có giá trị)
+    const updateData = {};
+
+    if (cover_page !== undefined) updateData.cover_page = cover_page;
+    if (title !== undefined) updateData.title = title;
+    if (subject !== undefined) updateData.subject = subject;
+    if (organization !== undefined) updateData.organization = organization;
+    if (doc_type !== undefined) updateData.doc_type = doc_type;
+    if (page !== undefined) updateData.page = page;
+    if (level !== undefined) updateData.level = level;
+    if (publisher !== undefined) updateData.publisher = publisher;
+    if (published_year !== undefined)
+      updateData.published_year = published_year;
+    if (author !== undefined) updateData.author = author;
+    if (keyword !== undefined) updateData.keyword = keyword;
+
+    // Xử lý description (tóm tắt do người dùng)
+    if (description !== undefined) {
+      updateData.description = {
+        ...document.description,
+        summary_by_user: description,
+      };
+      // Nếu có tóm tắt mới, đặt summary_status về PENDING
+      if (description && description.length > 10) {
+        updateData.summary_status = "PENDING";
+      }
+    }
+
+    // Validation cho các trường enum
+    if (doc_type) {
+      const allowedDocTypes = [
+        "RESEARCH_REPORT",
+        "VIDEO",
+        "STUDY_GUIDE",
+        "TEXTBOOK",
+        "ESSAY",
+        "SOLUTION_SET",
+        "THESIS",
+        "LECTURE",
+        "OTHER",
+      ];
+      if (!allowedDocTypes.includes(doc_type)) {
+        return res.status(400).json({
+          message: `doc_type phải là một trong: ${allowedDocTypes.join(", ")}`,
+        });
+      }
+    }
+
+    if (level) {
+      const allowedLevels = [
+        "STUDENT",
+        "UNIVERSITY",
+        "LECTURER",
+        "RESEARCHER",
+        "OTHER",
+      ];
+      if (!allowedLevels.includes(level)) {
+        return res.status(400).json({
+          message: `level phải là một trong: ${allowedLevels.join(", ")}`,
+        });
+      }
+    }
+
+    // Validation cho ObjectId fields
+    if (subject) {
+      if (!subject.match(/^[0-9a-fA-F]{24}$/)) {
+        return res
+          .status(400)
+          .json({ message: "Subject ID không đúng định dạng" });
+      }
+    }
+
+    if (organization) {
+      if (!organization.match(/^[0-9a-fA-F]{24}$/)) {
+        return res
+          .status(400)
+          .json({ message: "Organization ID không đúng định dạng" });
+      }
+    }
+
+    // Kiểm tra có ít nhất một trường để cập nhật
+    if (Object.keys(updateData).length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Không có thông tin nào để cập nhật" });
+    }
+
+    // Cập nhật tài liệu
+    const updatedDocument = await updateDocument(id, updateData);
+
+    res.json({
+      message: "Cập nhật thông tin tài liệu thành công",
+      document: {
+        _id: updatedDocument._id,
+        title: updatedDocument.title,
+        cover_page: updatedDocument.cover_page,
+        subject: updatedDocument.subject,
+        organization: updatedDocument.organization,
+        doc_type: updatedDocument.doc_type,
+        page: updatedDocument.page,
+        level: updatedDocument.level,
+        description: updatedDocument.description,
+        publisher: updatedDocument.publisher,
+        published_year: updatedDocument.published_year,
+        author: updatedDocument.author,
+        keyword: updatedDocument.keyword,
+        summary_status: updatedDocument.summary_status,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message:
+        "Đã xảy ra lỗi khi cập nhật thông tin tài liệu: " + error.message,
     });
   }
 };
