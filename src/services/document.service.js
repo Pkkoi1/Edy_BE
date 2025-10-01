@@ -234,7 +234,7 @@ const getDocumentsBySubject = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count createdAt"
+        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count doc_type comment_count createdAt"
       )
       .populate({
         path: "user",
@@ -444,7 +444,7 @@ const getDocumentById = async (id, userId) => {
   if (!canView && !isAdmin) {
     throw new Error("Bạn không có quyền truy cập tài liệu này");
   }
-  
+
   if (canView) {
     if (!isAdmin) {
       if (doc && doc.summary_status !== "APPROVED") {
@@ -729,15 +729,18 @@ const validateOrganization = async (organizationId) => {
 
 // function check quyen xem doc
 const canViewDocument = async (userId, documentId) => {
-  const user = await User.findById(userId).populate("organization");
-  if (!user) return false;
-
   const document = await Document.findOne({
     _id: documentId,
     is_deleted: false,
   }).populate("user organization");
 
   if (!document) return false;
+
+  const user = await User.findById(userId).populate("organization");
+  if (!user) {
+    if (document.public_mode === "PUBLIC") return true;
+    else return false;
+  }
 
   // Document phải được approve
   if (document.status !== "APPROVED") {
@@ -771,7 +774,6 @@ const canViewDocument = async (userId, documentId) => {
       return false;
   }
 };
-
 const getFileExtension = (fileType) => {
   const extensions = {
     PDF: "pdf",
@@ -802,4 +804,3 @@ const getDownloadPrice = async (documentId, user) => {
 
   return basePrice;
 };
-
