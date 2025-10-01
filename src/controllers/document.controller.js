@@ -10,6 +10,7 @@ const {
   createDownloadLink,
   markDownloadSuccess,
   updateDocument,
+  changeAllShareLink,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -393,7 +394,6 @@ exports.updateDocumentPublicMode = async (req, res) => {
     const allowedModes = [
       "PUBLIC",
       "PRIVATE",
-      "PRIVATE_SHARED",
       "SHARE_ORGANIZATION",
     ];
     if (!allowedModes.includes(public_mode)) {
@@ -419,6 +419,10 @@ exports.updateDocumentPublicMode = async (req, res) => {
 
     // Cập nhật public_mode
     const updatedDocument = await updateDocument(id, { public_mode });
+
+    if (public_mode === "SHARE_ORGANIZATION" || public_mode === "PUBLIC") {
+      changeAllShareLink(req.user.userId, id, "INACTIVE");
+    }
 
     res.json({
       message: "Cập nhật chế độ công khai thành công",
