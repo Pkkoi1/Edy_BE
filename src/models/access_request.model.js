@@ -15,4 +15,6 @@ const accessRequestSchema = new mongoose.Schema({
   timestamps: true
 });
 
+accessRequestSchema.index({ expiredAt: 1 }, { expireAfterSeconds: 0 });
+
 module.exports = mongoose.model('AccessRequest', accessRequestSchema);
