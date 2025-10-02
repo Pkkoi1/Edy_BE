@@ -84,10 +84,12 @@ const documentSchema = new mongoose.Schema({
   comment_count: { type: Number, default: 0 },
   download_count: { type: Number, default: 0 },
   is_deleted: { type: Boolean, default: false },
-
-  last_approved_at: { type: Date, default: null }
+  last_approved_at: { type: Date, default: null },
+  expiredAt: { type: Date, default: null },
 }, {
   timestamps: true
 });
+
+documentSchema.index({ expiredAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Document', documentSchema);

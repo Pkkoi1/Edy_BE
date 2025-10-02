@@ -163,6 +163,7 @@ const approveAccessRequest = async (requestId, ownerId) => {
     { path: "doc", populate: { path: "user" } },
   ]);
 
+  current = new Date();
   if (!accessRequest) {
     throw new Error("Yêu cầu truy cập không tồn tại");
   }
@@ -207,9 +208,7 @@ const approveAccessRequest = async (requestId, ownerId) => {
       }
       user.shared_documents.push({
         document: accessRequest.doc._id,
-        shared_at: new Date(),
-        expired_at: accessRequest.expiredAt,
-        shared_by: ownerId,
+        shared_at: current,
       });
       await user.save();
     }
@@ -257,6 +256,7 @@ const denyAccessRequest = async (requestId, ownerId, reason = null) => {
   if (reason) {
     accessRequest.content = reason; // Sử dụng content để lưu lý do từ chối
   }
+  accessRequest.expiredAt = new Date()+7*24*60*60*1000;
   await accessRequest.save();
 
   return accessRequest;

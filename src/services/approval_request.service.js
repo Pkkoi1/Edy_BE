@@ -162,10 +162,12 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     const approvalRequest = await ApprovalRequest.findById(requestId);
     if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
 
+    const current = new Date();
     approvalRequest.reviewed_by = reviewer._id;
-    approvalRequest.reviewed_at = new Date();
+    approvalRequest.reviewed_at = current;
     approvalRequest.status = "REJECTED";
     approvalRequest.message = message;
+    approvalRequest.expiredAt = current + 7*24*60*60*1000;
     await approvalRequest.save();
 
     const document = await Document.findById(approvalRequest.doc);
