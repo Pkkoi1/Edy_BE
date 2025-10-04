@@ -8,7 +8,7 @@ const accessRequestSchema = new mongoose.Schema({
   content: { type: String, default: null },
   status: {
     type: String,
-    enum: ['PENDING', 'APPROVED', 'DENIED'],
+    enum: ['PENDING', 'APPROVED', 'DENIED', 'IGNORED'],
     default: 'PENDING'
   }
 }, {

@@ -1,7 +1,7 @@
 const PrivateShare = require('../models/private_share.model');
 const Document = require('../models/document.model');
 const User = require('../models/user.model');
-
+const AccessRequest = require('../models/access_request.model');
 const createShareLink = async (documentId, userId, shareOptions = {}) => {
     try {
         // Kiểm tra document tồn tại và user có quyền
@@ -147,6 +147,15 @@ const accessShareLink = async (linkId, userId) => {
         }
 
         if(shareLink.request) {
+            // Nếu cùng 1 doc đã có request access rồi thì trả vè đã tồn tại request
+            const existingRequest = await AccessRequest.findOne({
+                doc: shareLink.doc._id,
+                user: userId,
+                status: 'PENDING'
+            });
+            if (existingRequest) 
+                return {already_requested: true};
+
             return {request_access: true};
         }
 
