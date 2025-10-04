@@ -199,7 +199,7 @@ const getNewestDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author cover_page published_year publisher page file_type intensive url organization subject level view download_count comment_count createdAt last_approved_at"
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
       )
       .populate({
         path: "user",
@@ -674,7 +674,7 @@ const getPendingDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status createdAt"
+        "_id user title author published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status summary_status createdAt"
       )
       .populate({
         path: "user",
