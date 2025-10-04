@@ -17,6 +17,98 @@ cloudinary.config({
   secure: true,
 });
 
+const getAllDocuments = async ({
+  payload,
+  search,
+  ordering = "createdAt",
+  order = -1,
+  page = 1,
+  limit = 5,
+  ...filters
+}) => {
+  const skip = (page - 1) * limit;
+
+  // Điều kiện tìm kiếm
+  let searchOr = [];
+  if (search) {
+    searchOr = [
+      { title: { $regex: search, $options: "i" } },
+      { author: { $elemMatch: { $regex: search, $options: "i" } } },
+      { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+    ];
+  }
+  let query = { is_deleted: false };
+
+  // Thêm điều kiện search nếu có
+  if (searchOr.length > 0) {
+    query.$and = [{ $or: searchOr }, { is_deleted: false }];
+  }
+
+  // Filter các trường
+  const filterFields = [
+    "organization",
+    "publisher", 
+    "published_year",
+    "intensive",
+    "author",
+    "user",
+    "keyword",
+    "doc_type",
+    "level",
+    "subject",
+    "status",
+    "summary_status",
+    "public_mode"
+  ];
+
+  filterFields.forEach((field) => {
+    if (filters[field] !== undefined) {
+      // Nếu là array (author, keyword), dùng $in
+      if (Array.isArray(filters[field])) {
+        query[field] = { $in: filters[field] };
+      } else {
+        query[field] = filters[field];
+      }
+    }
+  });
+
+  // Sắp xếp
+  const sort = {};
+  sort[ordering] = parseInt(order);
+
+  const [documents, total] = await Promise.all([
+    Document.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "_id user title author cover_page published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt last_approved_at updatedAt"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" }),
+    Document.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const have_next = page < totalPages;
+  
+  return {
+    documents,
+    total,
+    page,
+    totalPages,
+    have_next,
+  };
+};
+
 const getNewestDocuments = async ({
   payload,
   search,
@@ -752,6 +844,7 @@ const changeAllShareLink = async (userId, documentId, newStatus) => {
 };
 
 module.exports = {
+  getAllDocuments,
   getNewestDocuments,
   createDocument,
   deleteDocument,

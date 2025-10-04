@@ -11,6 +11,7 @@ const {
   markDownloadSuccess,
   updateDocument,
   changeAllShareLink,
+  getAllDocuments,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -21,6 +22,29 @@ const {
 } = require("../services/approval_request.service");
 
 const { checkIsFavorite } = require("../services/user.service");
+
+exports.getAllDocuments = async (req, res) => {
+  try {
+    const { search, ordering, order, page, limit, ...filters } = req.query;
+    
+    const result = await getAllDocuments({
+      payload: req.user,
+      search,
+      ordering,
+      order: parseInt(order) || -1,
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 5,
+      ...filters
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error("Đã:", error);
+    res.status(500).json({ 
+      message: "Đã xảy ra lỗi: " + error.message
+    });
+  }
+};
 
 exports.getNewestDocuments = async (req, res) => {
   try {
@@ -45,7 +69,7 @@ exports.getNewestDocuments = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu" });
+    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message });
   }
 };
 
@@ -74,8 +98,6 @@ exports.getDocumentsBySubject = async (req, res) => {
         .json({ message: "Subject ID không đúng định dạng" });
     }
 
-    console.log("Subject ID:", subjectId); // Debug log
-
     const result = await getDocumentsBySubject({
       subject: subjectId,
       payload: req.user,
@@ -88,7 +110,6 @@ exports.getDocumentsBySubject = async (req, res) => {
     });
     res.json(result);
   } catch (error) {
-    console.error("Error in getDocumentsBySubject:", error);
 
     // Xử lý các loại lỗi khác nhau
     if (error.message === "Môn học không hợp lệ") {
