@@ -99,7 +99,7 @@ const {
  *         schema:
  *           type: string
  *           enum: [PENDING, APPROVED, REJECTED, REQUESTED_EDIT, PENDING_EDIT]
- *         description: Lọc theo trạng thái tài liệu
+ *         description: Lọc theo trạng thái tài liệu (chỉ admin mới có thể lọc theo trạng thái khác APPROVED)
  *       - in: query
  *         name: summary_status
  *         schema:
@@ -114,11 +114,11 @@ const {
  *         description: Lọc theo chế độ hiển thị
  *     responses:
  *       200:
- *         description: Lấy danh sách tài liệu thành công
+ *         description: Lấy danh sách tài liệu thành công. Người dùng thường chỉ thấy tài liệu đã duyệt, admin thấy tất cả
  *       400:
  *         description: Yêu cầu không hợp lệ
  */
-router.get("/", requireAdminPermission(['MANAGE_DOCUMENT']), documentController.getAllDocuments);
+router.get("/", userOrUnauthenticated, documentController.getAllDocuments);
 
 /**
  * @swagger
@@ -1035,7 +1035,11 @@ router.patch(
  *       500:
  *         description: Lỗi server
  */
-router.put("/:id/update", requireUserRole, documentController.updateDocumentInfo);
+router.put(
+  "/:id/update",
+  requireUserRole,
+  documentController.updateDocumentInfo
+);
 
 /**
  * @swagger
