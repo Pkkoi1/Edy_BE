@@ -6,7 +6,7 @@ const accountSchema = new mongoose.Schema({
   password: { type: String, required: true },
   is_verified: { type: Boolean, default: false },
   is_vip: { type: Boolean, default: false },
-  is_admin: { type: Boolean, default: false }
+  is_admin: { type: Boolean, default: false },
 }, {
   timestamps: true
 });

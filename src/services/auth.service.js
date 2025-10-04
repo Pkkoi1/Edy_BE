@@ -1,6 +1,7 @@
 const Account = require("../models/account.model");
 const User = require("../models/user.model");
 const Assignment = require("../models/assignment.model");
+const Restriction = require("../models/restriction.model");
 const bcrypt = require("bcryptjs");
 const jwt = require('jsonwebtoken');
 
@@ -19,6 +20,19 @@ const loginService = async ({ email, password }) => {
     if (!account) return { error: "Sai tài khoản hoặc mật khẩu", status: 401 };
     const valid = await bcrypt.compare(password, account.password);
     if (!valid) return { error: "Sai tài khoản hoặc mật khẩu", status: 401 };
+
+    // Kiểm tra restriction
+    const now = new Date();
+    const activeRestriction = await Restriction.findOne({
+        account: account._id,
+        type: 'LOGIN',
+        start_date: { $lte: now },
+        end_date: { $gte: now }
+    });
+    
+    if (activeRestriction) {
+        return { error: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}`, status: 403 };
+    }
 
     // Lấy roles
     let roles = [];

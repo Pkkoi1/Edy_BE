@@ -19,10 +19,9 @@ const roleSchema = new mongoose.Schema({
     type: String,
     enum: [
       'MANAGE_DOCUMENT',
-      'HANDLE_DOCUMENT_REPORT',
+      'HANDLE_REPORT',
       'MANAGE_USER',
       'MANAGE_COMMENT',
-      'HANDLE_COMMENT_REPORT',
       'MANAGE_SERVER',
       'MANAGE_ENTITY', // quản lý thực thể trong hệ thống, ví dụ như subject, organization
       'MANAGE_ROLE',

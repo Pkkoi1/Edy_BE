@@ -10,7 +10,7 @@ const violationLogSchema = new mongoose.Schema({
     required: true
   }],
   report: { type: mongoose.Schema.Types.ObjectId, ref: 'Report', default: null }, // Có thể là admin tự xử lý ko qua report
-  strike: { type: Number, default: 1 },
+  strike: { type: Number, default: 0 },
   point_reduced: { type: Number, default: 0 },
   resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   reason: { type: String, default: '' },

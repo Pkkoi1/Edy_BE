@@ -14,6 +14,11 @@ const reportSchema = new mongoose.Schema({
     enum: ['PROCESSING', 'RESOLVED'],
     default: 'PROCESSING'
   },
+  validTypes: [{
+    type: String,
+    enum: ['SPAM_OR_MISLEADING', 'DUPLICATE', 'COPYRIGHT', 'INCORRECT_CATEGORY', 'PERSONAL_INFORMATION', 'LOW_QUALITY', 'INAPPROPRIATE', 'OTHER'],
+    default: null,
+  }], //Những loại vi phạm được xác nhận là đúng sau khi xử lý report
   resolvedAt: { type: Date, default: null },
   resolveBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   action: {
