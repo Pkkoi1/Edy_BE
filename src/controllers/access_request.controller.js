@@ -30,7 +30,7 @@ exports.createAccessRequest = async (req, res) => {
       accessRequest,
     });
   } catch (error) {
-    console.error("Error creating access request:", error);
+    console.error("Có lỗi xảy ra khi tạo yêu cầu truy cập:", error);
 
     // Xử lý các lỗi cụ thể
     if (
@@ -83,7 +83,7 @@ exports.getAccessRequestsByPrivateShare = async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error("Error getting access requests:", error);
+    console.error("Có lỗi xảy ra khi lấy danh sách yêu cầu truy cập:", error);
 
     if (
       error.message.includes("không tồn tại") ||
@@ -124,7 +124,7 @@ exports.approveAccessRequest = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error approving access request:", error);
+    console.error("Có lỗi xảy ra khi phê duyệt yêu cầu truy cập:", error);
 
     if (error.message.includes("không tồn tại")) {
       return res.status(404).json({ message: error.message });
@@ -150,14 +150,13 @@ exports.approveAccessRequest = async (req, res) => {
 exports.denyAccessRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
-    const { reason } = req.body;
     const ownerId = req.user.userId;
 
     if (!requestId) {
       return res.status(400).json({ message: "Request ID là bắt buộc" });
     }
 
-    const accessRequest = await denyAccessRequest(requestId, ownerId, reason);
+    const accessRequest = await denyAccessRequest(requestId, ownerId);
 
     res.json({
       message: "Từ chối yêu cầu truy cập thành công",
@@ -171,7 +170,7 @@ exports.denyAccessRequest = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error denying access request:", error);
+    console.error("Có lỗi xảy ra khi từ chối yêu cầu truy cập:", error);
 
     if (error.message.includes("không tồn tại")) {
       return res.status(404).json({ message: error.message });
@@ -214,7 +213,7 @@ exports.getMyAccessRequests = async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error("Error getting my access requests:", error);
+    console.error("Có lỗi xảy ra khi lấy danh sách yêu cầu truy cập của bạn:", error);
 
     res.status(500).json({
       message:
@@ -265,7 +264,7 @@ exports.cancelAccessRequest = async (req, res) => {
       message: "Hủy yêu cầu truy cập thành công",
     });
   } catch (error) {
-    console.error("Error canceling access request:", error);
+    console.error("Có lỗi xảy ra khi hủy yêu cầu truy cập:", error);
 
     res.status(500).json({
       message: "Đã xảy ra lỗi khi hủy yêu cầu truy cập: " + error.message,

@@ -52,7 +52,11 @@ exports.accessShareLink = async (req, res) => {
 
         const result = await accessShareLink(linkId, userId);
 
-        if (result.request_access === true) {
+        if (result.already_requested) {
+            return res.status(400).json({ message: 'Bạn đã gửi yêu cầu truy cập, vui lòng chờ phê duyệt' });
+        }
+
+        if (result.request_access) {
             return res.status(202).json({ message: 'Link chia sẻ yêu cầu phê duyệt từ chủ sở hữu', required_access: true });
         }
 
@@ -61,7 +65,6 @@ exports.accessShareLink = async (req, res) => {
             data: result
         });
     } catch (error) {
-        console.error('Error accessing share link:', error);
         res.status(403).json({ message: error.message });
     }
 };

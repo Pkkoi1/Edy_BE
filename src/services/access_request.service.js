@@ -108,7 +108,9 @@ const getAccessRequestsByPrivateShare = async (
   const skip = (page - 1) * limit;
 
   // Tạo query
-  const query = { private_share: privateShareId };
+  const query = { private_share: privateShareId,
+    status: { $ne: 'IGNORED' }
+   };
   if (status) {
     query.status = status;
   }
@@ -195,6 +197,18 @@ const approveAccessRequest = async (requestId, ownerId) => {
   accessRequest.status = "APPROVED";
   await accessRequest.save();
 
+  // Cập nhật các pending request của người yêu cầu chỉa vào cùng 1 doc
+  await AccessRequest.updateMany(
+    {
+      user: accessRequest.user._id,
+      doc: accessRequest.doc._id,
+      status: "PENDING",
+    },
+    { status: "IGNORED",
+      expiredAt: new Date()+3*24*60*60*1000
+     }
+  );
+
   // Thêm tài liệu vào danh sách shared_documents của user
   const user = await User.findById(accessRequest.user._id);
   if (user) {
@@ -230,7 +244,7 @@ const approveAccessRequest = async (requestId, ownerId) => {
 /**
  * Từ chối yêu cầu truy cập
  */
-const denyAccessRequest = async (requestId, ownerId, reason = null) => {
+const denyAccessRequest = async (requestId, ownerId) => {
   const accessRequest = await AccessRequest.findById(requestId).populate([
     { path: "private_share" },
     { path: "user" },
@@ -253,9 +267,6 @@ const denyAccessRequest = async (requestId, ownerId, reason = null) => {
 
   // Cập nhật trạng thái
   accessRequest.status = "DENIED";
-  if (reason) {
-    accessRequest.content = reason; // Sử dụng content để lưu lý do từ chối
-  }
   accessRequest.expiredAt = new Date()+7*24*60*60*1000;
   await accessRequest.save();
 
