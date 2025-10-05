@@ -146,18 +146,31 @@ const accessShareLink = async (linkId, userId) => {
             throw new Error('Link chia sẻ đã đạt giới hạn người truy cập');
         }
 
-        if(shareLink.request) {
+        if (shareLink.request) {
             // Nếu cùng 1 doc đã có request access rồi thì trả vè đã tồn tại request
             const existingRequest = await AccessRequest.findOne({
                 doc: shareLink.doc._id,
                 user: userId,
                 status: 'PENDING'
             });
-            if (existingRequest) 
-                return {already_requested: true};
+            if (existingRequest)
+                return { already_requested: true };
 
-            return {request_access: true};
+            return { request_access: true };
         }
+
+        // Cập nhật các access request liên quan đến doc này thành IGNORED
+        await AccessRequest.updateMany(
+            {
+                doc: shareLink.doc._id,
+                user: userId,
+                status: 'PENDING'
+            },
+            {
+                status: 'IGNORED',
+                expiredAt: current + 3 * 24 * 60 * 60 * 1000
+            }
+        );
 
         // Add user to access list nếu chưa có
         shareLink.user_accessed.push(userId);
