@@ -51,12 +51,11 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     const reviewer = await User.findById(reviewerId);
     if (!reviewer) throw new Error("Người duyệt không tồn tại");
 
-    const user = await User.findById(approvalRequest.requester);
-    if (!user) throw new Error("Người yêu cầu không tồn tại");
-
     const approvalRequest = await ApprovalRequest.findById(requestId);
     if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
-
+    
+    const user = await User.findById(approvalRequest.requester);
+    if (!user) throw new Error("Người yêu cầu không tồn tại");
     const current = new Date();
 
     approvalRequest.reviewed_by = reviewer._id;
@@ -146,7 +145,7 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
         const base = isFirstApproval ? 20 : 15;
         const total = isIntensive ? base + 5 : base;
         user.point = (user.point || 0) + total;
-        user.total_points = (user.total_points || 0) + total;
+        user.rank_point = (user.rank_point || 0) + total;
         await user.save();
     }
 
@@ -167,7 +166,7 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     approvalRequest.reviewed_at = current;
     approvalRequest.status = "REJECTED";
     approvalRequest.message = message;
-    approvalRequest.expiredAt = current + 7*24*60*60*1000;
+    approvalRequest.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
     await approvalRequest.save();
 
     const document = await Document.findById(approvalRequest.doc);
