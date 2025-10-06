@@ -601,6 +601,13 @@ router.put(
  *         schema:
  *           type: string
  *         description: Lọc theo trạng thái tài liệu
+ *       - in: query
+ *         name: createdAt
+ *         schema:
+ *           type: string
+ *           pattern: '^\d{4}-\d{2}-\d{2}$'
+ *         example: "2024-10-06"
+ *         description: Lọc theo ngày tạo tài liệu (định dạng yyyy-mm-dd)
  *     responses:
  *       200:
  *         description: Lấy danh sách tài liệu thành công
