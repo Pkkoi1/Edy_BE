@@ -5,7 +5,7 @@ const Organization = require("../models/organization.model");
 const Subject = require("../models/subject.model");
 const DownloadLink = require("../models/download_link.model");
 const PrivateShare = require("../models/private_share.model");
-const ApprovalRequest = require('../models/approval_request.model');
+const ApprovalRequest = require("../models/approval_request.model");
 const { updateUserDocCount } = require("./user.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
@@ -47,7 +47,7 @@ const getAllDocuments = async ({
   // Filter các trường
   const filterFields = [
     "organization",
-    "publisher", 
+    "publisher",
     "published_year",
     "intensive",
     "author",
@@ -58,7 +58,7 @@ const getAllDocuments = async ({
     "subject",
     "status",
     "summary_status",
-    "public_mode"
+    "public_mode",
   ];
 
   filterFields.forEach((field) => {
@@ -99,7 +99,7 @@ const getAllDocuments = async ({
 
   const totalPages = Math.ceil(total / limit);
   const have_next = page < totalPages;
-  
+
   return {
     documents,
     total,
@@ -418,6 +418,23 @@ const getMyDocuments = async ({
     }
   });
 
+  // Xử lý filter theo ngày createdAt (yyyy-mm-dd)
+  if (filters.createdAt) {
+    const dateStr = filters.createdAt;
+    // Kiểm tra format yyyy-mm-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const startDate = new Date(dateStr + "T00:00:00.000Z");
+      const endDate = new Date(dateStr + "T23:59:59.999Z");
+
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        query.createdAt = {
+          $gte: startDate,
+          $lte: endDate,
+        };
+      }
+    }
+  }
+
   // Sắp xếp
   const sort = {};
   sort[ordering] = parseInt(order);
@@ -444,37 +461,41 @@ const getMyDocuments = async ({
   ]);
 
   if (documents.length > 0) {
-    const ApprovalRequest = require('../models/approval_request.model');
+    const ApprovalRequest = require("../models/approval_request.model");
 
     // Query rejection cho documents bị rejected
     const rejectedDocIds = documents
-      .filter(doc => doc.status === 'REJECTED' || doc.summary_status === 'REJECTED')
-      .map(doc => doc._id);
+      .filter(
+        (doc) => doc.status === "REJECTED" || doc.summary_status === "REJECTED"
+      )
+      .map((doc) => doc._id);
 
     let rejections = [];
     if (rejectedDocIds.length > 0) {
       rejections = await ApprovalRequest.find({
         doc: { $in: rejectedDocIds },
-        status: 'REJECTED'
+        status: "REJECTED",
       })
-        .populate('reviewed_by', 'first_name last_name')
-        .select('doc message reviewed_by reviewed_at is_summary')
+        .populate("reviewed_by", "first_name last_name")
+        .select("doc message reviewed_by reviewed_at is_summary")
         .sort({ createdAt: -1 });
     }
 
     // Map rejection vào documents
-    documents.forEach(doc => {
+    documents.forEach((doc) => {
       // Chỉ set rejection cho documents bị reject
-      if (doc.status === 'REJECTED') {
-        doc._doc.content_rejection = rejections.find(
-          r => r.doc.toString() === doc._id.toString() && !r.is_summary
-        ) || null;
+      if (doc.status === "REJECTED") {
+        doc._doc.content_rejection =
+          rejections.find(
+            (r) => r.doc.toString() === doc._id.toString() && !r.is_summary
+          ) || null;
       }
 
-      if (doc.summary_status === 'REJECTED') {
-        doc._doc.summary_rejection = rejections.find(
-          r => r.doc.toString() === doc._id.toString() && r.is_summary
-        ) || null;
+      if (doc.summary_status === "REJECTED") {
+        doc._doc.summary_rejection =
+          rejections.find(
+            (r) => r.doc.toString() === doc._id.toString() && r.is_summary
+          ) || null;
       }
     });
   }
@@ -552,7 +573,6 @@ const updateDocument = async (id, data) => {
   // Không cho sửa trường is_deleted qua update này
   if ("is_deleted" in data) delete data.is_deleted;
   const doc = await Document.findByIdAndUpdate(id, data, { new: true });
-
 
   return doc;
 };
