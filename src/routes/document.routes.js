@@ -1054,6 +1054,32 @@ router.put(
 
 /**
  * @swagger
+ * /documents/{documentId}/similar:
+ *   get:
+ *     summary: Lấy danh sách tài liệu tương tự
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu tương tự thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy tài liệu tương tự
+ */
+router.get('/:documentId/similar', userOrUnauthenticated, documentController.getSimilarDocuments);
+
+/**
+ * @swagger
  * /documents/{id}:
  *   get:
  *     summary: Lấy thông tin chi tiết tài liệu theo ID

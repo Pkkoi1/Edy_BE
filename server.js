@@ -24,6 +24,17 @@ const swaggerSetup = require("./src/config/swagge");
 const indexRoutes = require("./src/routes/index");
 swaggerSetup(app);
 
+const { createDocumentIndex } = require('./src/config/elasticsearch');
+const { syncAllDocuments } = require('./src/services/elasticsearch.service');
+
+// Elasticsearch
+const initializeElasticsearch = async () => {
+  await createDocumentIndex();
+  // Sync data lần đầu (chỉ chạy khi cần)
+  // await syncAllDocuments();
+};
+
+initializeElasticsearch().catch(console.error);
 // Simple root route
 app.use("/api", indexRoutes);
 

@@ -8,6 +8,7 @@ const organizationRouter = require("./organization.routes");
 const subjectRouter = require("./subject.routes");
 const accessRequestRouter = require("./access_request.routes");
 const reportRouter = require("./report.routes");
+const searchRouter = require("./search.routes");
 
 // Main routes configuration
 router.use("/auth", authRouter);
@@ -17,5 +18,6 @@ router.use("/organizations", organizationRouter);
 router.use("/subjects", subjectRouter);
 router.use("/access-requests", accessRequestRouter);
 router.use("/reports", reportRouter);
+router.use("/search", searchRouter);
 
 module.exports = router;
