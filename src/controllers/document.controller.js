@@ -1,4 +1,5 @@
 const axios = require("axios");
+const mongoose = require("mongoose");
 const {
   getNewestDocuments,
   createDocument,
@@ -12,6 +13,7 @@ const {
   updateDocument,
   changeAllShareLink,
   getAllDocuments,
+  getSimilarDocuments,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -26,7 +28,7 @@ const { checkIsFavorite } = require("../services/user.service");
 exports.getAllDocuments = async (req, res) => {
   try {
     const { search, ordering, order, page, limit, ...filters } = req.query;
-    
+
     const result = await getAllDocuments({
       payload: req.user,
       search,
@@ -40,7 +42,7 @@ exports.getAllDocuments = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Đã:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Đã xảy ra lỗi: " + error.message
     });
   }
@@ -663,6 +665,30 @@ exports.updateDocumentInfo = async (req, res) => {
     res.status(500).json({
       message:
         "Đã xảy ra lỗi khi cập nhật thông tin tài liệu: " + error.message,
+    });
+  }
+}
+
+exports.getSimilarDocuments = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const userId = req.user?.userId;
+    const { limit = 5 } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ message: 'ID tài liệu không hợp lệ' });
+    }
+
+    const result = await getSimilarDocuments(
+      documentId,
+      userId,
+      parseInt(limit)
+    );
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || 'Lỗi server khi lấy tài liệu tương tự'
     });
   }
 };
