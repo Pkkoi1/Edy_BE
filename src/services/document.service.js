@@ -6,7 +6,10 @@ const Subject = require("../models/subject.model");
 const DownloadLink = require("../models/download_link.model");
 const PrivateShare = require("../models/private_share.model");
 const ApprovalRequest = require("../models/approval_request.model");
-const { searchDocuments, findSimilarDocuments } = require('./elasticsearch.service');
+const {
+  searchDocuments,
+  findSimilarDocuments,
+} = require("./elasticsearch.service");
 const { updateUserDocCount } = require("./user.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
@@ -37,6 +40,9 @@ const getAllDocuments = async ({
       { author: { $elemMatch: { $regex: search, $options: "i" } } },
       { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
     ];
+    if (mongoose.Types.ObjectId.isValid(search)) {
+      searchOr.push({ _id: new mongoose.Types.ObjectId(search) });
+    }
   }
   let query = { is_deleted: false };
 
@@ -128,7 +134,7 @@ const getNewestDocuments = async ({
       order,
       page,
       limit,
-      ...filters
+      ...filters,
     });
   }
 
@@ -255,7 +261,9 @@ const searchWithElasticsearch = async ({
       "organization shared_documents"
     );
     if (user && user.shared_documents && user.shared_documents.length > 0) {
-      sharedDocIds = user.shared_documents.map((item) => item.document.toString());
+      sharedDocIds = user.shared_documents.map((item) =>
+        item.document.toString()
+      );
     }
   }
 
@@ -266,22 +274,22 @@ const searchWithElasticsearch = async ({
       bool: {
         should: [
           { term: { public_mode: "PUBLIC" } },
-          { 
+          {
             bool: {
               must: [
                 { term: { public_mode: "SHARE_ORGANIZATION" } },
-                { term: { organization: user.organization.toString() } }
-              ]
-            }
+                { term: { organization: user.organization.toString() } },
+              ],
+            },
           },
-          { term: { user: user._id.toString() } }
-        ]
-      }
+          { term: { user: user._id.toString() } },
+        ],
+      },
     };
-    
+
     if (sharedDocIds.length > 0) {
       accessFilter.bool.should.push({
-        terms: { id: sharedDocIds }
+        terms: { id: sharedDocIds },
       });
     }
   } else {
@@ -290,15 +298,15 @@ const searchWithElasticsearch = async ({
 
   // Thêm filters vào accessFilter
   const additionalFilters = [];
-  Object.keys(filters).forEach(field => {
+  Object.keys(filters).forEach((field) => {
     if (filters[field] !== undefined) {
       if (Array.isArray(filters[field])) {
         additionalFilters.push({
-          terms: { [field]: filters[field].map(f => f.toString()) }
+          terms: { [field]: filters[field].map((f) => f.toString()) },
         });
       } else {
         additionalFilters.push({
-          term: { [field]: filters[field].toString() }
+          term: { [field]: filters[field].toString() },
         });
       }
     }
@@ -307,8 +315,8 @@ const searchWithElasticsearch = async ({
   if (additionalFilters.length > 0) {
     accessFilter = {
       bool: {
-        must: [accessFilter, ...additionalFilters]
-      }
+        must: [accessFilter, ...additionalFilters],
+      },
     };
   }
 
@@ -316,7 +324,7 @@ const searchWithElasticsearch = async ({
     page,
     limit,
     ordering,
-    order
+    order,
   });
 
   const totalPages = Math.ceil(result.total / limit);
@@ -328,7 +336,7 @@ const searchWithElasticsearch = async ({
     page,
     totalPages,
     have_next,
-    highlights: result.highlights
+    highlights: result.highlights,
   };
 };
 
@@ -975,27 +983,33 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
   try {
     // Lấy thông tin document gốc
     const sourceDoc = await Document.findById(documentId)
-      .select('title author keyword description subject organization user public_mode')
-      .populate('subject', 'name');
-    
+      .select(
+        "title author keyword description subject organization user public_mode"
+      )
+      .populate("subject", "name");
+
     if (!sourceDoc) {
-      throw new Error('Tài liệu không tồn tại');
+      throw new Error("Tài liệu không tồn tại");
     }
 
     // Kiểm tra quyền truy cập
     const canView = await canViewDocument(userId, documentId);
     const isAdmin = await Account.findOne({ user: userId, is_admin: true });
     if (!canView && !isAdmin) {
-      throw new Error('Bạn không có quyền truy cập tài liệu này');
+      throw new Error("Bạn không có quyền truy cập tài liệu này");
     }
 
     // Build access filter cho Elasticsearch
     let user = null;
     let sharedDocIds = [];
     if (userId) {
-      user = await User.findById(userId).select('organization shared_documents');
+      user = await User.findById(userId).select(
+        "organization shared_documents"
+      );
       if (user && user.shared_documents && user.shared_documents.length > 0) {
-        sharedDocIds = user.shared_documents.map(item => item.document.toString());
+        sharedDocIds = user.shared_documents.map((item) =>
+          item.document.toString()
+        );
       }
     }
 
@@ -1005,22 +1019,22 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
         bool: {
           should: [
             { term: { public_mode: "PUBLIC" } },
-            { 
+            {
               bool: {
                 must: [
                   { term: { public_mode: "SHARE_ORGANIZATION" } },
-                  { term: { organization: user.organization.toString() } }
-                ]
-              }
+                  { term: { organization: user.organization.toString() } },
+                ],
+              },
             },
-            { term: { user: user._id.toString() } }
-          ]
-        }
+            { term: { user: user._id.toString() } },
+          ],
+        },
       };
-      
+
       if (sharedDocIds.length > 0) {
         accessFilter.bool.should.push({
-          terms: { id: sharedDocIds }
+          terms: { id: sharedDocIds },
         });
       }
     } else {
@@ -1029,8 +1043,8 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
 
     // Xài es lấy tài liệu tương tự
     const { documentIds, scores } = await findSimilarDocuments(
-      sourceDoc, 
-      userId, 
+      sourceDoc,
+      userId,
       limit
     );
 
@@ -1038,61 +1052,65 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
       return {
         documents: [],
         total: 0,
-        similarity_factors: []
+        similarity_factors: [],
       };
     }
 
     // Populate thông tin chi tiết từ MongoDB
-    const documents = await Document.find({ _id: { $in: documentIds } })
-      .populate([
-        {
-          path: "user",
-          select: "_id first_name last_name avatar doc_count",
-          populate: {
-            path: "organization",
-            select: "_id name",
-          },
+    const documents = await Document.find({
+      _id: { $in: documentIds },
+    }).populate([
+      {
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
         },
-        { path: "organization", select: "_id name" },
-        { path: "subject", select: "_id name" }
-      ]);
+      },
+      { path: "organization", select: "_id name" },
+      { path: "subject", select: "_id name" },
+    ]);
 
     // Sắp xếp theo score từ é
-    const sortedDocuments = documentIds.map(id => 
-      documents.find(doc => doc._id.toString() === id)
-    ).filter(Boolean);
+    const sortedDocuments = documentIds
+      .map((id) => documents.find((doc) => doc._id.toString() === id))
+      .filter(Boolean);
 
     // Tạo similarity factors
-    const similarity_factors = sortedDocuments.map(doc => {
+    const similarity_factors = sortedDocuments.map((doc) => {
       const factors = [];
-      
-      if (doc.subject && sourceDoc.subject && 
-          doc.subject._id.toString() === sourceDoc.subject._id.toString()) {
-        factors.push('same_subject');
+
+      if (
+        doc.subject &&
+        sourceDoc.subject &&
+        doc.subject._id.toString() === sourceDoc.subject._id.toString()
+      ) {
+        factors.push("same_subject");
       }
-      
+
       if (sourceDoc.author && doc.author) {
-        const commonAuthors = doc.author.filter(author => 
+        const commonAuthors = doc.author.filter((author) =>
           sourceDoc.author.includes(author)
         );
         if (commonAuthors.length > 0) {
-          factors.push('same_author');
+          factors.push("same_author");
         }
       }
-      
+
       if (sourceDoc.keyword && doc.keyword) {
-        const commonKeywords = doc.keyword.filter(keyword => 
+        const commonKeywords = doc.keyword.filter((keyword) =>
           sourceDoc.keyword.includes(keyword)
         );
         if (commonKeywords.length > 0) {
-          factors.push('same_keywords');
+          factors.push("same_keywords");
         }
       }
-      
+
       return {
         document_id: doc._id,
         factors,
-        elasticsearch_score: scores[doc._id.toString()] || 0
+        elasticsearch_score: scores[doc._id.toString()] || 0,
       };
     });
 
@@ -1105,10 +1123,9 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
         title: sourceDoc.title,
         subject: sourceDoc.subject?.name,
         author: sourceDoc.author,
-        keywords: sourceDoc.keyword
-      }
+        keywords: sourceDoc.keyword,
+      },
     };
-
   } catch (error) {
     throw new Error(`Lỗi lấy tài liệu tương tự: ${error.message}`);
   }
