@@ -1142,7 +1142,7 @@ router.post("/:documentId/react", requireUserRole, documentController.reactionDo
  *       500:
  *         description: Đã xảy ra lỗi khi lấy phản ứng
  */
-router.get("/:documentId/reactions", documentController.getDocumentReactions);
+router.get("/:documentId/reactions", userOrUnauthenticated, documentController.getDocumentReactions);
 
 /**
  * @swagger

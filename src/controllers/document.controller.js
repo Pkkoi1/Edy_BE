@@ -722,10 +722,11 @@ exports.reactionDocument = async (req, res) => {
 exports.getDocumentReactions = async (req, res) => {
   try {
     const { documentId } = req.params;
+    const userId = req.user?.userId;
     if (!mongoose.Types.ObjectId.isValid(documentId)) {
       return res.status(400).json({ message: 'ID tài liệu không hợp lệ' });
     }
-    const result = await getDocumentReactions(documentId);
+    const result = await getDocumentReactions(documentId, userId);
     res.json(result);
   } catch (error) {
     res.status(500).json({
