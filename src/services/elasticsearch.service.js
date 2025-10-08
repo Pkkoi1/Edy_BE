@@ -111,7 +111,7 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
             }
         });
 
-        const documentIds = response.body.hits.hits.map(hit => hit._id);
+        const documentIds = response.hits.hits.map(hit => hit._id);
 
         // Lấy thông tin đầy đủ từ MongoDB
         const documents = await Document.find({ _id: { $in: documentIds } })
@@ -133,8 +133,8 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
 
         return {
             documents: sortedDocuments,
-            total: response.body.hits.total.value,
-            highlights: response.body.hits.hits.reduce((acc, hit) => {
+            total: response.hits.total.value,
+            highlights: response.hits.hits.reduce((acc, hit) => {
                 acc[hit._id] = hit.highlight;
                 return acc;
             }, {})
@@ -261,7 +261,7 @@ const getSuggestions = async (query, userId, limit = 10) => {
         // Extract suggestions từ results
         const suggestions = new Set();
 
-        response.body.hits.hits.forEach(hit => {
+        response.hits.hits.forEach(hit => {
             const doc = hit._source;
 
             // Add title matches
