@@ -1179,7 +1179,7 @@ const reactionDocument = async (documentId, userId, reactionType) => {
   };
 };
 
-const getDocumentReactions = async (documentId) => {
+const getDocumentReactions = async (documentId, userId) => {
   const doc = await Document.findById(documentId);
   if (!doc) {
     throw new Error("Tài liệu không tồn tại");
@@ -1190,7 +1190,9 @@ const getDocumentReactions = async (documentId) => {
   const total = reactions.length;
   // rating la tỷ lệ likes trên tổng số reaction, nếu ko có reaction thì rating = 0, lam tron so int
   const rating = likes + dislikes === 0 ? 0 : (likes / total);
-  const reactionResult = { docId: documentId, likes, dislikes, total, rating: Math.round(rating * 100) };
+  // neu nguoi dung da like thi la LIKE, da dislike thi la DISLIKE, chua react thi la NONE
+  const reacted = reactions.find(r => r.user.toString() === userId.toString())?.type || 'NONE';
+  const reactionResult = { docId: documentId, likes, dislikes, total, rating: Math.round(rating * 100), reacted };
   return reactionResult;
 };
 
