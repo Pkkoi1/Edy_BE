@@ -1080,6 +1080,72 @@ router.get('/:documentId/similar', userOrUnauthenticated, documentController.get
 
 /**
  * @swagger
+ * /documents/{documentId}/react:
+ *   post:
+ *     summary: Thêm hoặc cập nhật phản ứng
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reaction:
+ *                 type: string
+ *                 enum: [LIKE, DISLIKE]
+ *                 example: LIKE
+ *                 description: Phản ứng của người dùng đối với tài liệu (LIKE hoặc DISLIKE)
+ *     responses:
+ *       200:
+ *         description: Phản ứng đã được thêm hoặc cập nhật thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       401:
+ *         description: Chưa đăng nhập hoặc token không hợp lệ
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi xử lý phản ứng
+ */
+router.post("/:documentId/react", requireUserRole, documentController.reactionDocument);
+
+/**
+ * @swagger
+ * /documents/{documentId}/reactions:
+ *   get:
+ *     summary: Lấy tổng số lượt thích và không thích của tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy tổng số lượt thích và không thích thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy phản ứng
+ */
+router.get("/:documentId/reactions", documentController.getDocumentReactions);
+
+/**
+ * @swagger
  * /documents/{id}:
  *   get:
  *     summary: Lấy thông tin chi tiết tài liệu theo ID

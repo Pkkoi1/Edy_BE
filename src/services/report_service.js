@@ -5,6 +5,7 @@ const User = require('../models/user.model');
 const ViolationLog = require('../models/violation_log.model');
 const Restriction = require('../models/restriction.model');
 const Account =require('../models/account.model')
+const {createPointTransaction} = require("./point_transaction.service");
 const createReport = async (reportData, reporterId) => {
     try {
         const { docId, cmtId, type, reason } = reportData;
@@ -235,6 +236,7 @@ const handleReportAction = async (report, action) => {
                     violator.point -= point_reduced;
                     violator.rank_point -= point_reduced;
                     await violator.save();
+                    await createPointTransaction(violator._id, "SPEND", point_reduced, `Bị trừ điểm do vi phạm quy định bình luận`);
 
                     if(violator.strike ==5 || violator.strike == 10){
                         await applyRestrictions(violator._id, report.resolveBy, 'LOGIN');
@@ -265,6 +267,7 @@ const handleReportAction = async (report, action) => {
                     violator.point -= point_reduced;
                     violator.rank_point -= point_reduced;
                     await violator.save();
+                    await createPointTransaction(violator._id, "SPEND", point_reduced, `Bị trừ điểm do vi phạm quy định đăng tài liệu`);
 
                     if(violator.strike ==5 || violator.strike == 10){
                         await applyRestrictions(violator._id, report.resolveBy, 'LOGIN');
