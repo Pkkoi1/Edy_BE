@@ -31,7 +31,7 @@ const { syncAllDocuments } = require('./src/services/elasticsearch.service');
 const initializeElasticsearch = async () => {
   await createDocumentIndex();
   // Sync data lần đầu (chỉ chạy khi cần)
-  // await syncAllDocuments();
+  await syncAllDocuments();
 };
 
 initializeElasticsearch().catch(console.error);
