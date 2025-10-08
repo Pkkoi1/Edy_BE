@@ -14,6 +14,8 @@ const {
   changeAllShareLink,
   getAllDocuments,
   getSimilarDocuments,
+  reactionDocument,
+  getDocumentReactions,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -689,6 +691,45 @@ exports.getSimilarDocuments = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: error.message || 'Lỗi server khi lấy tài liệu tương tự'
+    });
+  }
+};
+
+exports.reactionDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { reaction } = req.body; 
+    const userId = req.user?.userId;
+    if (!['LIKE', 'DISLIKE', 'UNREACT'].includes(reaction)) {
+      return res.status(400).json({ message: 'Loại tương tác không hợp lệ' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ message: 'ID tài liệu không hợp lệ' });
+    }
+    const result = await reactionDocument(documentId, userId, reaction);
+    if (result.error || !result) {
+      return res.status(result.status || 400).json({ message: result.message } || 'Lỗi khi thực hiện tương tác');
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || 'Lỗi server khi thực hiện tương tác'
+    });
+  }
+};
+
+exports.getDocumentReactions = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ message: 'ID tài liệu không hợp lệ' });
+    }
+    const result = await getDocumentReactions(documentId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || 'Lỗi server khi lấy thông tin tương tác'
     });
   }
 };

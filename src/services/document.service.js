@@ -5,7 +5,9 @@ const Organization = require("../models/organization.model");
 const Subject = require("../models/subject.model");
 const DownloadLink = require("../models/download_link.model");
 const PrivateShare = require("../models/private_share.model");
+const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
+const {createPointTransaction} = require("./point_transaction.service");
 const {
   searchDocuments,
   findSimilarDocuments,
@@ -577,8 +579,6 @@ const getMyDocuments = async ({
   ]);
 
   if (documents.length > 0) {
-    const ApprovalRequest = require("../models/approval_request.model");
-
     // Query rejection cho documents bị rejected
     const rejectedDocIds = documents
       .filter(
@@ -930,6 +930,7 @@ const processDownload = async (downloadId, userId) => {
     user.free_download_count = Math.max(0, user.free_download_count - 1);
   } else {
     user.point = Math.max(0, user.point - downloadLink.cost);
+    await createPointTransaction(user._id, "SPEND", downloadLink.cost, `Tải tài liệu ${document.title}`);
   }
 
   // Cập nhật download count status
@@ -1131,6 +1132,68 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
   }
 };
 
+const reactionDocument = async (documentId, userId, reactionType) => {
+  const doc = await Document.findById(documentId);
+  if (!doc) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new Error("Người dùng không tồn tại");
+  }
+
+  const existingReaction = await Reaction.findOne({
+    doc: documentId,
+    user: userId,
+  });
+
+  if (reactionType === "UNREACT") {
+    if (existingReaction) {
+      await existingReaction.deleteOne();
+    }
+    return { documentId, userId, reactionType };
+  }
+
+  if (!["LIKE", "DISLIKE"].includes(reactionType)) {
+    throw new Error("Loại reaction không hợp lệ");
+  }
+
+  if (existingReaction) {
+    // Nếu đã phản ứng, cập nhật loại phản ứng
+    existingReaction.type = reactionType;
+    await existingReaction.save();
+  } else {
+    // Nếu chưa phản ứng, tạo mới
+    const newReaction = new Reaction({
+      doc: documentId,
+      user: userId,
+      type: reactionType,
+    });
+    await newReaction.save();
+  }
+
+  return {
+    documentId,
+    userId,
+    reactionType,
+  };
+};
+
+const getDocumentReactions = async (documentId) => {
+  const doc = await Document.findById(documentId);
+  if (!doc) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+  const reactions = await Reaction.find({ doc: documentId })
+  const likes = reactions.filter(r => r.type === 'LIKE').length;
+  const dislikes = reactions.filter(r => r.type === 'DISLIKE').length;
+  const total = reactions.length;
+  // rating la tỷ lệ likes trên tổng số reaction, nếu ko có reaction thì rating = 0, lam tron so int
+  const rating = likes + dislikes === 0 ? 0 : (likes / total);
+  const reactionResult = { docId: documentId, likes, dislikes, total, rating: Math.round(rating * 100) };
+  return reactionResult;
+};
+
 module.exports = {
   getAllDocuments,
   getNewestDocuments,
@@ -1146,6 +1209,8 @@ module.exports = {
   markDownloadSuccess,
   changeAllShareLink,
   getSimilarDocuments,
+  reactionDocument,
+  getDocumentReactions,
 };
 
 const validateSubjects = async (subjectId) => {

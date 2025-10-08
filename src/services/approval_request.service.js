@@ -2,6 +2,7 @@ const ApprovalRequest = require("../models/approval_request.model");
 const User = require("../models/user.model");
 const Document = require("../models/document.model");
 const Organization = require("../models/organization.model");
+const {createPointTransaction} = require("./point_transaction.service");
 
 const createApprovalRequest = async (documentId, requesterId) => {
     const requester = await User.findById(requesterId);
@@ -147,6 +148,7 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
         user.point = (user.point || 0) + total;
         user.rank_point = (user.rank_point || 0) + total;
         await user.save();
+        await createPointTransaction(user._id, "EARN", total, `Đăng tài liệu ${document.title}`);
     }
 
     //gửi thông báo cho người đăng (để sau)
