@@ -7,7 +7,7 @@ const DownloadLink = require("../models/download_link.model");
 const PrivateShare = require("../models/private_share.model");
 const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
-const {createPointTransaction} = require("./point_transaction.service");
+const { createPointTransaction } = require("./point_transaction.service");
 const {
   searchDocuments,
   findSimilarDocuments,
@@ -930,7 +930,12 @@ const processDownload = async (downloadId, userId) => {
     user.free_download_count = Math.max(0, user.free_download_count - 1);
   } else {
     user.point = Math.max(0, user.point - downloadLink.cost);
-    await createPointTransaction(user._id, "SPEND", downloadLink.cost, `Tải tài liệu ${document.title}`);
+    await createPointTransaction(
+      user._id,
+      "SPEND",
+      downloadLink.cost,
+      `Tải tài liệu ${document.title}`
+    );
   }
 
   // Cập nhật download count status
@@ -1184,35 +1189,25 @@ const getDocumentReactions = async (documentId, userId) => {
   if (!doc) {
     throw new Error("Tài liệu không tồn tại");
   }
-  const reactions = await Reaction.find({ doc: documentId })
-  const likes = reactions.filter(r => r.type === 'LIKE').length;
-  const dislikes = reactions.filter(r => r.type === 'DISLIKE').length;
+  const reactions = await Reaction.find({ doc: documentId });
+  const likes = reactions.filter((r) => r.type === "LIKE").length;
+  const dislikes = reactions.filter((r) => r.type === "DISLIKE").length;
   const total = reactions.length;
   // rating la tỷ lệ likes trên tổng số reaction, nếu ko có reaction thì rating = 0, lam tron so int
-  const rating = likes + dislikes === 0 ? 0 : (likes / total);
+  const rating = likes + dislikes === 0 ? 0 : likes / total;
   // neu nguoi dung da like thi la LIKE, da dislike thi la DISLIKE, chua react thi la NONE
-  const reacted = reactions.find(r => r.user.toString() === userId.toString())?.type || 'NONE';
-  const reactionResult = { docId: documentId, likes, dislikes, total, rating: Math.round(rating * 100), reacted };
+  const reacted =
+    reactions.find((r) => r.user.toString() === userId.toString())?.type ||
+    "NONE";
+  const reactionResult = {
+    docId: documentId,
+    likes,
+    dislikes,
+    total,
+    rating: Math.round(rating * 100),
+    reacted,
+  };
   return reactionResult;
-};
-
-module.exports = {
-  getAllDocuments,
-  getNewestDocuments,
-  createDocument,
-  deleteDocument,
-  updateDocument,
-  getDocumentById,
-  getDocumentsBySubject,
-  getPendingDocuments,
-  getMyDocuments,
-  createDownloadLink,
-  processDownload,
-  markDownloadSuccess,
-  changeAllShareLink,
-  getSimilarDocuments,
-  reactionDocument,
-  getDocumentReactions,
 };
 
 const validateSubjects = async (subjectId) => {
@@ -1309,4 +1304,23 @@ const getDownloadPrice = async (documentId, user) => {
   }
 
   return basePrice;
+};
+module.exports = {
+  getAllDocuments,
+  getNewestDocuments,
+  createDocument,
+  deleteDocument,
+  updateDocument,
+  getDocumentById,
+  getDocumentsBySubject,
+  getPendingDocuments,
+  getMyDocuments,
+  createDownloadLink,
+  processDownload,
+  markDownloadSuccess,
+  changeAllShareLink,
+  getSimilarDocuments,
+  reactionDocument,
+  getDocumentReactions,
+  canViewDocument,
 };
