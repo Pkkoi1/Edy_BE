@@ -10,6 +10,7 @@ const accessRequestRouter = require("./access_request.routes");
 const reportRouter = require("./report.routes");
 const searchRouter = require("./search.routes");
 const commentRouter = require("./comment.routes");
+const notificationRouter = require("./notification.routes");
 
 // Main routes configuration
 router.use("/auth", authRouter);
@@ -21,5 +22,6 @@ router.use("/access-requests", accessRequestRouter);
 router.use("/reports", reportRouter);
 router.use("/search", searchRouter);
 router.use("/comments", commentRouter);
+router.use("/notifications", notificationRouter);
 
 module.exports = router;
