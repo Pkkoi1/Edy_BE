@@ -2,6 +2,10 @@ const Comment = require("../models/comment.model");
 const Document = require("../models/document.model");
 const User = require("../models/user.model");
 const { canViewDocument } = require("./document.service");
+const {
+  notifyNewComment,
+  notifyCommentReply,
+} = require("./notification.service");
 const mongoose = require("mongoose");
 
 // Tạo bình luận mới
@@ -47,6 +51,36 @@ const createComment = async (userId, documentId, content, parentId = null) => {
     path: "user",
     select: "_id first_name last_name avatar",
   });
+
+  // Gửi thông báo cho chủ sở hữu tài liệu hoặc người được reply
+  try {
+    const user = await User.findById(userId);
+    const commenterName = `${user.first_name} ${user.last_name}`;
+
+    if (parentId) {
+      // Đây là reply - thông báo cho người được reply
+      const parentComment = await Comment.findById(parentId);
+      if (parentComment && parentComment.user.toString() !== userId) {
+        await notifyCommentReply(
+          parentComment.user.toString(),
+          comment._id,
+          commenterName
+        );
+      }
+    } else {
+      // Đây là comment chính - thông báo cho chủ sở hữu tài liệu
+      if (document.user.toString() !== userId) {
+        await notifyNewComment(
+          document.user.toString(),
+          comment._id,
+          commenterName
+        );
+      }
+    }
+  } catch (notificationError) {
+    // Log lỗi nhưng không làm fail việc tạo comment
+    console.error("Lỗi gửi thông báo comment:", notificationError);
+  }
 
   return comment;
 };
