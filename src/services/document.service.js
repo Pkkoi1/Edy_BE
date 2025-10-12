@@ -1325,7 +1325,7 @@ const getDownloadPrice = async (documentId, user) => {
 };
 
 const addToHistory = async (userId, documentId) => {
-  // Lấy thông tin người dùng hiện tại
+    // Lấy thông tin người dùng hiện tại
   const user = await User.findById(userId);
   
   if (!user) return;
