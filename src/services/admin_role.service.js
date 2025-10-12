@@ -84,6 +84,7 @@ const createAssignment = async (assignmentData) => {
         throw new Error('Account already has this role');
     }
     const assignment = await Assignment.create(assignmentData);
+    await updateAccountAdminStatus(assignment.account);
     return assignment;
 }
 
@@ -106,6 +107,7 @@ const changeActiveAssignment = async (assignmentId, active) => {
         { is_active: active },
         { new: true }
     );
+    await updateAccountAdminStatus(assignment.account);
 
     return updatedAssignment;
 }
@@ -115,6 +117,8 @@ const deleteAssignment = async (assignmentId) => {
     if (!assignment) {
         throw new Error('Assignment not found');
     }
+    //xoa assignment thi cap nhat lai account is_admin
+    await updateAccountAdminStatus(assignment.account);
     return assignment;
 }
 
@@ -123,6 +127,7 @@ const updateAssignment = async (assignmentId, assignmentData) => {
     if (!assignment) {
         throw new Error('Assignment not found');
     }
+    await updateAccountAdminStatus(assignment.account);
     return assignment;
 }
 
@@ -214,4 +219,19 @@ module.exports = {
     updateAssignment,
     getAssignmentById,
     getAllAssignment
+}
+
+const updateAccountAdminStatus = async (accountId) => {
+    const account = await Account.findById(accountId);
+    if (!account) {
+        throw new Error('Account not found');
+    }
+    const assignments = await Assignment.find({ account: accountId, is_active: true });
+    if(assignments.length > 0) {
+        account.is_admin = true;
+    } else {
+        account.is_admin = false;
+    }
+    await account.save();
+    return account;
 }

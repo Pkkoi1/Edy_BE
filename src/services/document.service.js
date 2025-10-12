@@ -1277,9 +1277,10 @@ const canViewDocument = async (userId, documentId) => {
 
     case "SHARE_ORGANIZATION":
       if (!user.organization || !document.user.organization) return false;
+      console.log(user.organization._id.toString(), document.user.organization._id.toString());
       return (
         user.organization._id.toString() ===
-        document.user.organization._id.toString()
+        document.organization._id.toString()
       );
 
     case "PRIVATE_SHARED":
@@ -1325,7 +1326,7 @@ const getDownloadPrice = async (documentId, user) => {
 };
 
 const addToHistory = async (userId, documentId) => {
-  // Lấy thông tin người dùng hiện tại
+    // Lấy thông tin người dùng hiện tại
   const user = await User.findById(userId);
   
   if (!user) return;
