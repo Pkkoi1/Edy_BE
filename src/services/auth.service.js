@@ -77,9 +77,9 @@ const getMeService = async (payload) => {
         .select('-__v')
         .populate([
             { path: 'organization', select: '_id name' },
-            { path: 'read_history.document', select: '_id title' },
+            { path: 'read_history.document', select: '_id title status public_mode' },
             { path: 'shared_documents.document', select: '_id title' },
-            { path: 'favorites.document', select: '_id title' }
+            { path: 'favorites.document', select: '_id title status public_mode' }
         ]);
     const roles = await Assignment.find({ account: account._id }).populate("role");
     let responseRoles = ['USER'];

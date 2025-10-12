@@ -11,6 +11,8 @@ const { createPointTransaction } = require("./point_transaction.service");
 const {
   searchDocuments,
   findSimilarDocuments,
+  indexDocument,
+  updateDocument: updateESDocument 
 } = require("./elasticsearch.service");
 const { updateUserDocCount } = require("./user.service");
 const cloudinary = require("cloudinary").v2;
@@ -667,6 +669,13 @@ const createDocument = async (data) => {
   // Cập nhật số lượng tài liệu của user
   await updateUserDocCount(data.user);
 
+  try {
+    await indexDocument(doc);
+  } catch (error) {
+    console.error('Lỗi khi đánh index document:', error);
+    // Không throw error để không ảnh hưởng đến việc tạo document
+  }
+
   return doc;
 };
 
@@ -681,6 +690,11 @@ const deleteDocument = async (id) => {
   if (doc && doc.user) {
     await updateUserDocCount(doc.user);
   }
+  try {
+    await updateESDocument(id, { is_deleted: true });
+  } catch (error) {
+    console.error('Lỗi khi cập nhật trạng thái xóa trong Elasticsearch:', error);
+  }
 
   return doc;
 };
@@ -689,7 +703,11 @@ const updateDocument = async (id, data) => {
   // Không cho sửa trường is_deleted qua update này
   if ("is_deleted" in data) delete data.is_deleted;
   const doc = await Document.findByIdAndUpdate(id, data, { new: true });
-
+  try {
+    await updateESDocument(id, data);
+  } catch (error) {
+    console.error('Lỗi khi cập nhật document trong Elasticsearch:', error);
+  }
   return doc;
 };
 
@@ -1305,6 +1323,46 @@ const getDownloadPrice = async (documentId, user) => {
 
   return basePrice;
 };
+
+const addToHistory = async (userId, documentId) => {
+  // Lấy thông tin người dùng hiện tại
+  const user = await User.findById(userId);
+  
+  if (!user) return;
+  
+  // Tạo mảng lịch sử mới
+  let newHistory = user.read_history || [];
+  
+  // Xóa tài liệu khỏi lịch sử nếu đã tồn tại
+  newHistory = newHistory.filter(item => !item.document.equals(documentId));
+  
+  // Thêm tài liệu mới vào đầu mảng
+  newHistory.unshift({
+    document: documentId,
+    read_at: new Date()
+  });
+  
+  // Giữ chỉ 10 tài liệu gần nhất
+  if (newHistory.length > 10) {
+    newHistory = newHistory.slice(0, 10);
+  }
+  
+  // Cập nhật lịch sử đọc của người dùng
+  await User.findByIdAndUpdate(userId, { read_history: newHistory });
+};
+
+const getReadHistory = async (userId) => {
+  const user = await User.findById(userId);
+  const read_history = user.read_history || [];
+  const detailedHistory = await Promise.all(
+    read_history.map(async (item) => ({
+      document: await getDocumentById(item.document),
+      read_at: item.read_at,
+    }))
+  );
+  return detailedHistory;
+};
+
 module.exports = {
   getAllDocuments,
   getNewestDocuments,
@@ -1323,4 +1381,6 @@ module.exports = {
   reactionDocument,
   getDocumentReactions,
   canViewDocument,
+  addToHistory,
+  getReadHistory,
 };

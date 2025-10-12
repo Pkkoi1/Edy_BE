@@ -166,6 +166,15 @@ const resolveReport = async (reportId, adminId, resolution) => {
         // Xử lý action tương ứng
         await handleReportAction(report, action);
 
+        if (action === 'DELETE' || action === 'EDIT_REQUESTED') {
+            await updateRelatedReports(
+                report.doc, 
+                report.cmt, 
+                reportId, 
+                validTypes || [], 
+                action
+            );
+        }
         // Return report đã resolve
         const resolvedReport = await Report.findById(reportId)
             .populate('doc', 'title author status')
@@ -404,5 +413,60 @@ const applyRestrictions = async (userId, adminId, type ) => {
         } 
     } catch (error) {
         throw new Error(`Lỗi áp dụng hạn chế: ${error.message}`);
+    }
+};
+
+// Thêm hàm này vào cuối file report_service.js
+const updateRelatedReports = async (docId, cmtId, reportId, validTypes, action) => {
+    try {
+        let relatedReports;
+        
+        if (cmtId) {
+            // Nếu đây là report comment, chỉ tìm các report khác của cùng comment
+            relatedReports = await Report.find({
+                doc: docId,
+                cmt: cmtId,
+                _id: { $ne: reportId }, // Không bao gồm report hiện tại
+                status: 'PROCESSING'
+            });
+        } else {
+            // Nếu đây là report document, chỉ tìm các report khác của document (cmt = null)
+            relatedReports = await Report.find({
+                doc: docId,
+                cmt: null, // Chỉ lấy các report document
+                _id: { $ne: reportId }, // Không bao gồm report hiện tại
+                status: 'PROCESSING'
+            });
+        }
+
+        if (relatedReports.length === 0) {
+            return; // Không có report liên quan cần cập nhật
+        }
+
+        // Xử lý từng report
+        for (const report of relatedReports) {
+            // Kiểm tra xem report có chứa ít nhất 1 valid type không
+            const hasValidType = report.type.some(type => validTypes.includes(type));
+            
+            if (hasValidType) {
+                // Nếu có ít nhất 1 valid type, chuyển thành RESOLVED
+                report.status = 'RESOLVED';
+                report.action = action;
+                report.validTypes = report.type.filter(type => validTypes.includes(type));
+                report.resolveReason = `Đã được xử lý qua report id ${reportId}`;
+                report.resolvedAt = new Date();
+            } else {
+                // Nếu không có valid type nào, chuyển thành FALSE_REPORT
+                report.status = 'RESOLVED';
+                report.action = 'FALSE_REPORT';
+                report.validTypes = [];
+                report.resolveReason = `Báo cáo đã được xử lý qua report id ${reportId} nhưng không chứa loại vi phạm hợp lệ`;
+                report.resolvedAt = new Date();
+            }
+            
+            await report.save();
+        }
+    } catch (error) {
+        console.error('Lỗi khi cập nhật các report liên quan:', error);
     }
 };

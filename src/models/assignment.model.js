@@ -5,6 +5,7 @@ const assignmentSchema = new mongoose.Schema({
   role: { type: mongoose.Schema.Types.ObjectId, ref: 'Role', required: true },
   subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null  },
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null },
+  is_active: { type: Boolean, default: true }
 }, {
   timestamps: true
 });
