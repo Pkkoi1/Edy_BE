@@ -11,6 +11,7 @@ const reportRouter = require("./report.routes");
 const searchRouter = require("./search.routes");
 const commentRouter = require("./comment.routes");
 const notificationRouter = require("./notification.routes");
+const adminRoleRouter = require("./admin_role.routes");
 
 // Main routes configuration
 router.use("/auth", authRouter);
@@ -23,5 +24,6 @@ router.use("/reports", reportRouter);
 router.use("/search", searchRouter);
 router.use("/comments", commentRouter);
 router.use("/notifications", notificationRouter);
+router.use("/admin", adminRoleRouter);
 
 module.exports = router;

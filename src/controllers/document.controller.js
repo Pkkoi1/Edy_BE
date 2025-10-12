@@ -16,6 +16,8 @@ const {
   getSimilarDocuments,
   reactionDocument,
   getDocumentReactions,
+  addToHistory,
+  getReadHistory,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -146,6 +148,9 @@ exports.getDocumentById = async (req, res) => {
     if (req.user && req.user.userId) {
       const isFavorite = await checkIsFavorite(req.user.userId, document._id);
       document.is_favorite = isFavorite;
+
+      //thêm tài liệu vào lịch sử truy cập
+      await addToHistory(req.user.userId, document._id);
     } else {
       document.is_favorite = false;
     }
@@ -731,6 +736,18 @@ exports.getDocumentReactions = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: error.message || 'Lỗi server khi lấy thông tin tương tác'
+    });
+  }
+};
+
+exports.getReadHistory = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const result = await getReadHistory(userId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || 'Lỗi server khi lấy lịch sử đọc'
     });
   }
 };
