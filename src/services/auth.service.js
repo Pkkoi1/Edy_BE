@@ -81,7 +81,7 @@ const getMeService = async (payload) => {
             { path: 'shared_documents.document', select: '_id title' },
             { path: 'favorites.document', select: '_id title status public_mode' }
         ]);
-    const roles = await Assignment.find({ account: account._id }).populate("role");
+    const roles = await Assignment.find({ account: account._id, is_active: true}).populate("role");
     let responseRoles = ['USER'];
     if (roles.length > 0) responseRoles = roles.map(a => a.role.code);
     if (!account.is_verified) responseRoles = ['NOT_VERIFIED'];
