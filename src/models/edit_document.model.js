@@ -80,6 +80,7 @@ const editDocumentSchema = new mongoose.Schema({
         enum: ['DOCUMENT_EDIT', 'SUMMARY_EDIT', 'BOTH'],
         required: true
     },
+    expiredAt: { type: Date, default: null },
     is_deleted: { type: Boolean, default: false }
 }, {
     timestamps: true
