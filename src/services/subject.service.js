@@ -1,15 +1,16 @@
-const Subject = require('../models/subject.model');
-const Organization = require('../models/organization.model');
+const Subject = require("../models/subject.model");
+const Organization = require("../models/organization.model");
+const Document = require("../models/document.model");
 
 const createSubject = async (data) => {
   try {
     const newSubject = new Subject(data);
-    
+
     const org = Organization.findById(data.organization);
     if (!org) {
-      throw new Error('Tổ chức không tồn tại');
+      throw new Error("Tổ chức không tồn tại");
     }
-    
+
     await newSubject.save();
     return newSubject;
   } catch (error) {
@@ -19,7 +20,7 @@ const createSubject = async (data) => {
 
 const getAllSubjects = async () => {
   try {
-    return await Subject.find().populate('created_by').populate('organization');
+    return await Subject.find().populate("created_by").populate("organization");
   } catch (error) {
     throw error;
   }
@@ -27,7 +28,9 @@ const getAllSubjects = async () => {
 
 const getSubjectById = async (id) => {
   try {
-    return await Subject.findById(id).populate('created_by').populate('organization');
+    return await Subject.findById(id)
+      .populate("created_by")
+      .populate("organization");
   } catch (error) {
     throw error;
   }
@@ -36,8 +39,8 @@ const getSubjectById = async (id) => {
 const getSubjectsByOrganization = async (organizationId) => {
   try {
     return await Subject.find({ organization: organizationId })
-      .populate({path: 'created_by', select: '_id name email avatar'})
-      .populate({path: 'organization', select: '_id name'});
+      .populate({ path: "created_by", select: "_id name email avatar" })
+      .populate({ path: "organization", select: "_id name" });
   } catch (error) {
     throw error;
   }
@@ -59,11 +62,30 @@ const deleteSubject = async (id) => {
   }
 };
 
+const searchSubjects = async (keyword) => {
+  try {
+    const regex = new RegExp(keyword, "i"); // Case-insensitive search
+    return await Subject.find({
+      $or: [
+        { name: { $regex: regex } },
+        { code: { $regex: regex } },
+        { description: { $regex: regex } },
+      ],
+      is_deleted: false,
+    })
+      .populate("created_by", "_id first_name last_name email")
+      .populate("organization", "_id name");
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   createSubject,
   getAllSubjects,
   getSubjectById,
   updateSubject,
   deleteSubject,
-getSubjectsByOrganization
+  getSubjectsByOrganization,
+  searchSubjects,
 };

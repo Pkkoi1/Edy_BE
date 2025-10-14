@@ -12,7 +12,7 @@ const {
   searchDocuments,
   findSimilarDocuments,
   indexDocument,
-  updateDocument: updateESDocument 
+  updateDocument: updateESDocument,
 } = require("./elasticsearch.service");
 const { updateUserDocCount } = require("./user.service");
 const cloudinary = require("cloudinary").v2;
@@ -131,6 +131,35 @@ const getNewestDocuments = async ({
 }) => {
   // neu co search elastic
   if (search && search.trim()) {
+    if (payload && payload.userId) {
+      const user = await User.findById(payload.userId);
+      const normalizedSearch = search.trim().toUpperCase();
+
+      // Check if the search term already exists in search_history
+      const existingIndex = user.search_history.findIndex(
+        (item) => item.keyword.toUpperCase() === normalizedSearch
+      );
+
+      if (existingIndex !== -1) {
+        // Remove the existing search term
+        user.search_history.splice(existingIndex, 1);
+      }
+
+      // Add the new search term to the beginning of the history
+      user.search_history.unshift({
+        keyword: search.trim(),
+        searched_at: new Date(),
+      });
+
+      // Ensure search_history does not exceed 10 entries
+      if (user.search_history.length > 10) {
+        user.search_history.pop();
+      }
+
+      // Save the updated user document
+      await user.save();
+    }
+
     return await searchWithElasticsearch({
       payload,
       search: search.trim(),
@@ -672,7 +701,7 @@ const createDocument = async (data) => {
   try {
     await indexDocument(doc);
   } catch (error) {
-    console.error('Lỗi khi đánh index document:', error);
+    console.error("Lỗi khi đánh index document:", error);
     // Không throw error để không ảnh hưởng đến việc tạo document
   }
 
@@ -693,7 +722,10 @@ const deleteDocument = async (id) => {
   try {
     await updateESDocument(id, { is_deleted: true });
   } catch (error) {
-    console.error('Lỗi khi cập nhật trạng thái xóa trong Elasticsearch:', error);
+    console.error(
+      "Lỗi khi cập nhật trạng thái xóa trong Elasticsearch:",
+      error
+    );
   }
 
   return doc;
@@ -706,7 +738,7 @@ const updateDocument = async (id, data) => {
   try {
     await updateESDocument(id, data);
   } catch (error) {
-    console.error('Lỗi khi cập nhật document trong Elasticsearch:', error);
+    console.error("Lỗi khi cập nhật document trong Elasticsearch:", error);
   }
   return doc;
 };
@@ -1277,7 +1309,10 @@ const canViewDocument = async (userId, documentId) => {
 
     case "SHARE_ORGANIZATION":
       if (!user.organization || !document.user.organization) return false;
-      console.log(user.organization._id.toString(), document.user.organization._id.toString());
+      console.log(
+        user.organization._id.toString(),
+        document.user.organization._id.toString()
+      );
       return (
         user.organization._id.toString() ===
         document.organization._id.toString()
@@ -1326,28 +1361,28 @@ const getDownloadPrice = async (documentId, user) => {
 };
 
 const addToHistory = async (userId, documentId) => {
-    // Lấy thông tin người dùng hiện tại
+  // Lấy thông tin người dùng hiện tại
   const user = await User.findById(userId);
-  
+
   if (!user) return;
-  
+
   // Tạo mảng lịch sử mới
   let newHistory = user.read_history || [];
-  
+
   // Xóa tài liệu khỏi lịch sử nếu đã tồn tại
-  newHistory = newHistory.filter(item => !item.document.equals(documentId));
-  
+  newHistory = newHistory.filter((item) => !item.document.equals(documentId));
+
   // Thêm tài liệu mới vào đầu mảng
   newHistory.unshift({
     document: documentId,
-    read_at: new Date()
+    read_at: new Date(),
   });
-  
+
   // Giữ chỉ 10 tài liệu gần nhất
   if (newHistory.length > 10) {
     newHistory = newHistory.slice(0, 10);
   }
-  
+
   // Cập nhật lịch sử đọc của người dùng
   await User.findByIdAndUpdate(userId, { read_history: newHistory });
 };
