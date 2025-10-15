@@ -11,22 +11,22 @@ services:
       - /app/node_modules
       - ./uploads:/app/uploads
     depends_on:
-      - mongodb
       - redis
-
-  mongodb:
-    image: mongo:6.0
-    container_name: mongodb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-    ports:
-      - "27017:27017"
-    volumes:
-      - ./data/mongodb:/data/db
+      - elasticsearch
 
   redis:
     image: redis:7.0
     container_name: redis
     ports:
       - "6379:6379"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: elasticsearch
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      xpack.security.enabled: "false"
+    ports:
+      - "9200:9200"
+
