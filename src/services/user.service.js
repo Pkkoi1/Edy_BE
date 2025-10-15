@@ -397,33 +397,40 @@ const checkIsFavorite = async (userId, documentId) => {
 const getUserById = async (userId) => {
   try {
     const user = await User.findById(userId)
-      .select('-__v')
+      .select("-__v")
       .populate([
-        { path: 'organization', select: '_id name' },
-        { path: 'read_history.document', select: '_id title' },
-        { path: 'shared_documents.document', select: '_id title' },
-        { path: 'favorites.document', select: '_id title' }
+        { path: "organization", select: "_id name" },
+        { path: "read_history.document", select: "_id title" },
+        { path: "shared_documents.document", select: "_id title" },
+        { path: "favorites.document", select: "_id title" },
       ]);
 
     if (!user) {
       return { error: "Người dùng không tồn tại" };
     }
 
-    const account = await Account.findOne({ user: userId }).select('-password -__v');
+    const account = await Account.findOne({ user: userId }).select(
+      "-password -__v"
+    );
     if (!account) {
       return { error: "Tài khoản không tồn tại" };
     }
 
-    const roles = await Assignment.find({ account: account._id }).populate("role");
-    let responseRoles = ['USER'];
-    if (roles.length > 0) responseRoles = roles.map(a => a.role.code);
-    if (!account.is_verified) responseRoles = ['NOT_VERIFIED'];
+    const roles = await Assignment.find({ account: account._id }).populate(
+      "role"
+    );
+    let responseRoles = ["USER"];
+    if (roles.length > 0) responseRoles = roles.map((a) => a.role.code);
+    if (!account.is_verified) responseRoles = ["NOT_VERIFIED"];
 
-    return { 
+    return {
       success: true,
-      account, 
-      user, 
-      roles: responseRoles 
+      account,
+      user: {
+        ...user.toObject(),
+        organization_name: user.organization ? user.organization.name : null,
+      },
+      roles: responseRoles,
     };
   } catch (error) {
     console.error("Error getting user by ID:", error);
