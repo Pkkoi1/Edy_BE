@@ -86,7 +86,7 @@ router.get("/", requireUserRole, subjectController.getSubjectsByOrganization);
  *       400:
  *         description: Yêu cầu không hợp lệ
  */
-router.get("/search", requireUserRole, subjectController.searchSubjects);
+router.get("/search", subjectController.searchSubjects);
 
 // router.get("/:id", requireUserRole, subjectController.getSubjectById);
 /**
