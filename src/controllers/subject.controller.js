@@ -1,5 +1,13 @@
-const e = require('express');
-const {getAllSubjects, getSubjectById, createSubject, updateSubject, deleteSubject, getSubjectsByOrganization} = require('../services/subject.service');
+const e = require("express");
+const {
+  getAllSubjects,
+  getSubjectById,
+  createSubject,
+  updateSubject,
+  deleteSubject,
+  getSubjectsByOrganization,
+  searchSubjects,
+} = require("../services/subject.service");
 
 exports.createSubject = async (req, res) => {
   try {
@@ -9,7 +17,7 @@ exports.createSubject = async (req, res) => {
       code,
       description,
       organization,
-      created_by: req.user.userId
+      created_by: req.user.userId,
     });
     res.status(201).json(subject);
   } catch (error) {
@@ -21,8 +29,8 @@ exports.getSubjectById = async (req, res) => {
   try {
     const subject = await getSubjectById(req.params.id);
     if (!subject) {
-      return res.status(404).json({ error: 'Môn học không tồn tại' });
-    } 
+      return res.status(404).json({ error: "Môn học không tồn tại" });
+    }
     res.status(200).json(subject);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -39,3 +47,18 @@ exports.getSubjectsByOrganization = async (req, res) => {
   }
 };
 
+exports.searchSubjects = async (req, res) => {
+  try {
+    const { keyword } = req.query;
+    if (!keyword || typeof keyword !== "string") {
+      return res
+        .status(400)
+        .json({ error: "Keyword must be a non-empty string" });
+    }
+
+    const subjects = await searchSubjects(keyword.trim());
+    res.status(200).json(subjects);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
