@@ -1076,7 +1076,11 @@ router.put(
  *       500:
  *         description: Đã xảy ra lỗi khi lấy tài liệu tương tự
  */
-router.get('/:documentId/similar', userOrUnauthenticated, documentController.getSimilarDocuments);
+router.get(
+  "/:documentId/similar",
+  userOrUnauthenticated,
+  documentController.getSimilarDocuments
+);
 
 /**
  * @swagger
@@ -1116,7 +1120,11 @@ router.get('/:documentId/similar', userOrUnauthenticated, documentController.get
  *       500:
  *         description: Đã xảy ra lỗi khi xử lý phản ứng
  */
-router.post("/:documentId/react", requireUserRole, documentController.reactionDocument);
+router.post(
+  "/:documentId/react",
+  requireUserRole,
+  documentController.reactionDocument
+);
 
 /**
  * @swagger
@@ -1142,7 +1150,112 @@ router.post("/:documentId/react", requireUserRole, documentController.reactionDo
  *       500:
  *         description: Đã xảy ra lỗi khi lấy phản ứng
  */
-router.get("/:documentId/reactions", userOrUnauthenticated, documentController.getDocumentReactions);
+router.get(
+  "/:documentId/reactions",
+  userOrUnauthenticated,
+  documentController.getDocumentReactions
+);
+
+/**
+ * @swagger
+ * /documents/user/{userId}:
+ *   get:
+ *     summary: Lấy danh sách tài liệu của một người dùng cụ thể
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo từ khóa, tiêu đề, tác giả
+ *       - in: query
+ *         name: ordering
+ *         schema:
+ *           type: string
+ *         description: "Trường sắp xếp (vd: title, createdAt, published_year, last_approved_at)"
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: integer
+ *           enum: [1, -1]
+ *         description: 1 là tăng dần, -1 là giảm dần
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *       - in: query
+ *         name: organization
+ *         schema:
+ *           type: string
+ *         description: Lọc theo tổ chức
+ *       - in: query
+ *         name: publisher
+ *         schema:
+ *           type: string
+ *         description: Lọc theo nhà xuất bản
+ *       - in: query
+ *         name: published_year
+ *         schema:
+ *           type: integer
+ *         description: Lọc theo năm xuất bản
+ *       - in: query
+ *         name: intensive
+ *         schema:
+ *           type: boolean
+ *         description: Lọc theo chuyên ngành
+ *       - in: query
+ *         name: author
+ *         schema:
+ *           type: string
+ *         description: Lọc theo tác giả
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *         description: Lọc theo từ khóa
+ *       - in: query
+ *         name: doc_type
+ *         schema:
+ *           type: string
+ *         description: Lọc theo loại tài liệu
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: string
+ *         description: Lọc theo trình độ
+ *       - in: query
+ *         name: subject
+ *         schema:
+ *           type: string
+ *         description: Lọc theo môn
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu thành công
+ *       400:
+ *         description: ID người dùng không hợp lệ
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy tài liệu
+ */
+router.get(
+  "/user/:userId",
+  userOrUnauthenticated,
+  documentController.getDocumentsByUserId
+);
 
 /**
  * @swagger

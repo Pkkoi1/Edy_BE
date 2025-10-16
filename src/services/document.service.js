@@ -1390,7 +1390,7 @@ const addToHistory = async (userId, documentId) => {
     document: documentId,
     read_at: new Date(),
   });
-
+  
   // Giữ chỉ 10 tài liệu gần nhất
   if (newHistory.length > 10) {
     newHistory = newHistory.slice(0, 10);
@@ -1410,6 +1410,137 @@ const getReadHistory = async (userId) => {
     }))
   );
   return detailedHistory;
+};
+
+const getDocumentsByUserId = async ({
+  userId,
+  payload,
+  search,
+  ordering = "createdAt",
+  order = -1,
+  page = 1,
+  limit = 5,
+  ...filters
+}) => {
+  // Kiểm tra user tồn tại
+  const targetUser = await User.findById(userId);
+  if (!targetUser) {
+    throw new Error("Người dùng không tồn tại");
+  }
+
+  let currentUser = null;
+  let sharedDocIds = [];
+  if (payload && payload.userId) {
+    currentUser = await User.findById(payload.userId).populate("organization");
+    if (currentUser) {
+      const privateShares = await PrivateShare.find({
+        invited_users: currentUser._id,
+        status: "ACTIVE",
+        expiredAt: { $gt: new Date() },
+      }).select("document");
+      sharedDocIds = privateShares.map((share) => share.document);
+    }
+  }
+
+  const skip = (page - 1) * limit;
+
+  // Điều kiện quyền truy cập
+  let accessOr = [];
+  if (currentUser && currentUser.organization) {
+    accessOr = [
+      { public_mode: "PUBLIC" },
+      {
+        public_mode: "SHARE_ORGANIZATION",
+        organization: currentUser.organization._id,
+      },
+      { _id: { $in: sharedDocIds } },
+      { user: currentUser._id }, // Người dùng hiện tại có thể xem tài liệu của mình
+    ];
+  } else {
+    accessOr = [{ public_mode: "PUBLIC" }];
+  }
+
+  // Điều kiện tìm kiếm
+  let searchOr = [];
+  if (search) {
+    searchOr = [
+      { title: { $regex: search, $options: "i" } },
+      { author: { $regex: search, $options: "i" } },
+      { keyword: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  // Kết hợp điều kiện
+  let query = {
+    user: userId,
+    status: "APPROVED",
+    is_deleted: false,
+  };
+
+  if (searchOr.length > 0) {
+    query.$and = [{ $or: accessOr }, { $or: searchOr }];
+  } else {
+    query.$or = accessOr;
+  }
+
+  // Filter các trường
+  const filterFields = [
+    "organization",
+    "publisher",
+    "published_year",
+    "intensive",
+    "author",
+    "keyword",
+    "doc_type",
+    "level",
+    "subject",
+  ];
+
+  filterFields.forEach((field) => {
+    if (filters[field] !== undefined && filters[field] !== "") {
+      if (field === "intensive") {
+        query[field] = filters[field] === "true";
+      } else {
+        query[field] = filters[field];
+      }
+    }
+  });
+
+  // Sắp xếp
+  const sort = {};
+  sort[ordering] = parseInt(order);
+
+  const [documents, total] = await Promise.all([
+    Document.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status createdAt last_approved_at"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" }),
+    Document.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const have_next = page < totalPages;
+
+  return {
+    documents,
+    total,
+    page,
+    totalPages,
+    have_next,
+  };
 };
 
 module.exports = {
@@ -1432,4 +1563,5 @@ module.exports = {
   canViewDocument,
   addToHistory,
   getReadHistory,
+  getDocumentsByUserId,
 };
