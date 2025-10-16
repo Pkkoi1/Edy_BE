@@ -91,14 +91,14 @@ const getMeService = async (payload) => {
       {
         path: "read_history.document",
         select:
-          "_id title status public_mode user cover_page organization file_type subject",
+          "_id title status public_mode user cover_page organization file_type subject is_deleted",
         populate: [
           { path: "user", select: "first_name last_name" },
           { path: "subject", select: "_id name code description organization" },
         ],
       },
       { path: "shared_documents.document", select: "_id title" },
-      { path: "favorites.document", select: "_id title status public_mode" },
+      { path: "favorites.document", select: "_id title status public_mode is_deleted" },
       {
         path: "follower",
         select: "_id first_name last_name rank_point doc_count field_of_study avatar",

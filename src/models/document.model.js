@@ -90,6 +90,6 @@ const documentSchema = new mongoose.Schema({
   timestamps: true
 });
 
-documentSchema.index({ expiredAt: 1 }, { expireAfterSeconds: 0 });
+// documentSchema.index({ expiredAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Document', documentSchema);
