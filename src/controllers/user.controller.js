@@ -7,6 +7,8 @@ const {
   addFavoriteDocument,
   removeFavoriteDocument,
   getUserById,
+  followUser,
+  unfollowUser,
 } = require("../services/user.service");
 
 exports.getUsers = async (req, res) => {
@@ -156,5 +158,37 @@ exports.getUserById = async (req, res) => {
     res
       .status(500)
       .json({ message: "Đã xảy ra lỗi khi lấy thông tin người dùng" });
+  }
+};
+
+exports.followUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await followUser(req.user.userId, userId);
+
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in followUser controller:", error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi follow người dùng" });
+  }
+};
+
+exports.unfollowUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await unfollowUser(req.user.userId, userId);
+
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in unfollowUser controller:", error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi unfollow người dùng" });
   }
 };
