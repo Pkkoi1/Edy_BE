@@ -247,4 +247,52 @@ router.delete(
  */
 router.get("/:userId", requireLoggedIn, userController.getUserById);
 
+/**
+ * @swagger
+ * /users/{userId}/follow:
+ *   post:
+ *     summary: Theo dõi một người dùng khác
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng cần theo dõi
+ *     responses:
+ *       200:
+ *         description: Theo dõi thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ */
+router.post("/:userId/follow", requireLoggedIn, userController.followUser);
+
+/**
+ * @swagger
+ * /users/{userId}/unfollow:
+ *   post:
+ *     summary: Bỏ theo dõi một người dùng khác
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng cần bỏ theo dõi
+ *     responses:
+ *       200:
+ *         description: Bỏ theo dõi thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ */
+router.post("/:userId/unfollow", requireLoggedIn, userController.unfollowUser);
+
 module.exports = router;

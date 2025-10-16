@@ -438,6 +438,74 @@ const getUserById = async (userId) => {
   }
 };
 
+const followUser = async (currentUserId, targetUserId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
+      throw new Error("ID người dùng không hợp lệ");
+    }
+
+    const currentUser = await User.findById(currentUserId);
+    const targetUser = await User.findById(targetUserId);
+
+    if (!currentUser || !targetUser) {
+      throw new Error("Người dùng không tồn tại");
+    }
+
+    // Kiểm tra nếu đã follow
+    if (currentUser.following.includes(targetUserId)) {
+      throw new Error("Bạn đã follow người dùng này");
+    }
+
+    // Cập nhật danh sách following và follower
+    currentUser.following.push(targetUserId);
+    targetUser.follower.push(currentUserId);
+
+    await currentUser.save();
+    await targetUser.save();
+
+    return { success: true, message: "Follow thành công" };
+  } catch (error) {
+    console.error("Error following user:", error);
+    return { error: "Lỗi khi follow người dùng: " + error.message };
+  }
+};
+
+const unfollowUser = async (currentUserId, targetUserId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
+      throw new Error("ID người dùng không hợp lệ");
+    }
+
+    const currentUser = await User.findById(currentUserId);
+    const targetUser = await User.findById(targetUserId);
+
+    if (!currentUser || !targetUser) {
+      throw new Error("Người dùng không tồn tại");
+    }
+
+    // Kiểm tra nếu chưa follow
+    if (!currentUser.following.includes(targetUserId)) {
+      throw new Error("Bạn chưa follow người dùng này");
+    }
+
+    // Cập nhật danh sách following và follower
+    currentUser.following = currentUser.following.filter(
+      (id) => id.toString() !== targetUserId
+    );
+    targetUser.follower = targetUser.follower.filter(
+      (id) => id.toString() !== currentUserId
+    );
+
+    await currentUser.save();
+    await targetUser.save();
+
+    return { success: true, message: "Unfollow thành công" };
+  } catch (error) {
+    console.error("Error unfollowing user:", error);
+    return { error: "Lỗi khi unfollow người dùng: " + error.message };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
@@ -449,4 +517,6 @@ module.exports = {
   getFavoriteDocuments,
   checkIsFavorite,
   getUserById,
+  followUser,
+  unfollowUser,
 };
