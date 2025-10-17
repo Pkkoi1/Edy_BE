@@ -1,0 +1,32 @@
+# Node modules and logs
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git and editor files
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# OS generated files
+Thumbs.db
+
+# Build artifacts
+dist
+build
+coverage
+
+# Docker files themselves
+Dockerfile
+docker-compose.yaml
+
+# Uploads or temporary data (optional)
+uploads
+tmp

@@ -18,6 +18,7 @@ const {
   getDocumentReactions,
   addToHistory,
   getReadHistory,
+  getDocumentsByUserId,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -40,14 +41,14 @@ exports.getAllDocuments = async (req, res) => {
       order: parseInt(order) || -1,
       page: parseInt(page) || 1,
       limit: parseInt(limit) || 5,
-      ...filters
+      ...filters,
     });
 
     res.json(result);
   } catch (error) {
     console.error("Đã:", error);
     res.status(500).json({
-      message: "Đã xảy ra lỗi: " + error.message
+      message: "Đã xảy ra lỗi: " + error.message,
     });
   }
 };
@@ -75,7 +76,9 @@ exports.getNewestDocuments = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message });
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message });
   }
 };
 
@@ -116,7 +119,6 @@ exports.getDocumentsBySubject = async (req, res) => {
     });
     res.json(result);
   } catch (error) {
-
     // Xử lý các loại lỗi khác nhau
     if (error.message === "Môn học không hợp lệ") {
       return res
@@ -421,11 +423,7 @@ exports.updateDocumentPublicMode = async (req, res) => {
       return res.status(400).json({ message: "public_mode là bắt buộc" });
     }
 
-    const allowedModes = [
-      "PUBLIC",
-      "PRIVATE",
-      "SHARE_ORGANIZATION",
-    ];
+    const allowedModes = ["PUBLIC", "PRIVATE", "SHARE_ORGANIZATION"];
     if (!allowedModes.includes(public_mode)) {
       return res.status(400).json({
         message: `public_mode phải là một trong: ${allowedModes.join(", ")}`,
@@ -674,7 +672,7 @@ exports.updateDocumentInfo = async (req, res) => {
         "Đã xảy ra lỗi khi cập nhật thông tin tài liệu: " + error.message,
     });
   }
-}
+};
 
 exports.getSimilarDocuments = async (req, res) => {
   try {
@@ -683,7 +681,7 @@ exports.getSimilarDocuments = async (req, res) => {
     const { limit = 5 } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(documentId)) {
-      return res.status(400).json({ message: 'ID tài liệu không hợp lệ' });
+      return res.status(400).json({ message: "ID tài liệu không hợp lệ" });
     }
 
     const result = await getSimilarDocuments(
@@ -695,7 +693,7 @@ exports.getSimilarDocuments = async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({
-      message: error.message || 'Lỗi server khi lấy tài liệu tương tự'
+      message: error.message || "Lỗi server khi lấy tài liệu tương tự",
     });
   }
 };
@@ -703,23 +701,25 @@ exports.getSimilarDocuments = async (req, res) => {
 exports.reactionDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
-    const { reaction } = req.body; 
+    const { reaction } = req.body;
     const userId = req.user?.userId;
-    if (!['LIKE', 'DISLIKE', 'UNREACT'].includes(reaction)) {
-      return res.status(400).json({ message: 'Loại tương tác không hợp lệ' });
+    if (!["LIKE", "DISLIKE", "UNREACT"].includes(reaction)) {
+      return res.status(400).json({ message: "Loại tương tác không hợp lệ" });
     }
 
     if (!mongoose.Types.ObjectId.isValid(documentId)) {
-      return res.status(400).json({ message: 'ID tài liệu không hợp lệ' });
+      return res.status(400).json({ message: "ID tài liệu không hợp lệ" });
     }
     const result = await reactionDocument(documentId, userId, reaction);
     if (result.error || !result) {
-      return res.status(result.status || 400).json({ message: result.message } || 'Lỗi khi thực hiện tương tác');
+      return res
+        .status(result.status || 400)
+        .json({ message: result.message } || "Lỗi khi thực hiện tương tác");
     }
     res.json(result);
   } catch (error) {
     res.status(500).json({
-      message: error.message || 'Lỗi server khi thực hiện tương tác'
+      message: error.message || "Lỗi server khi thực hiện tương tác",
     });
   }
 };
@@ -729,13 +729,13 @@ exports.getDocumentReactions = async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user?.userId;
     if (!mongoose.Types.ObjectId.isValid(documentId)) {
-      return res.status(400).json({ message: 'ID tài liệu không hợp lệ' });
+      return res.status(400).json({ message: "ID tài liệu không hợp lệ" });
     }
     const result = await getDocumentReactions(documentId, userId);
     res.json(result);
   } catch (error) {
     res.status(500).json({
-      message: error.message || 'Lỗi server khi lấy thông tin tương tác'
+      message: error.message || "Lỗi server khi lấy thông tin tương tác",
     });
   }
 };
@@ -747,7 +747,46 @@ exports.getReadHistory = async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({
-      message: error.message || 'Lỗi server khi lấy lịch sử đọc'
+      message: error.message || "Lỗi server khi lấy lịch sử đọc",
+    });
+  }
+};
+
+exports.getDocumentsByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const {
+      search,
+      ordering = "createdAt",
+      order = -1,
+      page = 1,
+      limit = 5,
+      ...filters
+    } = req.query;
+
+    // Validation userId
+    if (!userId || !userId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "ID người dùng không hợp lệ",
+      });
+    }
+
+    const result = await getDocumentsByUserId({
+      userId,
+      payload: req.user,
+      search,
+      ordering,
+      order: parseInt(order),
+      page: parseInt(page),
+      limit: parseInt(limit),
+      ...filters,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message,
     });
   }
 };

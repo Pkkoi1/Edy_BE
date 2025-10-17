@@ -111,10 +111,34 @@ const getAllReports = async (filters = {}) => {
                 .sort(sort)
                 .skip(skip)
                 .limit(limit)
-                .populate('doc', 'title author status')
-                .populate('cmt', 'content')
-                .populate('reporter', 'first_name last_name avatar')
-                .populate('resolveBy', 'first_name last_name'),
+                .populate([
+                    {
+                        path: 'doc',
+                        select: 'title author status cover_page url user file_type',
+                        populate: {
+                            path: 'user',
+                            model: 'User',
+                            select: 'first_name last_name avatar'
+                        }
+                    },
+                    {
+                        path: 'cmt',
+                        select: 'content user',
+                        populate: {
+                            path: 'user',
+                            model: 'User',
+                            select: 'first_name last_name avatar'
+                        }
+                    },
+                    {
+                        path: 'reporter',
+                        select: 'first_name last_name avatar'
+                    },
+                    {
+                        path: 'resolveBy',
+                        select: 'first_name last_name avatar'
+                    },
+                ]),
             Report.countDocuments(query)
         ]);
 
@@ -222,7 +246,7 @@ const handleReportAction = async (report, action) => {
                     // Xóa comment
                     await Comment.findByIdAndUpdate(report.cmt, {
                         is_deleted: true,
-                        deleted_at: new Date()
+                        expiredAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                     });
 
                     // ghi log
@@ -254,7 +278,7 @@ const handleReportAction = async (report, action) => {
                     // Xóa document
                     await Document.findByIdAndUpdate(report.doc, {
                         is_deleted: true,
-                        deleted_at: new Date()
+                        expiredAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                     });
 
                     const document = await Document.findById(report.doc).populate('user');

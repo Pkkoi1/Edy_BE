@@ -91,15 +91,26 @@ const getMeService = async (payload) => {
       {
         path: "read_history.document",
         select:
-          "_id title status public_mode user cover_page organization file_type subject",
+          "_id title status public_mode user cover_page organization file_type subject is_deleted",
         populate: [
           { path: "user", select: "first_name last_name" },
           { path: "subject", select: "_id name code description organization" },
         ],
       },
       { path: "shared_documents.document", select: "_id title" },
-      { path: "favorites.document", select: "_id title status public_mode" },
+      { path: "favorites.document", select: "_id title status public_mode is_deleted" },
+      {
+        path: "follower",
+        select: "_id first_name last_name rank_point doc_count field_of_study avatar",
+        populate: { path: "organization", select: "_id name" },
+      },
+      {
+        path: "following",
+        select: "_id first_name last_name rank_point doc_count field_of_study avatar",
+        populate: { path: "organization", select: "_id name" },
+      },
     ]);
+
   const roles = await Assignment.find({
     account: account._id,
     is_active: true,
@@ -107,6 +118,7 @@ const getMeService = async (payload) => {
   let responseRoles = ["USER"];
   if (roles.length > 0) responseRoles = roles.map((a) => a.role.code);
   if (!account.is_verified) responseRoles = ["NOT_VERIFIED"];
+
   return { account, user, roles: responseRoles };
 };
 

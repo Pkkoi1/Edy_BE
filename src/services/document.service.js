@@ -48,11 +48,11 @@ const getAllDocuments = async ({
       searchOr.push({ _id: new mongoose.Types.ObjectId(search) });
     }
   }
-  let query = { is_deleted: false };
+  let query = { };
 
   // Thêm điều kiện search nếu có
   if (searchOr.length > 0) {
-    query.$and = [{ $or: searchOr }, { is_deleted: false }];
+    query.$and = [{ $or: searchOr }];
   }
 
   // Filter các trường
@@ -533,12 +533,11 @@ const getMyDocuments = async ({
   //chỉ lấy document của user hiện tại
   let query = {
     user: user._id,
-    is_deleted: false,
   };
 
   // Thêm điều kiện search nếu có
   if (searchOr.length > 0) {
-    query.$and = [{ user: user._id }, { $or: searchOr }, { is_deleted: false }];
+    query.$and = [{ user: user._id }, { $or: searchOr }];
   }
 
   // Filter các trường
@@ -711,7 +710,7 @@ const createDocument = async (data) => {
 const deleteDocument = async (id) => {
   const doc = await Document.findByIdAndUpdate(
     id,
-    { is_deleted: true },
+    { is_deleted: true, expiredAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000) }, 
     { new: true }
   );
 
@@ -744,7 +743,7 @@ const updateDocument = async (id, data) => {
 };
 
 const getDocumentById = async (id, userId) => {
-  const doc = await Document.findOne({ _id: id, is_deleted: false })
+  const doc = await Document.findOne({ _id: id})
     .populate({
       path: "user",
       select:
@@ -759,11 +758,19 @@ const getDocumentById = async (id, userId) => {
 
   const canView = await canViewDocument(userId, id);
   const isAdmin = await Account.findOne({ user: userId, is_admin: true });
+  const isDeleted = doc && doc.is_deleted;
   if (!canView && !isAdmin) {
     throw new Error("Bạn không có quyền truy cập tài liệu này");
   }
 
   if (canView) {
+    // tài liệu bị xóa thì chỉ chủ và admin có thể xem
+    if (isDeleted) {
+      if (doc.user._id.toString() !== userId && !isAdmin) {
+        throw new Error("Bạn không có quyền truy cập tài liệu này");
+      }
+    }
+
     if (!isAdmin) {
       if (doc && doc.summary_status !== "APPROVED") {
         if (
@@ -1282,7 +1289,6 @@ const validateOrganization = async (organizationId) => {
 const canViewDocument = async (userId, documentId) => {
   const document = await Document.findOne({
     _id: documentId,
-    is_deleted: false,
   }).populate("user organization");
 
   if (!document) return false;
@@ -1366,6 +1372,13 @@ const addToHistory = async (userId, documentId) => {
 
   if (!user) return;
 
+  const doc = await Document.findById(documentId);
+
+  if (!doc) return;
+
+  //Nếu là chủ tài liệu thì khỏi lưu vào lịch sử
+  if (doc.user._id.toString() === userId) return;
+
   // Tạo mảng lịch sử mới
   let newHistory = user.read_history || [];
 
@@ -1377,7 +1390,7 @@ const addToHistory = async (userId, documentId) => {
     document: documentId,
     read_at: new Date(),
   });
-
+  
   // Giữ chỉ 10 tài liệu gần nhất
   if (newHistory.length > 10) {
     newHistory = newHistory.slice(0, 10);
@@ -1397,6 +1410,137 @@ const getReadHistory = async (userId) => {
     }))
   );
   return detailedHistory;
+};
+
+const getDocumentsByUserId = async ({
+  userId,
+  payload,
+  search,
+  ordering = "createdAt",
+  order = -1,
+  page = 1,
+  limit = 5,
+  ...filters
+}) => {
+  // Kiểm tra user tồn tại
+  const targetUser = await User.findById(userId);
+  if (!targetUser) {
+    throw new Error("Người dùng không tồn tại");
+  }
+
+  let currentUser = null;
+  let sharedDocIds = [];
+  if (payload && payload.userId) {
+    currentUser = await User.findById(payload.userId).populate("organization");
+    if (currentUser) {
+      const privateShares = await PrivateShare.find({
+        invited_users: currentUser._id,
+        status: "ACTIVE",
+        expiredAt: { $gt: new Date() },
+      }).select("document");
+      sharedDocIds = privateShares.map((share) => share.document);
+    }
+  }
+
+  const skip = (page - 1) * limit;
+
+  // Điều kiện quyền truy cập
+  let accessOr = [];
+  if (currentUser && currentUser.organization) {
+    accessOr = [
+      { public_mode: "PUBLIC" },
+      {
+        public_mode: "SHARE_ORGANIZATION",
+        organization: currentUser.organization._id,
+      },
+      { _id: { $in: sharedDocIds } },
+      { user: currentUser._id }, // Người dùng hiện tại có thể xem tài liệu của mình
+    ];
+  } else {
+    accessOr = [{ public_mode: "PUBLIC" }];
+  }
+
+  // Điều kiện tìm kiếm
+  let searchOr = [];
+  if (search) {
+    searchOr = [
+      { title: { $regex: search, $options: "i" } },
+      { author: { $regex: search, $options: "i" } },
+      { keyword: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  // Kết hợp điều kiện
+  let query = {
+    user: userId,
+    status: "APPROVED",
+    is_deleted: false,
+  };
+
+  if (searchOr.length > 0) {
+    query.$and = [{ $or: accessOr }, { $or: searchOr }];
+  } else {
+    query.$or = accessOr;
+  }
+
+  // Filter các trường
+  const filterFields = [
+    "organization",
+    "publisher",
+    "published_year",
+    "intensive",
+    "author",
+    "keyword",
+    "doc_type",
+    "level",
+    "subject",
+  ];
+
+  filterFields.forEach((field) => {
+    if (filters[field] !== undefined && filters[field] !== "") {
+      if (field === "intensive") {
+        query[field] = filters[field] === "true";
+      } else {
+        query[field] = filters[field];
+      }
+    }
+  });
+
+  // Sắp xếp
+  const sort = {};
+  sort[ordering] = parseInt(order);
+
+  const [documents, total] = await Promise.all([
+    Document.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status createdAt last_approved_at"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" }),
+    Document.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const have_next = page < totalPages;
+
+  return {
+    documents,
+    total,
+    page,
+    totalPages,
+    have_next,
+  };
 };
 
 module.exports = {
@@ -1419,4 +1563,5 @@ module.exports = {
   canViewDocument,
   addToHistory,
   getReadHistory,
+  getDocumentsByUserId,
 };
