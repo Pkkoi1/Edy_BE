@@ -83,6 +83,8 @@ const documentSchema = new mongoose.Schema({
   view: { type: Number, default: 0 },
   comment_count: { type: Number, default: 0 },
   download_count: { type: Number, default: 0 },
+  like: { type: Number, default: 0 },
+  dislike: { type: Number, default: 0 },
   is_deleted: { type: Boolean, default: false },
   last_approved_at: { type: Date, default: null },
   expiredAt: { type: Date, default: null },

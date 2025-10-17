@@ -2,8 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const path = require("path");
 const cookieParser = require("cookie-parser");
-const { Client } = require("@elastic/elasticsearch");
-const client = new Client({ node: process.env.ELASTICSEARCH_URL });
+
 async function waitForElasticsearch() {
   let attempt = 1;
   while (true) {
@@ -21,6 +20,8 @@ async function waitForElasticsearch() {
 // Load environment variables
 dotenv.config();
 
+const { Client } = require("@elastic/elasticsearch");
+const client = new Client({ node: process.env.ELASTICSEARCH_URL });
 // Connect to MongoDB
 const connectDB = require("./src/config/db");
 connectDB();
