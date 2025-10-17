@@ -6,6 +6,7 @@ const ViolationLog = require('../models/violation_log.model');
 const Restriction = require('../models/restriction.model');
 const Account =require('../models/account.model')
 const {createPointTransaction} = require("./point_transaction.service");
+const {indexDocument, deleteDocument, updateDocument} = require('./elasticsearch.service')
 const createReport = async (reportData, reporterId) => {
     try {
         const { docId, cmtId, type, reason } = reportData;
@@ -299,11 +300,17 @@ const handleReportAction = async (report, action) => {
                     violator.strike += 1;
                     violator.point -= point_reduced;
                     violator.rank_point -= point_reduced;
+                    violator.doc_count -= 1;
                     await violator.save();
                     await createPointTransaction(violator._id, "SPEND", point_reduced, `Bị trừ điểm do vi phạm quy định đăng tài liệu`);
 
                     if(violator.strike ==5 || violator.strike == 10){
                         await applyRestrictions(violator._id, report.resolveBy, 'LOGIN');
+                    }
+                    try{
+                        await deleteDocument(report.doc);
+                    } catch (error) {
+                        console.error(`Lỗi xóa tài liệu ${report.doc} khỏi Elasticsearch: ${error.message}`);
                     }
                 }
                 break;
@@ -335,6 +342,12 @@ const handleReportAction = async (report, action) => {
 
                     if(violator.strike ==5 || violator.strike == 10){
                         await applyRestrictions(violator._id, report.resolveBy, 'LOGIN');
+                    }
+
+                    try{
+                        await updateDocument(report.doc, document);
+                    } catch (error) {
+                        console.error(`Lỗi cập nhật tài liệu ${report.doc} trong Elasticsearch: ${error.message}`);
                     }
                 }
                 break;

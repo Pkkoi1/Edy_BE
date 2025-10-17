@@ -13,7 +13,8 @@ const privateShareSchema = new mongoose.Schema({
     enum: ['ACTIVE', 'INACTIVE', 'DISABLED'],
     default: 'ACTIVE'
   },
-  user_accessed: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+  user_accessed: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  expiredAt: { type: Date, default: null },
 }, {
   timestamps: true
 });

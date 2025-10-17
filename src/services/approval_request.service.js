@@ -3,6 +3,7 @@ const User = require("../models/user.model");
 const Document = require("../models/document.model");
 const Organization = require("../models/organization.model");
 const {createPointTransaction} = require("./point_transaction.service");
+const {indexDocument} = require('./elasticsearch.service')
 
 const createApprovalRequest = async (documentId, requesterId) => {
     const requester = await User.findById(requesterId);
@@ -81,7 +82,6 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
         document.last_approved_at = current;
         documentChanged = true;
 
-
         // Tăng doc_count cho user chỉ khi approve document
         const user = await User.findById(approvalRequest.requester);
         if (user) {
@@ -135,6 +135,15 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     }
 
     if (documentChanged) await document.save();
+
+    // Cập nhật Elasticsearch
+    if (documentChanged) {
+        try {
+            await indexDocument(document);
+        } catch (error) {
+            console.error(`Lỗi cập nhật tài liệu ${document._id} trong Elasticsearch: ${error.message}`);
+        }
+    }
 
     //tính điểm lần đăng này
     if (!approvalRequest.is_summary) {

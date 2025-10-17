@@ -97,7 +97,14 @@ const getMeService = async (payload) => {
           { path: "subject", select: "_id name code description organization" },
         ],
       },
-      { path: "shared_documents.document", select: "_id title" },
+      { path: "shared_documents.document", 
+        select: "_id title user page subject organization file_type subject is_deleted like dislike",
+        populate: [
+          { path: "user", select: "_id first_name last_name" },
+          { path: "subject", select: "_id name code" },
+          { path: "organization", select: "_id name code" },
+        ],
+      },
       { path: "favorites.document", select: "_id title status public_mode is_deleted" },
       {
         path: "follower",
