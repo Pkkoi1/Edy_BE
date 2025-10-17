@@ -183,6 +183,9 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     } else {
         // Reject document request
         document.status = "REJECTED";
+        document.is_deleted = true;
+        document.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
+
         documentChanged = true;
     }
 
