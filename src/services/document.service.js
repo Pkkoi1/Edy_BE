@@ -13,6 +13,7 @@ const {
   findSimilarDocuments,
   indexDocument,
   updateDocument: updateESDocument,
+  deleteDocument: deleteESDocument,
 } = require("./elasticsearch.service");
 const { updateUserDocCount } = require("./user.service");
 const cloudinary = require("cloudinary").v2;
@@ -93,7 +94,7 @@ const getAllDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt last_approved_at updatedAt"
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt last_approved_at updatedAt like dislike"
       )
       .populate({
         path: "user",
@@ -107,6 +108,8 @@ const getAllDocuments = async ({
       .populate({ path: "subject", select: "_id name" }),
     Document.countDocuments(query),
   ]);
+
+  
 
   const totalPages = Math.ceil(total / limit);
   const have_next = page < totalPages;
@@ -719,10 +722,10 @@ const deleteDocument = async (id) => {
     await updateUserDocCount(doc.user);
   }
   try {
-    await updateESDocument(id, { is_deleted: true });
+    await deleteESDocument(id);
   } catch (error) {
     console.error(
-      "Lỗi khi cập nhật trạng thái xóa trong Elasticsearch:",
+      "Lỗi khi xóa document trong Elasticsearch:",
       error
     );
   }
@@ -1211,6 +1214,12 @@ const reactionDocument = async (documentId, userId, reactionType) => {
 
   if (reactionType === "UNREACT") {
     if (existingReaction) {
+      if (existingReaction.type === "LIKE") {
+        doc.like -= 1;
+      } else {
+        doc.dislike -= 1;
+      }
+      await doc.save();
       await existingReaction.deleteOne();
     }
     return { documentId, userId, reactionType };
@@ -1222,6 +1231,13 @@ const reactionDocument = async (documentId, userId, reactionType) => {
 
   if (existingReaction) {
     // Nếu đã phản ứng, cập nhật loại phản ứng
+    if (existingReaction.type === "LIKE" && reactionType === "DISLIKE") {
+      doc.like -= 1;
+      doc.dislike += 1;
+    } else if (existingReaction.type === "DISLIKE" && reactionType === "LIKE") {
+      doc.like += 1;
+      doc.dislike -= 1;
+    }
     existingReaction.type = reactionType;
     await existingReaction.save();
   } else {
@@ -1231,8 +1247,14 @@ const reactionDocument = async (documentId, userId, reactionType) => {
       user: userId,
       type: reactionType,
     });
+    if (newReaction.type === "LIKE") {
+      doc.like += 1;
+    } else {
+      doc.dislike += 1;
+    }
     await newReaction.save();
   }
+  await doc.save();
 
   return {
     documentId,
@@ -1298,6 +1320,8 @@ const canViewDocument = async (userId, documentId) => {
     if (document.public_mode === "PUBLIC") return true;
     else return false;
   }
+  // chủ sở hữu luôn được xem
+  if (document.user._id.toString() === userId) return true;
 
   // Document phải được approve
   if (document.status !== "APPROVED") {
@@ -1315,10 +1339,6 @@ const canViewDocument = async (userId, documentId) => {
 
     case "SHARE_ORGANIZATION":
       if (!user.organization || !document.user.organization) return false;
-      console.log(
-        user.organization._id.toString(),
-        document.user.organization._id.toString()
-      );
       return (
         user.organization._id.toString() ===
         document.organization._id.toString()
@@ -1383,7 +1403,7 @@ const addToHistory = async (userId, documentId) => {
   let newHistory = user.read_history || [];
 
   // Xóa tài liệu khỏi lịch sử nếu đã tồn tại
-  newHistory = newHistory.filter((item) => !item.document.equals(documentId));
+  newHistory = newHistory.filter((item) => !item.document?.equals(documentId));
 
   // Thêm tài liệu mới vào đầu mảng
   newHistory.unshift({
