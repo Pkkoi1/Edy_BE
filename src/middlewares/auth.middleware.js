@@ -2,6 +2,7 @@ const User = require('../models/user.model');
 const Account = require('../models/account.model');
 const Role = require('../models/role.model');
 const Restriction = require('../models/restriction.model');
+const Assignment = require('../models/assignment.model');
 const { verifyToken } = require('../services/auth.service');
 
 exports.requireUserRole = async (req, res, next) => {
@@ -104,17 +105,18 @@ exports.requireAdminPermission = (permissions = []) => {
             'ENTITY_ADMIN',
             'CUSTOM_ROLE'
         ];
-        const userAdminRoles = payload.roles.filter(role => adminRoles.includes(role));
-        if (userAdminRoles.length === 0 || payload.roles.includes('NOT_VERIFIED')) {
+
+        const currentAssignments = await getAllAssigmentByAccount(payload.accountId);
+        if (currentAssignments.length === 0) {
             return res.status(403).json({ message: 'Không có quyền admin' });
         }
-
-        if (payload.roles.includes('SUPER_ADMIN')) {
+        // trong các assigment, nếu có role code SUPER_ADMIN thì next()
+        if (currentAssignments.some(assignment => assignment.role.code === 'SUPER_ADMIN')) {
             req.user = payload;
             return next();
         }
 
-        const roles = await Role.find({ code: { $in: userAdminRoles } });
+        const roles = await Role.find({_id: {$in: currentAssignments.map(assignment => assignment.role._id)}});
         const hasPermission = roles.some(role =>
             role.permissions.includes('ALL') ||
             role.permissions.some(p => permissions.includes(p))
@@ -127,3 +129,8 @@ exports.requireAdminPermission = (permissions = []) => {
         next();
     };
 };
+
+const getAllAssigmentByAccount = async (accountId) => {
+    const assignments = await Assignment.find({ account: accountId, is_active: true }).populate("role");
+    return assignments;
+}
