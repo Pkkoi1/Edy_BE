@@ -8,6 +8,7 @@ const User = require('../models/user.model');
  */
 const indexDocument = async (doc) => {
     try {
+        console.log("indexing document id:", doc._id.toString());
         await client.index({
             index: 'documents',
             id: doc._id.toString(),
@@ -26,6 +27,7 @@ const indexDocument = async (doc) => {
                 last_approved_at: doc.last_approved_at
             }
         });
+        console.log(`Document ${doc._id} indexed successfully`);
     } catch (error) {
         console.error('Error indexing document:', error);
     }
