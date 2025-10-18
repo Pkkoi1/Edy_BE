@@ -49,7 +49,7 @@ const getAllDocuments = async ({
       searchOr.push({ _id: new mongoose.Types.ObjectId(search) });
     }
   }
-  let query = { };
+  let query = {};
 
   // Thêm điều kiện search nếu có
   if (searchOr.length > 0) {
@@ -108,8 +108,6 @@ const getAllDocuments = async ({
       .populate({ path: "subject", select: "_id name" }),
     Document.countDocuments(query),
   ]);
-
-  
 
   const totalPages = Math.ceil(total / limit);
   const have_next = page < totalPages;
@@ -596,7 +594,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt"
+        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode like dislike createdAt"
       )
       .populate({
         path: "user",
@@ -713,7 +711,10 @@ const createDocument = async (data) => {
 const deleteDocument = async (id) => {
   const doc = await Document.findByIdAndUpdate(
     id,
-    { is_deleted: true, expiredAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000) }, 
+    {
+      is_deleted: true,
+      expiredAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+    },
     { new: true }
   );
 
@@ -724,10 +725,7 @@ const deleteDocument = async (id) => {
   try {
     await deleteESDocument(id);
   } catch (error) {
-    console.error(
-      "Lỗi khi xóa document trong Elasticsearch:",
-      error
-    );
+    console.error("Lỗi khi xóa document trong Elasticsearch:", error);
   }
 
   return doc;
@@ -746,7 +744,7 @@ const updateDocument = async (id, data) => {
 };
 
 const getDocumentById = async (id, userId) => {
-  const doc = await Document.findOne({ _id: id})
+  const doc = await Document.findOne({ _id: id })
     .populate({
       path: "user",
       select:
@@ -1410,7 +1408,7 @@ const addToHistory = async (userId, documentId) => {
     document: documentId,
     read_at: new Date(),
   });
-  
+
   // Giữ chỉ 10 tài liệu gần nhất
   if (newHistory.length > 10) {
     newHistory = newHistory.slice(0, 10);
