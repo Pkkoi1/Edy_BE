@@ -7,7 +7,7 @@ const getAllRole = async (accountId) => {
     if(!await hasManageRole(accountId)){
         throw new Error('User does not have permission to manage roles');
     }
-    return Role.find();
+    return Role.find({ code: { $ne: 'SUPER_ADMIN' } });
 }
 
 const getRoleById = async (roleId, accountId) => {
@@ -112,9 +112,23 @@ const changeActiveAssignment = async (assignmentId, active, accountId) => {
     if(!await hasManageRole(accountId)){
         throw new Error('User does not have permission to manage roles');
     }
+    
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) {
         throw new Error('Assignment not found');
+    }
+
+    // không đc bật tắt super admin
+    const role = await Role.findById(assignment.role);
+    if (role.code === 'SUPER_ADMIN') {
+        throw new Error('Không được thao tác trên super admin');
+    }
+    
+    // chỉ super admin mới đc bật tắt role có manage permission
+    const currentAccountAssigment = await Assignment.find({ account: accountId });
+    const currentAccountIsSUperAdmin = currentAccountAssigment.some(assigment => assigment.role.code === 'SUPER_ADMIN');
+    if(!currentAccountIsSUperAdmin && role.permissions.includes('MANAGE_ROLE')){
+        throw new Error('Phân quyền này chứa quản lý vai trò và chỉ super admin mới được phép chỉnh sửa');
     }
 
     if (active == true) {
@@ -185,7 +199,7 @@ const getAllAssignment = async (accountId) => {
         })
         .populate({
             path: 'role',
-            select: '_id name is_active'
+            select: '_id name is_active code'
         })
         .populate({
             path: 'subject',
@@ -195,9 +209,10 @@ const getAllAssignment = async (accountId) => {
             path: 'organization',
             select: '_id name'
         });
-
+    // lọc ra ko được hiện role code SUPER_ADMIN 
+    const filteredAssignments = assignments.filter(assignment => assignment.role.code !== 'SUPER_ADMIN');
     // Nhóm lại theo account, mỗi account sẽ có danh sách các role và thông tin liên quan
-    const groupedAssignments = assignments.reduce((acc, assignment) => {
+    const groupedAssignments = filteredAssignments.reduce((acc, assignment) => {
         const accountId = assignment.account._id;
         
         if (!acc[accountId]) {
