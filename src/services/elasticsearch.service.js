@@ -23,7 +23,9 @@ const indexDocument = async (doc) => {
                 public_mode: doc.public_mode,
                 status: doc.status,
                 is_deleted: doc.is_deleted,
-                created_at: doc.createdAt,
+                createdAt: doc.createdAt,
+                view: doc.view || 0,
+                download_count: doc.download_count || 0,
                 last_approved_at: doc.last_approved_at
             }
         });
@@ -93,6 +95,7 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
                 ]
             }
         };
+        
 
         const response = await client.search({
             index: 'documents',

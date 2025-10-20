@@ -48,6 +48,7 @@ const loginService = async ({ email, password }) => {
   else {
     const assignments = await Assignment.find({
       account: account._id,
+      is_active: true,
     }).populate("role");
     roles = assignments.length ? assignments.map((a) => a.role.code) : ["USER"];
   }

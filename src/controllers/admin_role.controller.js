@@ -20,7 +20,8 @@ exports.getAllRoles = async (req, res) => {
 exports.getRoleById = async (req, res) => {
     try {
         const { roleId } = req.params;
-        const role = await adminRoleService.getRoleById(roleId);
+        const accountId = req.user.accountId;
+        const role = await adminRoleService.getRoleById(roleId, accountId);
         return res.status(200).json({
             success: true,
             data: role
@@ -36,7 +37,8 @@ exports.getRoleById = async (req, res) => {
 exports.createRole = async (req, res) => {
     try {
         const roleData = req.body;
-        const role = await adminRoleService.createRole(roleData);
+        const accountId = req.user.accountId;
+        const role = await adminRoleService.createRole(roleData, accountId);
         return res.status(201).json({
             success: true,
             data: role
@@ -53,7 +55,8 @@ exports.updateRole = async (req, res) => {
     try {
         const { roleId } = req.params;
         const roleData = req.body;
-        const role = await adminRoleService.updateRole(roleId, roleData);
+        const accountId = req.user.accountId;
+        const role = await adminRoleService.updateRole(roleId, roleData, accountId);
         return res.status(200).json({
             success: true,
             data: role
@@ -78,7 +81,8 @@ exports.changeRoleStatus = async (req, res) => {
             });
         }
         
-        const role = await adminRoleService.changeActiveRole(roleId, is_active);
+        const accountId = req.user.accountId;
+        const role = await adminRoleService.changeActiveRole(roleId, is_active, accountId);
         return res.status(200).json({
             success: true,
             data: role
@@ -94,7 +98,8 @@ exports.changeRoleStatus = async (req, res) => {
 exports.deleteRole = async (req, res) => {
     try {
         const { roleId } = req.params;
-        await adminRoleService.deleteRole(roleId);
+        const accountId = req.user.accountId;
+        await adminRoleService.deleteRole(roleId, accountId);
         return res.status(200).json({
             success: true,
             message: 'Role deleted successfully'
@@ -111,7 +116,8 @@ exports.deleteRole = async (req, res) => {
 exports.getAllAssignmentsByAccount = async (req, res) => {
     try {
         const { accountId } = req.params;
-        const assignments = await adminRoleService.getAllAssigmentByAccount(accountId);
+        const reqAccountId = req.user.accountId;
+        const assignments = await adminRoleService.getAllAssigmentByAccount(accountId, reqAccountId);
         return res.status(200).json({
             success: true,
             data: assignments
@@ -127,7 +133,8 @@ exports.getAllAssignmentsByAccount = async (req, res) => {
 exports.getAllAssignmentsByRole = async (req, res) => {
     try {
         const { roleId } = req.params;
-        const assignments = await adminRoleService.getAllAssigmentByRole(roleId);
+        const reqAccountId = req.user.accountId;
+        const assignments = await adminRoleService.getAllAssigmentByRole(roleId, reqAccountId);
         return res.status(200).json({
             success: true,
             data: assignments
@@ -143,7 +150,8 @@ exports.getAllAssignmentsByRole = async (req, res) => {
 exports.getAssignmentById = async (req, res) => {
     try {
         const { assignmentId } = req.params;
-        const assignment = await adminRoleService.getAssignmentById(assignmentId);
+        const reqAccountId = req.user.accountId;
+        const assignment = await adminRoleService.getAssignmentById(assignmentId, reqAccountId);
         return res.status(200).json({
             success: true,
             data: assignment
@@ -167,8 +175,8 @@ exports.createAssignment = async (req, res) => {
                 message: 'Buộc phải có tài khoản và vai trò hợp lệ'
             });
         }
-        
-        const assignment = await adminRoleService.createAssignment(assignmentData);
+        const reqAccountId = req.user.accountId;
+        const assignment = await adminRoleService.createAssignment(assignmentData, reqAccountId);
         return res.status(201).json({
             success: true,
             data: assignment
@@ -185,7 +193,8 @@ exports.updateAssignment = async (req, res) => {
     try {
         const { assignmentId } = req.params;
         const assignmentData = req.body;
-        const assignment = await adminRoleService.updateAssignment(assignmentId, assignmentData);
+        const reqAccountId = req.user.accountId;
+        const assignment = await adminRoleService.updateAssignment(assignmentId, assignmentData, reqAccountId); 
         return res.status(200).json({
             success: true,
             data: assignment
@@ -209,8 +218,8 @@ exports.changeAssignmentStatus = async (req, res) => {
                 message: 'is_active field is required'
             });
         }
-        
-        const assignment = await adminRoleService.changeActiveAssignment(assignmentId, is_active);
+        const reqAccountId = req.user.accountId;
+        const assignment = await adminRoleService.changeActiveAssignment(assignmentId, is_active, reqAccountId);    
         return res.status(200).json({
             success: true,
             data: assignment
@@ -226,7 +235,8 @@ exports.changeAssignmentStatus = async (req, res) => {
 exports.deleteAssignment = async (req, res) => {
     try {
         const { assignmentId } = req.params;
-        await adminRoleService.deleteAssignment(assignmentId);
+        const reqAccountId = req.user.accountId;
+        await adminRoleService.deleteAssignment(assignmentId, reqAccountId);
         return res.status(200).json({
             success: true,
             message: 'Assignment deleted successfully'
@@ -242,7 +252,8 @@ exports.deleteAssignment = async (req, res) => {
 // getAllAssignments
 exports.getAllAssignments = async (req, res) => {
     try {
-        const assignments = await adminRoleService.getAllAssignment();
+        const reqAccountId = req.user.accountId;
+        const assignments = await adminRoleService.getAllAssignment(reqAccountId);
         return res.status(200).json({
             success: true,
             data: assignments

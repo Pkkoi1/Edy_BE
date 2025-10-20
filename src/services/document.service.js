@@ -7,6 +7,7 @@ const DownloadLink = require("../models/download_link.model");
 const PrivateShare = require("../models/private_share.model");
 const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
+const Assignment = require("../models/assignment.model");
 const { createPointTransaction } = require("./point_transaction.service");
 const {
   searchDocuments,
@@ -35,6 +36,9 @@ const getAllDocuments = async ({
   limit = 5,
   ...filters
 }) => {
+  if(!await hasDocumentManageRole(payload.accountId)){
+    throw new Error('User does not have permission to manage documents');
+  }
   const skip = (page - 1) * limit;
 
   // Điều kiện tìm kiếm
@@ -49,7 +53,7 @@ const getAllDocuments = async ({
       searchOr.push({ _id: new mongoose.Types.ObjectId(search) });
     }
   }
-  let query = { };
+  let query = {};
 
   // Thêm điều kiện search nếu có
   if (searchOr.length > 0) {
@@ -108,8 +112,6 @@ const getAllDocuments = async ({
       .populate({ path: "subject", select: "_id name" }),
     Document.countDocuments(query),
   ]);
-
-  
 
   const totalPages = Math.ceil(total / limit);
   const have_next = page < totalPages;
@@ -596,7 +598,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt"
+        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode like dislike createdAt"
       )
       .populate({
         path: "user",
@@ -713,7 +715,10 @@ const createDocument = async (data) => {
 const deleteDocument = async (id) => {
   const doc = await Document.findByIdAndUpdate(
     id,
-    { is_deleted: true, expiredAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000) }, 
+    {
+      is_deleted: true,
+      expiredAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+    },
     { new: true }
   );
 
@@ -724,10 +729,7 @@ const deleteDocument = async (id) => {
   try {
     await deleteESDocument(id);
   } catch (error) {
-    console.error(
-      "Lỗi khi xóa document trong Elasticsearch:",
-      error
-    );
+    console.error("Lỗi khi xóa document trong Elasticsearch:", error);
   }
 
   return doc;
@@ -746,7 +748,7 @@ const updateDocument = async (id, data) => {
 };
 
 const getDocumentById = async (id, userId) => {
-  const doc = await Document.findOne({ _id: id})
+  const doc = await Document.findOne({ _id: id })
     .populate({
       path: "user",
       select:
@@ -762,6 +764,7 @@ const getDocumentById = async (id, userId) => {
   const canView = await canViewDocument(userId, id);
   const isAdmin = await Account.findOne({ user: userId, is_admin: true });
   const isDeleted = doc && doc.is_deleted;
+  const isOwner = doc && doc.user._id.toString() === userId;
   if (!canView && !isAdmin) {
     throw new Error("Bạn không có quyền truy cập tài liệu này");
   }
@@ -769,7 +772,7 @@ const getDocumentById = async (id, userId) => {
   if (canView) {
     // tài liệu bị xóa thì chỉ chủ và admin có thể xem
     if (isDeleted) {
-      if (doc.user._id.toString() !== userId && !isAdmin) {
+      if (!isOwner && !isAdmin) {
         throw new Error("Bạn không có quyền truy cập tài liệu này");
       }
     }
@@ -778,12 +781,12 @@ const getDocumentById = async (id, userId) => {
       if (doc && doc.summary_status !== "APPROVED") {
         if (
           doc.description &&
-          (doc.summary_status !== "REJECTED" || doc.summary_status !== "NONE")
+          (doc.summary_status == "REJECTED" || doc.summary_status == "NONE")
         ) {
           doc.description.summary_by_user =
             "Tài liệu không được tóm tắt bởi người đăng.";
         }
-        if (
+        if (!isOwner &&
           doc.description &&
           (doc.summary_status == "PENDING" ||
             doc.summary_status == "PENDING_EDIT")
@@ -1410,7 +1413,7 @@ const addToHistory = async (userId, documentId) => {
     document: documentId,
     read_at: new Date(),
   });
-  
+
   // Giữ chỉ 10 tài liệu gần nhất
   if (newHistory.length > 10) {
     newHistory = newHistory.slice(0, 10);
@@ -1585,3 +1588,9 @@ module.exports = {
   getReadHistory,
   getDocumentsByUserId,
 };
+
+const hasDocumentManageRole = async (accountId, documentId) => {
+    const assignments = await Assignment.find({ account: accountId, is_active: true }).populate("role");
+    const userRoles = assignments.filter(assignment => assignment.role.permissions.includes('MANAGE_DOCUMENT') || assignment.role.permissions.includes('ALL'));
+    return userRoles.some(role => role.role.permissions.includes('MANAGE_DOCUMENT') || role.role.permissions.includes('ALL'));
+}
