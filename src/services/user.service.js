@@ -301,33 +301,36 @@ const getFavoriteDocuments = async (userId) => {
         const doc = fav.document.toObject();
 
         // Kiểm tra quyền truy cập
-        let hasAccess = false;
+        // là chủ thì luôn có quyền
+        let hasAccess = doc.user._id.toString() === userId;
 
-        // Chỉ cho phép truy cập document đã được approve
-        if (doc.status === "APPROVED") {
-          if (doc.public_mode === "PUBLIC") {
-            hasAccess = true;
-          } else if (doc.public_mode === "PRIVATE") {
-            hasAccess = doc.user._id.toString() === userId;
-          } else if (doc.public_mode === "SHARE_ORGANIZATION") {
-            // Chia sẻ trong tổ chức -> kiểm tra cùng organization
-            if (user.organization && doc.user.organization) {
-              hasAccess =
-                user.organization.toString() ===
-                doc.user.organization.toString();
+        // nếu ko phải chủ thì đổi trạng thái hasAccess dựa vào mode và quyền
+        if(!hasAccess){
+          if(doc.status === "APPROVED"){
+            switch(doc.public_mode){
+              case "PUBLIC":
+                hasAccess = true;
+                break;
+              case "SHARE_ORGANIZATION":
+                // Chia sẻ trong tổ chức -> kiểm tra cùng organization
+                if (user.organization && doc.user.organization) {
+                  hasAccess = hasAccess ? hasAccess :
+                    user.organization.toString() ===
+                    doc.user.organization.toString();
+                }
+                break;
+              case "PRIVATE_SHARED":
+                // Kiểm tra trong shared_documents của user\
+                if (hasAccess) break;
+                const isSharedToUser = user.shared_documents.some(
+                  (sharedDoc) =>
+                    sharedDoc.document.toString() === doc._id.toString()
+                );
+                // Hoặc là chủ sở hữu document
+                hasAccess = isSharedToUser;
+                break;
             }
-          } else if (doc.public_mode === "PRIVATE_SHARED") {
-            // Kiểm tra trong shared_documents của user
-            const isSharedToUser = user.shared_documents.some(
-              (sharedDoc) =>
-                sharedDoc.document.toString() === doc._id.toString()
-            );
-            // Hoặc là chủ sở hữu document
-            hasAccess = isSharedToUser || doc.user._id.toString() === userId;
           }
-        } else {
-          // Document chưa approve -> chỉ chủ sở hữu mới xem được
-          hasAccess = doc.user._id.toString() === userId;
         }
 
         if (!hasAccess) {

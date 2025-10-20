@@ -4,17 +4,16 @@ const Account = require("../models/account.model");
 const User = require("../models/user.model");
 
 const getAllRole = async (accountId) => {
-    //chi role co MANAGE_ROLE va ALL moi duoc phep lay ra toan bo role
-    const assignments = await Assignment.find({ account: accountId }).populate("role");
-    // lấy ra role của người dùng, nếu người dùng hiện tại ko có role MANAGE ROLE hay ALL thì báo lỗi, ko thì trả toàn bộ role
-    const userRoles = assignments.filter(assignment => assignment.role.permissions.includes('MANAGE_ROLE') || assignment.role.permissions.includes('ALL'));
-    if (userRoles.length === 0) {
+    if(!await hasManageRole(accountId)){
         throw new Error('User does not have permission to manage roles');
     }
-    return Role.find();
+    return Role.find({ code: { $ne: 'SUPER_ADMIN' } });
 }
 
-const getRoleById = async (roleId) => {
+const getRoleById = async (roleId, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const role = await Role.findById(roleId);
     if (!role) {
         throw new Error('Role not found');
@@ -22,7 +21,10 @@ const getRoleById = async (roleId) => {
     return role;
 }
 
-const updateRole = async (roleId, roleData) => {
+const updateRole = async (roleId, roleData, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     roleData.code = "CUSTOM_ROLE";
     const role = await Role.findByIdAndUpdate(roleId, roleData, { new: true });
     if (!role) {
@@ -31,7 +33,10 @@ const updateRole = async (roleId, roleData) => {
     return role;
 }
 
-const changeActiveRole = async (roleId, active) => {
+const changeActiveRole = async (roleId, active, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const role = await Role.findByIdAndUpdate(roleId, { is_active: active }, { new: true });
     if (!role) {
         throw new Error('Role not found');
@@ -45,12 +50,18 @@ const changeActiveRole = async (roleId, active) => {
     return role;
 }
 
-const createRole = async (roleData) => {
+const createRole = async (roleData, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const role = await Role.create(roleData);
     return role;
 }
 
-const deleteRole = async (roleId) => {
+const deleteRole = async (roleId, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const role = await Role.findByIdAndDelete(roleId);
     if (!role) {
         throw new Error('Role not found');
@@ -58,17 +69,26 @@ const deleteRole = async (roleId) => {
     return role;
 }
 
-const getAllAssigmentByAccount = async (accountId) => {
+const getAllAssigmentByAccount = async (accountId, accountRequestId) => {
+    if(!await hasManageRole(accountRequestId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const assignments = await Assignment.find({ account: accountId }).populate("role");
     return assignments;
 }
 
-const getAllAssigmentByRole = async (roleId) => {
+const getAllAssigmentByRole = async (roleId, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const assignments = await Assignment.find({ role: roleId }).populate("account");
     return assignments;
 }
 
-const createAssignment = async (assignmentData) => {
+const createAssignment = async (assignmentData, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     // fix chữa cháy
     let check = await Account.findById(assignmentData.account);
     if (!check) {
@@ -88,10 +108,27 @@ const createAssignment = async (assignmentData) => {
     return assignment;
 }
 
-const changeActiveAssignment = async (assignmentId, active) => {
+const changeActiveAssignment = async (assignmentId, active, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
+    
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) {
         throw new Error('Assignment not found');
+    }
+
+    // không đc bật tắt super admin
+    const role = await Role.findById(assignment.role);
+    if (role.code === 'SUPER_ADMIN') {
+        throw new Error('Không được thao tác trên super admin');
+    }
+    
+    // chỉ super admin mới đc bật tắt role có manage permission
+    const currentAccountAssigment = await Assignment.find({ account: accountId });
+    const currentAccountIsSUperAdmin = currentAccountAssigment.some(assigment => assigment.role.code === 'SUPER_ADMIN');
+    if(!currentAccountIsSUperAdmin && role.permissions.includes('MANAGE_ROLE')){
+        throw new Error('Phân quyền này chứa quản lý vai trò và chỉ super admin mới được phép chỉnh sửa');
     }
 
     if (active == true) {
@@ -112,7 +149,10 @@ const changeActiveAssignment = async (assignmentId, active) => {
     return updatedAssignment;
 }
 
-const deleteAssignment = async (assignmentId) => {
+const deleteAssignment = async (assignmentId, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const assignment = await Assignment.findByIdAndDelete(assignmentId);
     if (!assignment) {
         throw new Error('Assignment not found');
@@ -122,7 +162,10 @@ const deleteAssignment = async (assignmentId) => {
     return assignment;
 }
 
-const updateAssignment = async (assignmentId, assignmentData) => {
+const updateAssignment = async (assignmentId, assignmentData, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const assignment = await Assignment.findByIdAndUpdate(assignmentId, assignmentData, { new: true });
     if (!assignment) {
         throw new Error('Assignment not found');
@@ -131,7 +174,10 @@ const updateAssignment = async (assignmentId, assignmentData) => {
     return assignment;
 }
 
-const getAssignmentById = async (assignmentId) => {
+const getAssignmentById = async (assignmentId, accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const assignment = await Assignment.findById(assignmentId).populate("account").populate("role");
     if (!assignment) {
         throw new Error('Assignment not found');
@@ -139,7 +185,10 @@ const getAssignmentById = async (assignmentId) => {
     return assignment;
 }
 
-const getAllAssignment = async () => {
+const getAllAssignment = async (accountId) => {
+    if(!await hasManageRole(accountId)){
+        throw new Error('User does not have permission to manage roles');
+    }
     const assignments = await Assignment.find()
         .populate({
             path: 'account',
@@ -150,7 +199,7 @@ const getAllAssignment = async () => {
         })
         .populate({
             path: 'role',
-            select: '_id name is_active'
+            select: '_id name is_active code'
         })
         .populate({
             path: 'subject',
@@ -160,9 +209,10 @@ const getAllAssignment = async () => {
             path: 'organization',
             select: '_id name'
         });
-
+    // lọc ra ko được hiện role code SUPER_ADMIN 
+    const filteredAssignments = assignments.filter(assignment => assignment.role.code !== 'SUPER_ADMIN');
     // Nhóm lại theo account, mỗi account sẽ có danh sách các role và thông tin liên quan
-    const groupedAssignments = assignments.reduce((acc, assignment) => {
+    const groupedAssignments = filteredAssignments.reduce((acc, assignment) => {
         const accountId = assignment.account._id;
         
         if (!acc[accountId]) {
@@ -178,7 +228,7 @@ const getAllAssignment = async () => {
                 assignments: []
             };
         }
-
+        
         acc[accountId].assignments.push({
             _id: assignment._id,
             role: {
@@ -234,4 +284,15 @@ const updateAccountAdminStatus = async (accountId) => {
     }
     await account.save();
     return account;
+}
+
+const hasManageRole = async (accountId) => {
+    //chi role co MANAGE_ROLE va ALL moi duoc phep lay ra toan bo role
+    const assignments = await Assignment.find({ account: accountId, is_active: true }).populate("role");
+    // lấy ra role của người dùng, nếu người dùng hiện tại ko có role MANAGE ROLE hay ALL thì báo lỗi, ko thì trả toàn bộ role
+    const userRoles = assignments.filter(assignment => assignment.role.permissions.includes('MANAGE_ROLE') || assignment.role.permissions.includes('ALL'));
+    if (userRoles.length === 0) {
+        throw new Error('User does not have permission to manage roles');
+    }
+    return true;
 }
