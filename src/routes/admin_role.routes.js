@@ -1,7 +1,13 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const adminRoleController = require('../controllers/admin_role.controller');
-const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, requireAdminPermission } = require("../middlewares/auth.middleware");
+const adminRoleController = require("../controllers/admin_role.controller");
+const {
+  requireUserRole,
+  userOrUnauthenticated,
+  requireLoggedIn,
+  refreshToken,
+  requireAdminPermission,
+} = require("../middlewares/auth.middleware");
 
 // ROLE ROUTES
 /**
@@ -16,8 +22,16 @@ const { requireUserRole, userOrUnauthenticated, requireLoggedIn, refreshToken, r
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/roles', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.getAllRoles);
-router.get('/roles/:roleId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.getRoleById);
+router.get(
+  "/roles",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.getAllRoles
+);
+router.get(
+  "/roles/:roleId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.getRoleById
+);
 
 /**
  * @swagger
@@ -68,7 +82,11 @@ router.get('/roles/:roleId', requireAdminPermission(['MANAGE_ROLE']), adminRoleC
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/roles', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.createRole);
+router.post(
+  "/roles",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.createRole
+);
 
 /**
  * @swagger
@@ -121,14 +139,38 @@ router.post('/roles', requireAdminPermission(['MANAGE_ROLE']), adminRoleControll
  *       401:
  *         description: Không có quyền truy cập
  */
-router.put('/roles/:roleId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.updateRole);
-router.patch('/roles/:roleId/status', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.changeRoleStatus);
-router.delete('/roles/:roleId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.deleteRole);
+router.put(
+  "/roles/:roleId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.updateRole
+);
+router.patch(
+  "/roles/:roleId/status",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.changeRoleStatus
+);
+router.delete(
+  "/roles/:roleId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.deleteRole
+);
 
 // ASSIGNMENT ROUTES
-router.get('/assignments/user/:userId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.getAllAssignmentsByAccount);
-router.get('/assignments/role/:roleId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.getAllAssignmentsByRole);
-router.get('/assignments/:assignmentId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.getAssignmentById);
+router.get(
+  "/assignments/user/:userId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.getAllAssignmentsByAccount
+);
+router.get(
+  "/assignments/role/:roleId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.getAllAssignmentsByRole
+);
+router.get(
+  "/assignments/:assignmentId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.getAssignmentById
+);
 
 /**
  * @swagger
@@ -169,10 +211,26 @@ router.get('/assignments/:assignmentId', requireAdminPermission(['MANAGE_ROLE'])
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/assignments', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.createAssignment);
-router.put('/assignments/:assignmentId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.updateAssignment);
-router.patch('/assignments/:assignmentId/status', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.changeAssignmentStatus);
-router.delete('/assignments/:assignmentId', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.deleteAssignment);
+router.post(
+  "/assignments",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.createAssignment
+);
+router.put(
+  "/assignments/:assignmentId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.updateAssignment
+);
+router.patch(
+  "/assignments/:assignmentId/status",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.changeAssignmentStatus
+);
+router.delete(
+  "/assignments/:assignmentId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.deleteAssignment
+);
 
 /**
  * @swagger
@@ -186,6 +244,10 @@ router.delete('/assignments/:assignmentId', requireAdminPermission(['MANAGE_ROLE
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/assignments', requireAdminPermission(['MANAGE_ROLE']), adminRoleController.getAllAssignments);
+router.get(
+  "/assignments",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.getAllAssignments
+);
 
 module.exports = router;
