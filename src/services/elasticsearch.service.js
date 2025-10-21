@@ -2,13 +2,13 @@ const { client } = require('../config/elasticsearch');
 const Document = require('../models/document.model');
 const Account = require('../models/account.model');
 const User = require('../models/user.model');
+const { processDocumentAndCreateEmbedding } = require('../utils/tranformers')
 
 /**
  * Index một document vào Elasticsearch
  */
 const indexDocument = async (doc) => {
     try {
-        console.log("indexing document id:", doc._id.toString());
         await client.index({
             index: 'documents',
             id: doc._id.toString(),
@@ -16,6 +16,7 @@ const indexDocument = async (doc) => {
                 id: doc._id.toString(),
                 title: doc.title,
                 author: doc.author || [],
+                content_vector: doc.content_vector || [],
                 keyword: doc.keyword || [],
                 user: doc.user.toString(),
                 organization: doc.organization ? doc.organization.toString() : null,
@@ -29,7 +30,6 @@ const indexDocument = async (doc) => {
                 last_approved_at: doc.last_approved_at
             }
         });
-        console.log(`Document ${doc._id} indexed successfully`);
     } catch (error) {
         console.error('Error indexing document:', error);
     }
@@ -95,7 +95,7 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
                 ]
             }
         };
-        
+
 
         const response = await client.search({
             index: 'documents',
@@ -359,6 +359,9 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
 
         const moreLikeThisQuery = {
             bool: {
+                must: [
+                    { exists: { field: 'content_vector' } } // ✅ lọc bỏ doc chưa có vector
+                ],
                 should: [
                     {
                         more_like_this: {
@@ -440,12 +443,27 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
         //         }
         //     ];
         // }
-
+        const docInElasticsearch = await client.get({
+            index: 'documents',
+            id: sourceDoc._id.toString()
+        });
+        const sourceDocEmbedding = docInElasticsearch._source.content_vector;
+        const semanticQuery = {
+            script_score: {
+                query: moreLikeThisQuery, // phần query cũ bạn đã có
+                script: {
+                    source: "cosineSimilarity(params.queryVector, 'content_vector') + 1.0",
+                    params: {
+                        queryVector: sourceDocEmbedding
+                    }
+                }
+            }
+        };
 
         const response = await client.search({
             index: 'documents',
             body: {
-                query: moreLikeThisQuery,
+                query: semanticQuery,
                 size: limit,
                 sort: [
                     { _score: { order: 'desc' } },
@@ -467,15 +485,15 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
             let similarityFactors = [];
 
             // Thêm điểm cho các yếu tố tương tự
-            // Cùng môn học: +10 điểm
+            // Cùng môn học: +1 điểm
             if (doc.subject === subjectId?.toString()) {
-                customScore += 10;
+                customScore += 0.5;
                 similarityFactors.push('same_subject');
             }
 
             // Cùng người đăng: +8 điểm
             if (doc.user === sourceDoc.user.toString()) {
-                customScore += 8;
+                customScore += 0.5;
                 similarityFactors.push('same_uploader');
             }
 
@@ -485,7 +503,7 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
                     sourceDoc.author.includes(author)
                 );
                 if (commonAuthors.length > 0) {
-                    customScore += (commonAuthors.length * 5);
+                    customScore += (commonAuthors.length * 0.3);
                     similarityFactors.push('same_author');
                 }
             }
@@ -496,14 +514,14 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
                     sourceDoc.keyword.includes(keyword)
                 );
                 if (commonKeywords.length > 0) {
-                    customScore += (commonKeywords.length * 3);
+                    customScore += (commonKeywords.length * 0.3);
                     similarityFactors.push('same_keywords');
                 }
             }
 
             // Cùng organization: +2 điểm
             if (sourceDoc.organization && doc.organization === sourceDoc.organization.toString()) {
-                customScore += 2;
+                customScore += 0.2;
                 similarityFactors.push('same_organization');
             }
 
@@ -517,7 +535,7 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
                     )
                 );
                 if (hasCommonWords) {
-                    customScore += 4;
+                    customScore += 0.4;
                     similarityFactors.push('similar_title');
                 }
             }
@@ -550,8 +568,8 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
             id: d.id,
             score: d.score,
             factors: d.similarity_factors
-        }))); 
-        
+        })));
+
         return { documentIds, scores };
 
     } catch (error) {
@@ -571,8 +589,33 @@ const syncAllDocuments = async () => {
 
         const documents = await Document.find({ is_deleted: false });
 
+        let successCount = 0;
+        let failedCount = 0;
+
         for (const doc of documents) {
-            await indexDocument(doc);
+            try {
+                console.log(`📘 Processing document: ${doc._id}`);
+
+                // 🧩 Tạo embedding từ file
+                const result = await processDocumentAndCreateEmbedding(doc.url, doc.file_type);
+
+                if (!result.embedding || result.embedding.length === 0) {
+                    console.warn(`⚠️ Embedding rỗng cho document ${doc._id}`);
+                    failedCount++;
+                    continue;
+                }
+
+                // 🧠 Gán embedding và index vào ES
+                doc.content_vector = result.embedding;
+                await indexDocument(doc);
+
+                console.log(`✅ Indexed document ${doc._id}`);
+                successCount++;
+            } catch (err) {
+                failedCount++;
+                console.error(`❌ Error processing doc ${doc._id}: ${err.message}`);
+                // Không throw lại => để vòng for tiếp tục
+            }
         }
 
         console.log(`✅ Synced ${documents.length} documents to Elasticsearch`);
