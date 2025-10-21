@@ -295,4 +295,49 @@ router.post("/:userId/follow", requireLoggedIn, userController.followUser);
  */
 router.post("/:userId/unfollow", requireLoggedIn, userController.unfollowUser);
 
+/**
+ * @swagger
+ * /users/{userId}/roles:
+ *   get:
+ *     summary: Lấy danh sách quyền hạn của một người dùng theo ID
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     responses:
+ *       200:
+ *         description: Danh sách quyền hạn của người dùng
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 permissions:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: Danh sách quyền hạn
+ *                 roles:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                   description: Danh sách vai trò với quyền hạn
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ */
+router.get(
+  "/:userId/roles",
+  requireLoggedIn,
+  userController.getUserPermissions
+);
+
 module.exports = router;
