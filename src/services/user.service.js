@@ -305,18 +305,19 @@ const getFavoriteDocuments = async (userId) => {
         let hasAccess = doc.user._id.toString() === userId;
 
         // nếu ko phải chủ thì đổi trạng thái hasAccess dựa vào mode và quyền
-        if(!hasAccess){
-          if(doc.status === "APPROVED"){
-            switch(doc.public_mode){
+        if (!hasAccess) {
+          if (doc.status === "APPROVED") {
+            switch (doc.public_mode) {
               case "PUBLIC":
                 hasAccess = true;
                 break;
               case "SHARE_ORGANIZATION":
                 // Chia sẻ trong tổ chức -> kiểm tra cùng organization
                 if (user.organization && doc.user.organization) {
-                  hasAccess = hasAccess ? hasAccess :
-                    user.organization.toString() ===
-                    doc.user.organization.toString();
+                  hasAccess = hasAccess
+                    ? hasAccess
+                    : user.organization.toString() ===
+                      doc.user.organization.toString();
                 }
                 break;
               case "PRIVATE_SHARED":
@@ -509,6 +510,45 @@ const unfollowUser = async (currentUserId, targetUserId) => {
   }
 };
 
+const getUserPermissions = async (userId) => {
+  try {
+    const account = await Account.findOne({ user: userId });
+    if (!account) {
+      return { error: "Tài khoản không tồn tại" };
+    }
+
+    const assignments = await Assignment.find({
+      account: account._id,
+      is_active: true,
+    }).populate("role");
+
+    const permissions = new Set();
+    assignments.forEach((assignment) => {
+      if (assignment.role && assignment.role.permissions) {
+        assignment.role.permissions.forEach((permission) => {
+          permissions.add(permission);
+        });
+      }
+    });
+
+    return {
+      success: true,
+      permissions: Array.from(permissions),
+      roles: assignments.map((assignment) => ({
+        _id: assignment.role._id,
+        name: assignment.role.name,
+        code: assignment.role.code,
+        description: assignment.role.description,
+        is_active: assignment.role.is_active,
+        permissions: assignment.role.permissions,
+      })),
+    };
+  } catch (error) {
+    console.error("Error getting user permissions:", error);
+    return { error: "Lỗi khi lấy quyền của người dùng: " + error.message };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
@@ -522,4 +562,5 @@ module.exports = {
   getUserById,
   followUser,
   unfollowUser,
+  getUserPermissions,
 };
