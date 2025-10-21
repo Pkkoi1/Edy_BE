@@ -57,7 +57,12 @@ const initializeElasticsearch = async () => {
   // await syncAllDocuments();
 };
 
-initializeElasticsearch().catch(console.error);
+if (process.env.USE_ELASTICSEARCH === "true") {
+  initializeElasticsearch().catch(console.error);
+} else {
+  console.log("⚙️ Elasticsearch is disabled (USE_ELASTICSEARCH=false)");
+}
+
 // Simple root route
 app.use("/api", indexRoutes);
 
