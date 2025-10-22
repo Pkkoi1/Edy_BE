@@ -8,7 +8,9 @@ const client = new Client({
 const createDocumentIndex = async () => {
   try {
     const indexExists = await client.indices.exists({ index: 'documents' });
-    
+
+    console.log(indexExists);
+
     if (!indexExists) {
       await client.indices.create({
         index: 'documents',
@@ -16,8 +18,8 @@ const createDocumentIndex = async () => {
           mappings: {
             properties: {
               id: { type: 'keyword' },
-              title: { 
-                type: 'text', 
+              title: {
+                type: 'text',
                 analyzer: 'standard',
                 fields: {
                   suggest: {
@@ -26,7 +28,7 @@ const createDocumentIndex = async () => {
                   }
                 }
               },
-              author: { 
+              author: {
                 type: 'text',
                 fields: {
                   suggest: {
@@ -34,7 +36,13 @@ const createDocumentIndex = async () => {
                   }
                 }
               },
-              keyword: { 
+              content_vector: {
+                type: "dense_vector",
+                dims: 384,
+                index: true,
+                similarity: "cosine"
+              },
+              keyword: {
                 type: 'text',
                 fields: {
                   suggest: {
@@ -48,7 +56,7 @@ const createDocumentIndex = async () => {
               public_mode: { type: 'keyword' },
               status: { type: 'keyword' },
               is_deleted: { type: 'boolean' },
-              created_at: { type: 'date' },
+              createdAt: { type: 'date' },
               last_approved_at: { type: 'date' }
             }
           }

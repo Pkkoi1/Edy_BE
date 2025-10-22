@@ -9,6 +9,7 @@ const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
 const Assignment = require("../models/assignment.model");
 const { createPointTransaction } = require("./point_transaction.service");
+const { processDocumentAndCreateEmbedding, processDocumentAndCreateSummary } = require("../utils/tranformers");
 const {
   searchDocuments,
   findSimilarDocuments,
@@ -698,12 +699,19 @@ const createDocument = async (data) => {
   }
   const doc = new Document(docData);
   await doc.save();
+  // Tạo embedding cho document
+  const result = await processDocumentAndCreateEmbedding(doc.url, doc.file_type);
+  doc.content_vector = result.embedding;
 
+  // const summaryResult = await processDocumentAndCreateSummary(doc.url, doc.file_type);
+  // console.log("Text created:", summaryResult.text);
+  // console.log("Summary created:", summaryResult.summary);
   // Cập nhật số lượng tài liệu của user
-  await updateUserDocCount(data.user);
+  // await updateUserDocCount(data.user);
 
   try {
     await indexDocument(doc);
+    console.log("Document indexed successfully");
   } catch (error) {
     console.error("Lỗi khi đánh index document:", error);
     // Không throw error để không ảnh hưởng đến việc tạo document
