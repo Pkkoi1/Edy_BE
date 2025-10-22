@@ -7,7 +7,7 @@ async function waitForElasticsearch() {
   let attempt = 1;
   while (true) {
     try {
-      await client.ping();
+      await client.info();
       console.log("✅ Elasticsearch is ready");
       return true;
     } catch (err) {
@@ -21,7 +21,13 @@ async function waitForElasticsearch() {
 dotenv.config();
 
 const { Client } = require("@elastic/elasticsearch");
-const client = new Client({ node: process.env.ELASTICSEARCH_URL });
+const client = new Client({ 
+  node: process.env.ELASTICSEARCH_URL ,
+  auth: {
+    username: process.env.ELASTICSEARCH_USER_NAME,
+    password: process.env.ELASTICSEARCH_PASSWORD
+  }
+});
 // Connect to MongoDB
 const connectDB = require("./src/config/db");
 connectDB();
