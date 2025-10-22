@@ -9,7 +9,10 @@ const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
 const Assignment = require("../models/assignment.model");
 const { createPointTransaction } = require("./point_transaction.service");
-const { processDocumentAndCreateEmbedding, processDocumentAndCreateSummary } = require("../utils/tranformers");
+const {
+  processDocumentAndCreateEmbedding,
+  processDocumentAndCreateSummary,
+} = require("../utils/tranformers");
 const {
   searchDocuments,
   findSimilarDocuments,
@@ -37,8 +40,8 @@ const getAllDocuments = async ({
   limit = 5,
   ...filters
 }) => {
-  if(!await hasDocumentManageRole(payload.accountId)){
-    throw new Error('User does not have permission to manage documents');
+  if (!(await hasDocumentManageRole(payload.accountId))) {
+    throw new Error("User does not have permission to manage documents");
   }
   const skip = (page - 1) * limit;
 
@@ -699,9 +702,12 @@ const createDocument = async (data) => {
   }
   const doc = new Document(docData);
   await doc.save();
-  
+
   // Tạo embedding cho document
-  const result = await processDocumentAndCreateEmbedding(doc.url, doc.file_type);
+  const result = await processDocumentAndCreateEmbedding(
+    doc.url,
+    doc.file_type
+  );
   doc.content_vector = result.embedding;
 
   // Cập nhật số lượng tài liệu của user
@@ -792,7 +798,8 @@ const getDocumentById = async (id, userId) => {
           doc.description.summary_by_user =
             "Tài liệu không được tóm tắt bởi người đăng.";
         }
-        if (!isOwner &&
+        if (
+          !isOwner &&
           doc.description &&
           (doc.summary_status == "PENDING" ||
             doc.summary_status == "PENDING_EDIT")
@@ -1250,7 +1257,7 @@ const reactionDocument = async (documentId, userId, reactionType) => {
     existingReaction.type = reactionType;
     await existingReaction.save();
   } else {
-    // Nếu chưa phản ứng, tạo mới
+    // Nếu chưa phản ứng, tạo mới và cộng điểm
     const newReaction = new Reaction({
       doc: documentId,
       user: userId,
@@ -1262,6 +1269,19 @@ const reactionDocument = async (documentId, userId, reactionType) => {
       doc.dislike += 1;
     }
     await newReaction.save();
+
+    // Cộng 1 điểm cho việc đánh giá tài liệu
+    try {
+      await createPointTransaction(
+        userId,
+        "EARN",
+        1,
+        `Đánh giá tài liệu ${doc.title}`
+      );
+    } catch (pointError) {
+      console.error("Error creating reaction points:", pointError);
+      // Không làm fail việc reaction nếu cộng điểm thất bại
+    }
   }
   await doc.save();
 
@@ -1596,7 +1616,18 @@ module.exports = {
 };
 
 const hasDocumentManageRole = async (accountId, documentId) => {
-    const assignments = await Assignment.find({ account: accountId, is_active: true }).populate("role");
-    const userRoles = assignments.filter(assignment => assignment.role.permissions.includes('MANAGE_DOCUMENT') || assignment.role.permissions.includes('ALL'));
-    return userRoles.some(role => role.role.permissions.includes('MANAGE_DOCUMENT') || role.role.permissions.includes('ALL'));
-}
+  const assignments = await Assignment.find({
+    account: accountId,
+    is_active: true,
+  }).populate("role");
+  const userRoles = assignments.filter(
+    (assignment) =>
+      assignment.role.permissions.includes("MANAGE_DOCUMENT") ||
+      assignment.role.permissions.includes("ALL")
+  );
+  return userRoles.some(
+    (role) =>
+      role.role.permissions.includes("MANAGE_DOCUMENT") ||
+      role.role.permissions.includes("ALL")
+  );
+};
