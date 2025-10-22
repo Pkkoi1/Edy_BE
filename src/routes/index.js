@@ -12,6 +12,7 @@ const searchRouter = require("./search.routes");
 const commentRouter = require("./comment.routes");
 const notificationRouter = require("./notification.routes");
 const adminRoleRouter = require("./admin_role.routes");
+const pointTransactionRouter = require("./point_transaction.routes");
 
 // Main routes configuration
 router.use("/auth", authRouter);
@@ -25,5 +26,6 @@ router.use("/search", searchRouter);
 router.use("/comments", commentRouter);
 router.use("/notifications", notificationRouter);
 router.use("/admin", adminRoleRouter);
+router.use("/point-transactions", pointTransactionRouter);
 
 module.exports = router;
