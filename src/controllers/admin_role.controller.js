@@ -4,7 +4,8 @@ const adminRoleService = require('../services/admin_role.service');
 exports.getAllRoles = async (req, res) => {
     try {
         const accountId = req.user.accountId;
-        const roles = await adminRoleService.getAllRole(accountId);
+        const query = req.query;
+        const roles = await adminRoleService.getAllRole(accountId, query);
         return res.status(200).json({
             success: true,
             data: roles
