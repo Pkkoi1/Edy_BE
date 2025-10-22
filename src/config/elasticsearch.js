@@ -1,15 +1,17 @@
 const { Client } = require('@elastic/elasticsearch');
 
 const client = new Client({
-  node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200'
+  node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+  auth: {
+    username: process.env.ELASTICSEARCH_USER_NAME,
+    password: process.env.ELASTICSEARCH_PASSWORD
+  }
 });
 
 // Tạo index cho documents
 const createDocumentIndex = async () => {
   try {
     const indexExists = await client.indices.exists({ index: 'documents' });
-
-    console.log(indexExists);
 
     if (!indexExists) {
       await client.indices.create({

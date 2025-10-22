@@ -699,15 +699,13 @@ const createDocument = async (data) => {
   }
   const doc = new Document(docData);
   await doc.save();
+  
   // Tạo embedding cho document
   const result = await processDocumentAndCreateEmbedding(doc.url, doc.file_type);
   doc.content_vector = result.embedding;
 
-  // const summaryResult = await processDocumentAndCreateSummary(doc.url, doc.file_type);
-  // console.log("Text created:", summaryResult.text);
-  // console.log("Summary created:", summaryResult.summary);
   // Cập nhật số lượng tài liệu của user
-  // await updateUserDocCount(data.user);
+  await updateUserDocCount(data.user);
 
   try {
     await indexDocument(doc);
