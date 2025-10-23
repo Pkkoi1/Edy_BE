@@ -7,6 +7,8 @@ const {
   verifyOTPService,
 } = require("../services/auth.service");
 
+const isProduction = process.env.NODE_ENV === "production";
+
 exports.login = async (req, res) => {
   try {
     const result = await loginService(req.body);
@@ -16,10 +18,15 @@ exports.login = async (req, res) => {
     res.cookie("accessToken", result.accessToken, {
       httpOnly: true,
       maxAge: 15 * 60 * 1000,
+      secure: true,
+      sameSite: "none",
     });
+
     res.cookie("refreshToken", result.refreshToken, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: true,
+      sameSite: "none",
     });
     res.json({ message: "Đăng nhập thành công" });
   } catch (error) {
@@ -58,10 +65,14 @@ exports.refreshToken = async (req, res) => {
     res.cookie("accessToken", result.accessToken, {
       httpOnly: true,
       maxAge: 15 * 60 * 1000,
+      secure: true,
+      sameSite: "none",
     });
     res.cookie("refreshToken", result.refreshToken, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: true,
+      sameSite: "none", 
     });
     res.json({ message: "Refresh token thành công" });
   } catch (error) {

@@ -778,6 +778,7 @@ const getDocumentById = async (id, userId) => {
   const isDeleted = doc && doc.is_deleted;
   const isOwner = doc && doc.user._id.toString() === userId;
   if (!canView && !isAdmin) {
+    await deleteFromHistoryIfHave(id, userId);
     throw new Error("Bạn không có quyền truy cập tài liệu này");
   }
 
@@ -785,6 +786,7 @@ const getDocumentById = async (id, userId) => {
     // tài liệu bị xóa thì chỉ chủ và admin có thể xem
     if (isDeleted) {
       if (!isOwner && !isAdmin) {
+        await deleteFromHistoryIfHave(id, userId);
         throw new Error("Bạn không có quyền truy cập tài liệu này");
       }
     }
@@ -1630,4 +1632,24 @@ const hasDocumentManageRole = async (accountId, documentId) => {
       role.role.permissions.includes("MANAGE_DOCUMENT") ||
       role.role.permissions.includes("ALL")
   );
+};
+
+const deleteFromHistoryIfHave = async (documentId, userId) => {
+  try {
+    const user = await User.findByIdAndUpdate(userId,
+      {
+        $pull: {
+          read_history: {
+            document: documentId,
+          },
+        },
+      }
+    );
+    if (!user) {
+      throw new Error("Người dùng không tồn tại");
+    };
+
+  } catch (error) {
+    throw new Error(`Lỗi xóa lịch sử đọc: ${error.message}`);
+  }
 };

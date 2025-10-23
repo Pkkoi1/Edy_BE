@@ -50,6 +50,11 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
+});
+
 // Swagger docs
 const swaggerSetup = require("./src/config/swagge");
 const indexRoutes = require("./src/routes/index");
