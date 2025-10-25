@@ -31,16 +31,6 @@ const editDocumentSchema = new mongoose.Schema({
         ],
         default: 'PENDING'
     },
-    summary_status: {
-        type: String,
-        enum: [
-            'PENDING',
-            'APPROVED',
-            'REJECTED',
-            'NONE'
-        ],
-        default: 'NONE'
-    },
     public_mode: {
         type: String,
         enum: [
@@ -74,16 +64,10 @@ const editDocumentSchema = new mongoose.Schema({
         ],
         required: true
     },
-
-    edit_type: {
-        type: String,
-        enum: ['DOCUMENT_EDIT', 'SUMMARY_EDIT', 'BOTH'],
-        required: true
-    },
     expiredAt: { type: Date, default: null },
     is_deleted: { type: Boolean, default: false }
 }, {
     timestamps: true
 });
 
-module.exports = mongoose.model('Document', editDocumentSchema);
+module.exports = mongoose.model('EditDocument', editDocumentSchema);
