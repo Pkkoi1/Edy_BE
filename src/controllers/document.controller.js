@@ -19,6 +19,7 @@ const {
   addToHistory,
   getReadHistory,
   getDocumentsByUserId,
+  incrementViewCount,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -787,6 +788,39 @@ exports.getDocumentsByUserId = async (req, res) => {
     console.error(error);
     res.status(500).json({
       message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message,
+    });
+  }
+};
+
+exports.incrementView = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const userId = req.user?.userId;
+
+    if (!documentId) {
+      return res.status(400).json({ message: "documentId là bắt buộc" });
+    }
+
+    if (!documentId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res
+        .status(400)
+        .json({ message: "documentId không đúng định dạng" });
+    }
+
+    const result = await incrementViewCount(documentId, userId);
+
+    if (result.error) {
+      return res.status(result.status || 400).json({ message: result.message });
+    }
+
+    res.json({
+      message: "Tăng số lượt xem thành công",
+      view_count: result.newViewCount,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi tăng số lượt xem: " + error.message,
     });
   }
 };
