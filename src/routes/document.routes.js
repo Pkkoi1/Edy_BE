@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const documentController = require("../controllers/document.controller");
+const editDocumentController = require("../controllers/edit_document.controller");
 const privateShareController = require("../controllers/private_share.controller");
+const editApprovalController = require("../controllers/edit_approval.controller");
 const {
   requireUserRole,
   userOrUnauthenticated,
@@ -316,7 +318,7 @@ router.post("/", requireUserRole, documentController.uploadDocument);
  *   get:
  *     summary: Lấy danh sách tài liệu đang chờ phê duyệt
  *     tags:
- *       - Documents
+ *       - Approval
  *     parameters:
  *       - in: query
  *         name: search
@@ -419,7 +421,7 @@ router.get(
  *   get:
  *     summary: Lấy danh sách yêu cầu phê duyệt tài liệu
  *     tags:
- *       - Documents
+ *       - Approval
  *     parameters:
  *       - in: path
  *         name: id
@@ -447,7 +449,7 @@ router.get(
  *   put:
  *     summary: Phê duyệt tài liệu
  *     tags:
- *       - Documents
+ *       - Approval
  *     parameters:
  *       - in: path
  *         name: id
@@ -484,7 +486,7 @@ router.put(
  *   put:
  *     summary: Từ chối tài liệu
  *     tags:
- *       - Documents
+ *       - Approval
  *     parameters:
  *       - in: path
  *         name: id
@@ -1256,6 +1258,319 @@ router.get(
   userOrUnauthenticated,
   documentController.getDocumentsByUserId
 );
+
+/**
+ * @swagger
+ * /documents/{documentId}/edit:
+ *   post:
+ *     summary: Tạo mới một phiên chỉnh sửa tài liệu
+ *     tags:
+ *       - Edit document
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 description: URL mới của tài liệu
+ *               summary_by_user:
+ *                 type: string
+ *                 description: Tóm tắt mới của tài liệu
+ *               author:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Tác giả mới của tài liệu
+ *               published_year:
+ *                 type: integer
+ *                 description: Năm xuất bản mới của tài liệu
+ *               publisher:
+ *                 type: string
+ *                 description: Nhà xuất bản mới của tài liệu
+ *               level:
+ *                 type: enum
+ *                 enum: ['STUDENT', 'UNIVERSITY', 'LECTURER', 'RESEARCHER', 'OTHER']
+ *                 description: Trình độ mới của tài liệu
+ *               subject:
+ *                 type: string
+ *                 description: Môn mới của tài liệu
+ *               organization:
+ *                 type: string
+ *                 description: Tổ chức mới của tài liệu
+ *               page:
+ *                 type: integer
+ *                 description: Trang mới của tài liệu
+ *               file_type:
+ *                 type: enum
+ *                 enum: ['WORD', 'PDF', 'EXCEL', 'VIDEO', 'POWERPOINT']
+ *                 description: Loại tệp mới của tài liệu
+ *               keyword:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Từ khóa mới của tài liệu
+ *               title:
+ *                 type: string
+ *                 description: Tiêu đề mới của tài liệu
+ *               doc_type:
+ *                 type: enum
+ *                 enum: [
+ *                   'RESEARCH_REPORT',
+ *                   'VIDEO',
+ *                   'STUDY_GUIDE',
+ *                   'TEXTBOOK',
+ *                   'ESSAY',
+ *                   'SOLUTION_SET',
+ *                   'THESIS',
+ *                   'LECTURE',
+ *                   'OTHER'
+ *                 ]
+ *                 description: Loại tài liệu mới
+ *     responses:
+ *       200:
+ *         description: Tạo phiên chỉnh sửa thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi tạo phiên chỉnh sửa
+ */
+router.post(
+  "/:documentId/edit",
+  requireUserRole,
+  editDocumentController.createEditDocument
+);
+
+/**
+ * @swagger
+ * /documents/edit/{editId}:
+ *   put:
+ *     summary: Cập nhật phiên chỉnh sửa tài liệu
+ *     tags:
+ *       - Edit document
+ *     parameters:
+ *       - in: path
+ *         name: editId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID phiên chỉnh sửa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 description: URL mới của tài liệu
+ *               summary_by_user:
+ *                 type: string
+ *                 description: Tóm tắt mới của tài liệu
+ *               author:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Tác giả mới của tài liệu
+ *               published_year:
+ *                 type: integer
+ *                 description: Năm xuất bản mới của tài liệu
+ *               publisher:
+ *                 type: string
+ *                 description: Nhà xuất bản mới của tài liệu
+ *               level:
+ *                 type: enum
+ *                 enum: ['STUDENT', 'UNIVERSITY', 'LECTURER', 'RESEARCHER', 'OTHER']
+ *                 description: Trình độ mới của tài liệu
+ *               subject:
+ *                 type: string
+ *                 description: Môn mới của tài liệu
+ *               organization:
+ *                 type: string
+ *                 description: Tổ chức mới của tài liệu
+ *               page:
+ *                 type: integer
+ *                 description: Trang mới của tài liệu
+ *               file_type:
+ *                 type: enum
+ *                 enum: ['WORD', 'PDF', 'EXCEL', 'VIDEO', 'POWERPOINT']
+ *                 description: Loại tệp mới của tài liệu
+ *               keyword:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Từ khóa mới của tài liệu
+ *               title:
+ *                 type: string
+ *                 description: Tiêu đề mới của tài liệu
+ *               doc_type:
+ *                 type: enum
+ *                 enum: [
+ *                   'RESEARCH_REPORT',
+ *                   'VIDEO',
+ *                   'STUDY_GUIDE',
+ *                   'TEXTBOOK',
+ *                   'ESSAY',
+ *                   'SOLUTION_SET',
+ *                   'THESIS',
+ *                   'LECTURE',
+ *                   'OTHER'
+ *                 ]
+ *                 description: Loại tài liệu mới
+ *     responses:
+ *       200:
+ *         description: Cập nhật phiên chỉnh sửa thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Phiên chỉnh sửa không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi cập nhật phiên chỉnh sửa
+ */
+router.put(
+  '/edit/:editId',
+  requireUserRole,
+  editDocumentController.updateEditDocument
+)
+
+/**
+ * @swagger
+ * /documents/edit/{editId}:
+ *   delete:
+ *     summary: Xóa phiên chỉnh sửa tài liệu
+ *     tags:
+ *       - Edit document
+ *     parameters:
+ *       - in: path
+ *         name: editId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID phiên chỉnh sửa
+ *     responses:
+ *       200:
+ *         description: Xóa phiên chỉnh sửa thành công
+ *       404:
+ *         description: Phiên chỉnh sửa không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi xóa phiên chỉnh sửa
+ */
+router.delete(
+  '/edit/:editId',
+  requireUserRole,
+  editDocumentController.deleteEditDocument
+)
+
+/**
+ * @swagger
+ * /documents/{documentId}/edit:
+ *   get:
+ *     summary: Lấy thông tin chi tiết phiên chỉnh sửa tài liệu theo ID
+ *     tags:
+ *       - Edit document
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin phiên chỉnh sửa thành công
+ *       404:
+ *         description: Phiên chỉnh sửa không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy phiên chỉnh sửa
+ */
+router.get(
+  '/:documentId/edit',
+  requireUserRole,
+  editDocumentController.getEditDocumentByOriginalDocument
+)
+
+/**
+ * @swagger
+ * /documents/pending-edit-request/{documentId}:
+ *   get:
+ *     summary: Lấy thông tin chi tiết phiên chỉnh sửa tài liệu theo ID
+ *     tags:
+ *       - Edit document
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin phiên chỉnh sửa thành công
+ *       404:
+ *         description: Phiên chỉnh sửa không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy phiên chỉnh sửa
+ */
+router.get(
+  '/pending-edit-request/:documentId',
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  editApprovalController.getEditApprovalByOriginalDocId
+)
+/**
+ * @swagger
+ * /documents/approve-edit/{editApprovalId}:
+ *  put:
+ *    summary: Xử lý phiên chỉnh sửa tài liệu
+ *    tags:
+ *      - Edit document
+ *    parameters:
+ *      - in: path
+ *        name: editApprovalId
+ *        required: true
+ *        schema:
+ *          type: string
+ *        description: ID phiên chỉnh sửa
+ *    requestBody:
+ *      required: true
+ *      content:
+ *        application/json:
+ *          schema:
+ *            type: object
+ *            properties:
+ *              action:
+ *                type: enum
+ *                enum: ['APPROVE', 'REJECT']
+ *                description: Hành động của quản trị viên 
+ *              message:
+ *                type: string
+ *                description: Lý do từ 
+ *    responses:
+ *      200:
+ *        description: Xử lý phiên chỉnh sửa thành công
+ *      400:
+ *        description: Yêu cầu không hợp lệ
+ *      404:
+ *        description: Phiên chỉnh sửa không tồn tại
+ *      500:
+ *        description: Đã xảy ra lỗi khi xử lý phiên chỉnh sửa
+ */
+router.put(
+  '/approve-edit/:editApprovalId',
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  editApprovalController.handleEditApproval
+)
 
 /**
  * @swagger

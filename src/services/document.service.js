@@ -839,7 +839,7 @@ const getPendingDocuments = async ({
 
   // Query cơ bản cho pending documents
   let query = {
-    $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
+    $or: [{ status: "PENDING" }, {status: "PENDING_EDIT"} ,{ summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
     is_deleted: false,
   };
 
@@ -847,7 +847,7 @@ const getPendingDocuments = async ({
   if (searchOr.length > 0) {
     query.$and = [
       {
-        $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
+        $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }, { summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
       },
       { $or: searchOr },
       { is_deleted: false },
