@@ -1592,6 +1592,31 @@ const getDocumentsByUserId = async ({
   };
 };
 
+const incrementViewCount = async (documentId, userId) => {
+  // Chỉ kiểm tra tài liệu tồn tại và đã được duyệt
+  const document = await Document.findById(documentId);
+
+  if (!document) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+
+  if (document.status !== "APPROVED") {
+    throw new Error("Tài liệu chưa được duyệt hoặc không khả dụng");
+  }
+
+  // Tăng view count
+  const updatedDocument = await Document.findByIdAndUpdate(
+    documentId,
+    { $inc: { view: 1 } },
+    { new: true }
+  );
+
+  return {
+    documentId,
+    newViewCount: updatedDocument.view,
+  };
+};
+
 module.exports = {
   getAllDocuments,
   getNewestDocuments,
@@ -1613,6 +1638,7 @@ module.exports = {
   addToHistory,
   getReadHistory,
   getDocumentsByUserId,
+  incrementViewCount,
 };
 
 const hasDocumentManageRole = async (accountId, documentId) => {

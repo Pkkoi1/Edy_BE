@@ -1281,4 +1281,46 @@ router.get(
  */
 router.get("/:id", userOrUnauthenticated, documentController.getDocumentById);
 
+/**
+ * @swagger
+ * /documents/{documentId}/view:
+ *   post:
+ *     summary: Tăng số lượt xem tài liệu
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Tăng số lượt xem thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Tăng số lượt xem thành công"
+ *                 view_count:
+ *                   type: integer
+ *                   example: 42
+ *                   description: Số lượt xem hiện tại sau khi tăng
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi tăng số lượt xem
+ */
+router.post(
+  "/:documentId/view",
+  userOrUnauthenticated,
+  documentController.incrementView
+);
+
 module.exports = router;
