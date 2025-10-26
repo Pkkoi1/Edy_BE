@@ -27,7 +27,14 @@ exports.getEditApprovalsByEditDocId = async (req, res) => {
 exports.getEditApprovalByOriginalDocId = async (req, res) => {
     try {
         const editApprovals = await getEditApprovalByOriginalDocumentId(req.params.documentId);
-        res.status(200).json(editApprovals);
+        // Return the first pending approval, or null if none exists
+        const editApproval = Array.isArray(editApprovals) && editApprovals.length > 0 ? editApprovals[0] : null;
+        
+        if (!editApproval) {
+            return res.status(404).json({ message: 'Không tìm thấy yêu cầu chỉnh sửa' });
+        }
+        
+        res.status(200).json(editApproval);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }

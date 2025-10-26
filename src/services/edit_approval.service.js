@@ -27,7 +27,12 @@ const getEditApprovalsByEditDocId = async (editDocId) => {
 }
 
 const getEditApprovalByOriginalDocumentId = async (docId) => {
-    return await EditApproval.find({ doc: docId, status: 'PENDING' });
+    return await EditApproval.find({ doc: docId, status: 'PENDING' })
+        .populate('doc')
+        .populate('edit_doc')
+        .populate('user', 'first_name last_name')
+        .populate('reviewed_by', 'first_name last_name')
+        .sort({ createdAt: -1 });
 }
 
 const deleteEditApprovalByEditId = async (editId) => {
@@ -45,12 +50,14 @@ const handleEditApproval = async (editApprovalId, actionData) => {
     if (action === 'APPROVE') {
         await approveEditApproval(editApprovalId, message);
         editDoc.status = 'APPROVED';
+        editDoc.expiredAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await editDoc.save()
         await applyDataToDocument(editDoc._id);
         return editApproval;
 
     } else if (action === 'REJECT') {
         editDoc.status = 'REJECTED';
+        editDoc.expiredAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await editDoc.save()
         await rejectEditApproval(editApprovalId, message);
         return editApproval;
@@ -91,28 +98,28 @@ const updateEditDocumentStatus = async (editDocId, status) => {
 }
 
 const applyDataToDocument = async (editDocId) => {
-    const editDoc = await EditDocument.findById(editDocId);
+    const editDoc = await EditDocument.findById(editDocId).populate('original_document');
     if (!editDoc) throw new Error('Edit document not found');
 
-    // xóa những field document không cần thiết
-    delete editDoc.original_document;
-    delete editDoc.expiredAt;
-    delete editDoc.is_deleted;
-    delete editDoc.edit_type;
-
-
     if (editDoc.status !== 'APPROVED') throw new Error('Edit document is not approved');
-    const document = await Document.findById(editDoc.original_document);
+    
+    // Get original document ID before it's lost
+    const originalDocumentId = editDoc.original_document;
+    const document = await Document.findById(originalDocumentId);
     if (!document) throw new Error('Document not found');
 
-    const descObj = {...document.description};
-    descObj.summary_by_user = editDoc.summary_by_user;
-    document.description = descObj;
-    document.status = 'APPROVED';
+    // Update description
+    if (editDoc.summary_by_user) {
+        const descObj = {...document.description};
+        descObj.summary_by_user = editDoc.summary_by_user;
+        document.description = descObj;
+    }
     
+    // Update document status and data from edit
+    document.status = 'APPROVED';
     if(editDoc.title) document.title = editDoc.title;
     if(editDoc.url) document.url = editDoc.url;
-    if(editDoc.author) document.author = editDoc.author;
+    if(editDoc.author && editDoc.author.length > 0) document.author = editDoc.author;
     if(editDoc.publisher) document.publisher = editDoc.publisher;
     if(editDoc.published_year) document.published_year = editDoc.published_year;
     if(editDoc.cover_page) document.cover_page = editDoc.cover_page;
@@ -120,8 +127,9 @@ const applyDataToDocument = async (editDocId) => {
     if(editDoc.level) document.level = editDoc.level;
     if(editDoc.subject) document.subject = editDoc.subject;
     if(editDoc.public_mode) document.public_mode = editDoc.public_mode;
-    if(editDoc.page) document.page = editDoc.page;
+    if(editDoc.page !== undefined) document.page = editDoc.page;
     if(editDoc.file_type) document.file_type = editDoc.file_type;
+    if(editDoc.keyword && editDoc.keyword.length > 0) document.keyword = editDoc.keyword;
     if(editDoc.doc_type) document.doc_type = editDoc.doc_type;
 
     return await document.save();
