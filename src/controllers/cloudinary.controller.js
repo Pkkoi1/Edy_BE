@@ -7,25 +7,15 @@ const {
 
 exports.deleteFile = async (req, res) => {
   try {
-    const { fileUrl } = req.body;
+    const { publicId, resourceType } = req.body;
 
-    if (!fileUrl) {
+    if (!publicId) {
       return res.status(400).json({
-        message: "URL file là bắt buộc",
+        message: "Public ID là bắt buộc",
       });
     }
 
-    // Trích xuất publicId và resourceType từ URL
-    const targetPublicId = extractPublicIdFromUrl(fileUrl);
-    const resourceType = extractResourceTypeFromUrl(fileUrl);
-
-    if (!targetPublicId) {
-      return res.status(400).json({
-        message: "Không thể trích xuất public ID từ URL file",
-      });
-    }
-
-    const result = await deleteFile(targetPublicId, resourceType);
+    const result = await deleteFile(publicId, resourceType || "raw");
 
     res.json({
       message: "Xóa file thành công",
@@ -51,33 +41,15 @@ exports.deleteFile = async (req, res) => {
 
 exports.getFileInfo = async (req, res) => {
   try {
-    const { fileUrl } = req.body;
+    const { publicId, resourceType } = req.body;
 
-    if (!fileUrl) {
+    if (!publicId) {
       return res.status(400).json({
-        message: "URL file là bắt buộc",
+        message: "Public ID là bắt buộc",
       });
     }
 
-    // Trích xuất publicId và resourceType từ URL
-    const targetPublicId = extractPublicIdFromUrl(fileUrl);
-    const resourceType = extractResourceTypeFromUrl(fileUrl);
-    console.log(
-      "Extracted publicId:",
-      targetPublicId,
-      "resourceType:",
-      resourceType,
-      "from URL:",
-      fileUrl
-    );
-
-    if (!targetPublicId) {
-      return res.status(400).json({
-        message: "Không thể trích xuất public ID từ URL file",
-      });
-    }
-
-    const result = await getFileInfo(targetPublicId, resourceType);
+    const result = await getFileInfo(publicId, resourceType || "raw");
 
     res.json({
       message: "Lấy thông tin file thành công",

@@ -18,12 +18,18 @@ const { requireLoggedIn } = require("../middlewares/auth.middleware");
  *           schema:
  *             type: object
  *             required:
- *               - fileUrl
+ *               - publicId
+ *               - resourceType
  *             properties:
- *               fileUrl:
+ *               publicId:
  *                 type: string
- *                 description: URL của file cần xóa (hình ảnh, PDF, tài liệu, etc.)
- *                 example: "https://res.cloudinary.com/demo/image/upload/v1234567890/document.pdf"
+ *                 description: Public ID của file trên Cloudinary
+ *                 example: "document"
+ *               resourceType:
+ *                 type: string
+ *                 enum: [raw, image, video]
+ *                 description: Loại tài nguyên của file
+ *                 example: "raw"
  *     responses:
  *       200:
  *         description: Xóa file thành công
@@ -48,7 +54,7 @@ const { requireLoggedIn } = require("../middlewares/auth.middleware");
  *                       type: string
  *                       example: "ok"
  *       400:
- *         description: URL file không hợp lệ
+ *         description: Public ID hoặc Resource Type không hợp lệ
  *       401:
  *         description: Chưa đăng nhập
  *       404:
@@ -73,12 +79,18 @@ router.delete("/delete-file", requireLoggedIn, cloudinaryController.deleteFile);
  *           schema:
  *             type: object
  *             required:
- *               - fileUrl
+ *               - publicId
+ *               - resourceType
  *             properties:
- *               fileUrl:
+ *               publicId:
  *                 type: string
- *                 description: URL của file cần lấy thông tin (hình ảnh, PDF, tài liệu, etc.)
- *                 example: "https://res.cloudinary.com/demo/image/upload/v1234567890/document.pdf"
+ *                 description: Public ID của file trên Cloudinary
+ *                 example: "document"
+ *               resourceType:
+ *                 type: string
+ *                 enum: [raw, image, video]
+ *                 description: Loại tài nguyên của file
+ *                 example: "raw"
  *     responses:
  *       200:
  *         description: Lấy thông tin file thành công
@@ -127,7 +139,7 @@ router.delete("/delete-file", requireLoggedIn, cloudinaryController.deleteFile);
  *                       type: string
  *                       example: "https://res.cloudinary.com/demo/image/upload/v1234567890/document.pdf"
  *       400:
- *         description: URL file không hợp lệ
+ *         description: Public ID hoặc Resource Type không hợp lệ
  *       401:
  *         description: Chưa đăng nhập
  *       404:
