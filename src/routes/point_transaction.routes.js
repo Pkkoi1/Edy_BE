@@ -5,6 +5,77 @@ const { requireLoggedIn } = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
+ * /point-transactions/spend:
+ *   post:
+ *     summary: Sử dụng điểm của người dùng
+ *     tags: [Point Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *               - reason
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 minimum: 1
+ *                 description: Số điểm cần trừ
+ *                 example: 10
+ *               reason:
+ *                 type: string
+ *                 description: Lý do sử dụng điểm
+ *                 example: "Download tài liệu premium"
+ *     responses:
+ *       200:
+ *         description: Sử dụng điểm thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Sử dụng điểm thành công"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                       example: true
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         first_name:
+ *                           type: string
+ *                         last_name:
+ *                           type: string
+ *                         point:
+ *                           type: number
+ *                           example: 90
+ *                     spent_amount:
+ *                       type: number
+ *                       example: 10
+ *                     remaining_points:
+ *                       type: number
+ *                       example: 90
+ *       400:
+ *         description: Dữ liệu không hợp lệ hoặc không đủ điểm
+ *       401:
+ *         description: Chưa đăng nhập
+ *       500:
+ *         description: Lỗi server
+ */
+router.post("/spend", requireLoggedIn, pointTransactionController.spendPoints);
+
+/**
+ * @swagger
  * /point-transactions/{userId}/history:
  *   get:
  *     summary: Lấy lịch sử tích điểm của người dùng
