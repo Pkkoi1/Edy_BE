@@ -9,7 +9,10 @@ const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
 const Assignment = require("../models/assignment.model");
 const { createPointTransaction } = require("./point_transaction.service");
-const { processDocumentAndCreateEmbedding, processDocumentAndCreateSummary } = require("../utils/tranformers");
+const {
+  processDocumentAndCreateEmbedding,
+  processDocumentAndCreateSummary,
+} = require("../utils/tranformers");
 const {
   searchDocuments,
   findSimilarDocuments,
@@ -37,8 +40,8 @@ const getAllDocuments = async ({
   limit = 5,
   ...filters
 }) => {
-  if(!await hasDocumentManageRole(payload.accountId)){
-    throw new Error('User does not have permission to manage documents');
+  if (!(await hasDocumentManageRole(payload.accountId))) {
+    throw new Error("User does not have permission to manage documents");
   }
   const skip = (page - 1) * limit;
 
@@ -699,15 +702,16 @@ const createDocument = async (data) => {
   }
   const doc = new Document(docData);
   await doc.save();
+
   // Tạo embedding cho document
-  const result = await processDocumentAndCreateEmbedding(doc.url, doc.file_type);
+  const result = await processDocumentAndCreateEmbedding(
+    doc.url,
+    doc.file_type
+  );
   doc.content_vector = result.embedding;
 
-  // const summaryResult = await processDocumentAndCreateSummary(doc.url, doc.file_type);
-  // console.log("Text created:", summaryResult.text);
-  // console.log("Summary created:", summaryResult.summary);
   // Cập nhật số lượng tài liệu của user
-  // await updateUserDocCount(data.user);
+  await updateUserDocCount(data.user);
 
   try {
     await indexDocument(doc);
@@ -774,6 +778,7 @@ const getDocumentById = async (id, userId) => {
   const isDeleted = doc && doc.is_deleted;
   const isOwner = doc && doc.user._id.toString() === userId;
   if (!canView && !isAdmin) {
+    await deleteFromHistoryIfHave(id, userId);
     throw new Error("Bạn không có quyền truy cập tài liệu này");
   }
 
@@ -781,6 +786,7 @@ const getDocumentById = async (id, userId) => {
     // tài liệu bị xóa thì chỉ chủ và admin có thể xem
     if (isDeleted) {
       if (!isOwner && !isAdmin) {
+        await deleteFromHistoryIfHave(id, userId);
         throw new Error("Bạn không có quyền truy cập tài liệu này");
       }
     }
@@ -794,7 +800,8 @@ const getDocumentById = async (id, userId) => {
           doc.description.summary_by_user =
             "Tài liệu không được tóm tắt bởi người đăng.";
         }
-        if (!isOwner &&
+        if (
+          !isOwner &&
           doc.description &&
           (doc.summary_status == "PENDING" ||
             doc.summary_status == "PENDING_EDIT")
@@ -832,7 +839,7 @@ const getPendingDocuments = async ({
 
   // Query cơ bản cho pending documents
   let query = {
-    $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
+    $or: [{ status: "PENDING" }, {status: "PENDING_EDIT"} ,{ summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
     is_deleted: false,
   };
 
@@ -840,7 +847,7 @@ const getPendingDocuments = async ({
   if (searchOr.length > 0) {
     query.$and = [
       {
-        $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
+        $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }, { summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
       },
       { $or: searchOr },
       { is_deleted: false },
@@ -1252,7 +1259,7 @@ const reactionDocument = async (documentId, userId, reactionType) => {
     existingReaction.type = reactionType;
     await existingReaction.save();
   } else {
-    // Nếu chưa phản ứng, tạo mới
+    // Nếu chưa phản ứng, tạo mới và cộng điểm
     const newReaction = new Reaction({
       doc: documentId,
       user: userId,
@@ -1264,6 +1271,19 @@ const reactionDocument = async (documentId, userId, reactionType) => {
       doc.dislike += 1;
     }
     await newReaction.save();
+
+    // Cộng 1 điểm cho việc đánh giá tài liệu
+    try {
+      await createPointTransaction(
+        userId,
+        "EARN",
+        1,
+        `Đánh giá tài liệu ${doc.title}`
+      );
+    } catch (pointError) {
+      console.error("Error creating reaction points:", pointError);
+      // Không làm fail việc reaction nếu cộng điểm thất bại
+    }
   }
   await doc.save();
 
@@ -1574,6 +1594,31 @@ const getDocumentsByUserId = async ({
   };
 };
 
+const incrementViewCount = async (documentId, userId) => {
+  // Chỉ kiểm tra tài liệu tồn tại và đã được duyệt
+  const document = await Document.findById(documentId);
+
+  if (!document) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+
+  if (document.status !== "APPROVED") {
+    throw new Error("Tài liệu chưa được duyệt hoặc không khả dụng");
+  }
+
+  // Tăng view count
+  const updatedDocument = await Document.findByIdAndUpdate(
+    documentId,
+    { $inc: { view: 1 } },
+    { new: true }
+  );
+
+  return {
+    documentId,
+    newViewCount: updatedDocument.view,
+  };
+};
+
 module.exports = {
   getAllDocuments,
   getNewestDocuments,
@@ -1595,10 +1640,42 @@ module.exports = {
   addToHistory,
   getReadHistory,
   getDocumentsByUserId,
+  incrementViewCount,
 };
 
 const hasDocumentManageRole = async (accountId, documentId) => {
-    const assignments = await Assignment.find({ account: accountId, is_active: true }).populate("role");
-    const userRoles = assignments.filter(assignment => assignment.role.permissions.includes('MANAGE_DOCUMENT') || assignment.role.permissions.includes('ALL'));
-    return userRoles.some(role => role.role.permissions.includes('MANAGE_DOCUMENT') || role.role.permissions.includes('ALL'));
-}
+  const assignments = await Assignment.find({
+    account: accountId,
+    is_active: true,
+  }).populate("role");
+  const userRoles = assignments.filter(
+    (assignment) =>
+      assignment.role.permissions.includes("MANAGE_DOCUMENT") ||
+      assignment.role.permissions.includes("ALL")
+  );
+  return userRoles.some(
+    (role) =>
+      role.role.permissions.includes("MANAGE_DOCUMENT") ||
+      role.role.permissions.includes("ALL")
+  );
+};
+
+const deleteFromHistoryIfHave = async (documentId, userId) => {
+  try {
+    const user = await User.findByIdAndUpdate(userId,
+      {
+        $pull: {
+          read_history: {
+            document: documentId,
+          },
+        },
+      }
+    );
+    if (!user) {
+      throw new Error("Người dùng không tồn tại");
+    };
+
+  } catch (error) {
+    throw new Error(`Lỗi xóa lịch sử đọc: ${error.message}`);
+  }
+};

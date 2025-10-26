@@ -7,7 +7,7 @@ async function waitForElasticsearch() {
   let attempt = 1;
   while (true) {
     try {
-      await client.ping();
+      await client.info();
       console.log("✅ Elasticsearch is ready");
       return true;
     } catch (err) {
@@ -21,7 +21,13 @@ async function waitForElasticsearch() {
 dotenv.config();
 
 const { Client } = require("@elastic/elasticsearch");
-const client = new Client({ node: process.env.ELASTICSEARCH_URL });
+const client = new Client({
+  node: process.env.ELASTICSEARCH_URL,
+  auth: {
+    username: process.env.ELASTICSEARCH_USER_NAME,
+    password: process.env.ELASTICSEARCH_PASSWORD,
+  },
+});
 // Connect to MongoDB
 const connectDB = require("./src/config/db");
 connectDB();
@@ -35,11 +41,19 @@ app.use(cookieParser());
 const cors = require("cors");
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173", // local dev
+      "https://edy-fe.vercel.app", // vercel production
+    ],
     credentials: true,
     exposedHeaders: ["X-Filename", "X-Original-Title"],
   })
 );
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
+});
 
 // Swagger docs
 const swaggerSetup = require("./src/config/swagge");

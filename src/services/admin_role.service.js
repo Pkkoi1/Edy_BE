@@ -3,12 +3,17 @@ const Assignment = require("../models/assignment.model");
 const Account = require("../models/account.model");
 const User = require("../models/user.model");
 
-const getAllRole = async (accountId) => {
+const getAllRole = async (accountId, query) => {
     if(!await hasManageRole(accountId)){
         throw new Error('User does not have permission to manage roles');
     }
+    // neu co query active thi filter theo active
+    if (query.active !== undefined) {
+        return Role.find({ code: { $ne: 'SUPER_ADMIN' }, is_active: query.active });
+    }
     return Role.find({ code: { $ne: 'SUPER_ADMIN' } });
 }
+
 
 const getRoleById = async (roleId, accountId) => {
     if(!await hasManageRole(accountId)){
@@ -45,6 +50,11 @@ const changeActiveRole = async (roleId, active, accountId) => {
     // tắt role -> tự động tắt assignment liên quan
     if (active === false) {
         await Assignment.updateMany({ role: roleId }, { is_active: false });
+
+        const accountsAffected = await Assignment.find({ role: roleId });
+        for (const account of accountsAffected) {
+            await updateAccountAdminStatus(account.account);
+        }
     }
 
     return role;
