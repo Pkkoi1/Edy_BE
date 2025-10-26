@@ -76,7 +76,12 @@ const deleteEditDocument = async (editDocumentId) => {
 
 const getEditDocumentByOriginalDocument = async (documentId) => {
   try{
-    const editDocument = await EditDocument.findOne({ original_document: documentId, is_deleted: false, status: 'PENDING' });
+    const editDocument = await EditDocument.findOne({ 
+      original_document: documentId, 
+      is_deleted: false, 
+      status: 'PENDING' 
+    }).populate('subject', 'name').populate('organization', 'name');
+    
     if(!editDocument) throw new Error('Bản chỉnh sửa không tồn tại');
     return editDocument;
   } catch (error) {
