@@ -980,7 +980,8 @@ const processDownload = async (downloadId, userId) => {
       user._id,
       "SPEND",
       downloadLink.cost,
-      `Tải tài liệu ${document.title}`
+      `Tải tài liệu ${document.title}`,
+      "USAGE"
     );
   }
 
@@ -1246,7 +1247,8 @@ const reactionDocument = async (documentId, userId, reactionType) => {
         userId,
         "EARN",
         1,
-        `Đánh giá tài liệu ${doc.title}`
+        `Đánh giá tài liệu ${doc.title}`,
+        "BOTH"
       );
     } catch (pointError) {
       console.error("Error creating reaction points:", pointError);
@@ -1630,19 +1632,16 @@ const hasDocumentManageRole = async (accountId, documentId) => {
 
 const deleteFromHistoryIfHave = async (documentId, userId) => {
   try {
-    const user = await User.findByIdAndUpdate(userId,
-      {
-        $pull: {
-          read_history: {
-            document: documentId,
-          },
+    const user = await User.findByIdAndUpdate(userId, {
+      $pull: {
+        read_history: {
+          document: documentId,
         },
-      }
-    );
+      },
+    });
     if (!user) {
       throw new Error("Người dùng không tồn tại");
-    };
-
+    }
   } catch (error) {
     throw new Error(`Lỗi xóa lịch sử đọc: ${error.message}`);
   }

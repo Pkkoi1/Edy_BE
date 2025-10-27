@@ -74,6 +74,33 @@ const verifyUser = async (accountId, userId, field_of_study, organization) => {
   return { success: true };
 };
 
+const updateUserFieldOfStudy = async (userId, field_of_study) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    let fieldOfStudyArray = [];
+    if (Array.isArray(field_of_study)) {
+      fieldOfStudyArray = field_of_study;
+    } else {
+      fieldOfStudyArray = field_of_study
+        ? field_of_study
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s)
+        : [];
+    }
+    user.field_of_study = fieldOfStudyArray;
+
+    await user.save();
+    return { success: true, message: "Cập nhật lĩnh vực học thành công" };
+  } catch (error) {
+    return { error: "Lỗi khi cập nhật lĩnh vực học: " + error.message };
+  }
+};
+
 const updateUserProfile = async (
   userId,
   { first_name, last_name, organization, avatar }
@@ -553,6 +580,7 @@ module.exports = {
   getUsers,
   verifyUser,
   updateUserProfile,
+  updateUserFieldOfStudy,
   changePassword,
   updateUserDocCount,
   addFavoriteDocument,

@@ -2,16 +2,19 @@ const ApprovalRequest = require("../models/approval_request.model");
 const User = require("../models/user.model");
 const Document = require("../models/document.model");
 const Organization = require("../models/organization.model");
-const {createPointTransaction} = require("./point_transaction.service");
 const {indexDocument} = require('./elasticsearch.service');
 const {processDocumentWithGeminiAI} = require("../utils/tranformers");
+const {
+  createPointTransaction,
+  earnPoints,
+} = require("./point_transaction.service");
 
 const createApprovalRequest = async (documentId, requesterId) => {
-    const requester = await User.findById(requesterId);
-    if (!requester) throw new Error("Người yêu cầu không tồn tại");
+  const requester = await User.findById(requesterId);
+  if (!requester) throw new Error("Người yêu cầu không tồn tại");
 
-    const document = await Document.findById(documentId);
-    if (!document) throw new Error("Tài liệu không tồn tại");
+  const document = await Document.findById(documentId);
+  if (!document) throw new Error("Tài liệu không tồn tại");
 
     const approvalRequest = new ApprovalRequest({
         doc: document._id,
@@ -87,28 +90,28 @@ const processDocumentWithAI = async (approvalRequestId, document) => {
 };
 
 const getPendingRequestsByDocument = async (documentId) => {
-    return ApprovalRequest.find({ doc: documentId, status: "PENDING" })
+  return ApprovalRequest.find({ doc: documentId, status: "PENDING" });
 };
 
 const approveRequest = async (requestId, reviewerId, isIntensive) => {
-    const reviewer = await User.findById(reviewerId);
-    if (!reviewer) throw new Error("Người duyệt không tồn tại");
+  const reviewer = await User.findById(reviewerId);
+  if (!reviewer) throw new Error("Người duyệt không tồn tại");
 
-    const approvalRequest = await ApprovalRequest.findById(requestId);
-    if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
-    
-    const user = await User.findById(approvalRequest.requester);
-    if (!user) throw new Error("Người yêu cầu không tồn tại");
-    const current = new Date();
+  const approvalRequest = await ApprovalRequest.findById(requestId);
+  if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
 
-    approvalRequest.reviewed_by = reviewer._id;
-    approvalRequest.reviewed_at = current;
-    approvalRequest.status = "APPROVED";
-    await approvalRequest.save();
+  const user = await User.findById(approvalRequest.requester);
+  if (!user) throw new Error("Người yêu cầu không tồn tại");
+  const current = new Date();
 
-    const document = await Document.findById(approvalRequest.doc);
-    if (!document) throw new Error("Tài liệu không tồn tại");
-    const organization = await Organization.findById(document.organization);
+  approvalRequest.reviewed_by = reviewer._id;
+  approvalRequest.reviewed_at = current;
+  approvalRequest.status = "APPROVED";
+  await approvalRequest.save();
+
+  const document = await Document.findById(approvalRequest.doc);
+  if (!document) throw new Error("Tài liệu không tồn tại");
+  const organization = await Organization.findById(document.organization);
 
     // Cập nhật document status
     document.status = "APPROVED";
@@ -135,22 +138,26 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
             }
         }
 
-        if (document.doc_type) {
-            const existingCategory = organization.content_categories.find(c =>
-                c.doc_type === document.doc_type
-            );
+      if (document.doc_type) {
+        const existingCategory = organization.content_categories.find(
+          (c) => c.doc_type === document.doc_type
+        );
 
-            if (existingCategory) {
-                existingCategory.document_count = (existingCategory.document_count || 0) + 1;
-            } else {
-                organization.content_categories.push({
-                    doc_type: document.doc_type,
-                    document_count: 1
-                });
-            }
+        if (existingCategory) {
+          // Tăng document_count cho category đã tồn tại
+          existingCategory.document_count =
+            (existingCategory.document_count || 0) + 1;
+        } else {
+          // Thêm category mới
+          organization.content_categories.push({
+            doc_type: document.doc_type,
+            document_count: 1,
+          });
         }
-        await organization.save();
+      }
+      await organization.save();
     }
+  }
 
     // Set intensive nếu cần
     if (isIntensive) {
@@ -166,41 +173,41 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
         console.error(`Lỗi cập nhật tài liệu ${document._id} trong Elasticsearch: ${error.message}`);
     }
 
-    // Tính điểm lần đăng này
-    const isFirstApproval = await ApprovalRequest.countDocuments({
+  //tính điểm lần đăng này
+  if (!approvalRequest.is_summary) {
+    const isFirstApproval =
+      (await ApprovalRequest.countDocuments({
         requester: approvalRequest.requester,
         status: "APPROVED",
-        doc: { $ne: approvalRequest.doc }
-    }) === 0;
+        doc: { $ne: approvalRequest.doc },
+      })) === 0;
     const base = isFirstApproval ? 20 : 15;
     const total = isIntensive ? base + 5 : base;
-    user.point = (user.point || 0) + total;
-    user.rank_point = (user.rank_point || 0) + total;
-    await user.save();
-    await createPointTransaction(user._id, "EARN", total, `Đăng tài liệu ${document.title}`);
+    await earnPoints(user._id, total, `Đăng tài liệu ${document.title}`);
+  }
 
-    //gửi thông báo cho người đăng (để sau)
+  //gửi thông báo cho người đăng (để sau)
 
-    return approvalRequest;
+  return approvalRequest;
 };
 
 const rejectRequest = async (requestId, reviewerId, message) => {
-    const reviewer = await User.findById(reviewerId);
-    if (!reviewer) throw new Error("Người duyệt không tồn tại");
+  const reviewer = await User.findById(reviewerId);
+  if (!reviewer) throw new Error("Người duyệt không tồn tại");
 
-    const approvalRequest = await ApprovalRequest.findById(requestId);
-    if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
+  const approvalRequest = await ApprovalRequest.findById(requestId);
+  if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
 
-    const current = new Date();
-    approvalRequest.reviewed_by = reviewer._id;
-    approvalRequest.reviewed_at = current;
-    approvalRequest.status = "REJECTED";
-    approvalRequest.message = message;
-    approvalRequest.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
-    await approvalRequest.save();
+  const current = new Date();
+  approvalRequest.reviewed_by = reviewer._id;
+  approvalRequest.reviewed_at = current;
+  approvalRequest.status = "REJECTED";
+  approvalRequest.message = message;
+  approvalRequest.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
+  await approvalRequest.save();
 
-    const document = await Document.findById(approvalRequest.doc);
-    if (!document) throw new Error("Tài liệu không tồn tại");
+  const document = await Document.findById(approvalRequest.doc);
+  if (!document) throw new Error("Tài liệu không tồn tại");
 
     // Reject document
     document.status = "REJECTED";
@@ -208,9 +215,9 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     document.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
     await document.save();
 
-    //gửi thông báo cho người đăng (để sau)
+  //gửi thông báo cho người đăng (để sau)
 
-    return approvalRequest;
+  return approvalRequest;
 };
 
 module.exports = {

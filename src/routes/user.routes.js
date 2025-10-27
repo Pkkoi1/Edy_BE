@@ -106,6 +106,43 @@ router.put("/profile", requireLoggedIn, userController.updateProfile);
 
 /**
  * @swagger
+ * /users/field-of-study:
+ *   put:
+ *     summary: Cập nhật lĩnh vực học của người dùng
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - field_of_study
+ *             properties:
+ *               field_of_study:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["Công nghệ thông tin", "Kỹ thuật phần mềm"]
+ *                 description: "Danh sách lĩnh vực học của người dùng"
+ *     responses:
+ *       200:
+ *         description: Cập nhật lĩnh vực học thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ */
+router.put(
+  "/field-of-study",
+  requireLoggedIn,
+  userController.updateFieldOfStudy
+);
+
+/**
+ * @swagger
  * /users/change-password:
  *   put:
  *     summary: Thay đổi mật khẩu

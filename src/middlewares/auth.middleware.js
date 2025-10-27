@@ -78,12 +78,26 @@ exports.requireLoggedIn = async (req, res, next) => {
     next();
 }
 
-exports.refreshToken = (req, res, next) => {
+exports.refreshToken = async (req, res, next) => {
     const token = req.cookies.refreshToken;
     if (!token) return res.status(401).json({ message: 'Chưa xác thực' });
 
-    const payload = verifyToken(token, process.env.JWT_SECRET);
+    const payload = verifyToken(token, process.env.JWT_REFRESH_SECRET);
     if (!payload) return res.status(401).json({ message: 'Mã xác thực hông hợp lệ' });
+
+    console.log('Refresh token payload:', payload); // Debug log
+
+    // Kiểm tra tài khoản có bị khóa không
+    const now = new Date();
+    const activeRestriction = await Restriction.findOne({
+        account: payload.accountId,
+        type: 'LOGIN',
+        start_date: { $lte: now },
+        end_date: { $gte: now }
+    });
+    if (activeRestriction) {
+        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}` });
+    }
 
     req.user = payload;
     next()
