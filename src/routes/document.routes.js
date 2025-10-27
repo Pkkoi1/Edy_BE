@@ -103,12 +103,6 @@ const {
  *           enum: [PENDING, APPROVED, REJECTED, REQUESTED_EDIT, PENDING_EDIT]
  *         description: Lọc theo trạng thái tài liệu
  *       - in: query
- *         name: summary_status
- *         schema:
- *           type: string
- *           enum: [PENDING, APPROVED, REJECTED, REQUESTED_EDIT, PENDING_EDIT, NONE]
- *         description: Lọc theo trạng thái tóm tắt tài liệu
- *       - in: query
  *         name: public_mode
  *         schema:
  *           type: string
