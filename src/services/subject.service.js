@@ -80,6 +80,81 @@ const searchSubjects = async (keyword) => {
   }
 };
 
+const countApprovedDocuments = async (subjectId) => {
+  try {
+    const count = await Document.countDocuments({
+      subject: subjectId,
+      status: "APPROVED",
+      is_deleted: false,
+    });
+    return count;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const syncSubjectDocCount = async (subjectId) => {
+  try {
+    // Đếm số tài liệu đã duyệt
+    const actualCount = await countApprovedDocuments(subjectId);
+
+    // Lấy thông tin môn học hiện tại
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      throw new Error("Môn học không tồn tại");
+    }
+
+    // So sánh và cập nhật nếu khác nhau
+    if (subject.doc_count !== actualCount) {
+      await Subject.findByIdAndUpdate(subjectId, { doc_count: actualCount });
+      return {
+        updated: true,
+        oldCount: subject.doc_count,
+        newCount: actualCount,
+      };
+    }
+
+    return {
+      updated: false,
+      count: actualCount,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+const syncAllSubjectsDocCount = async () => {
+  try {
+    // Lấy tất cả môn học chưa bị xóa
+    const subjects = await Subject.find({ is_deleted: false });
+    const results = [];
+
+    for (const subject of subjects) {
+      try {
+        const result = await syncSubjectDocCount(subject._id);
+        if (result.updated) {
+          results.push({
+            subjectId: subject._id,
+            subjectName: subject.name,
+            oldCount: result.oldCount,
+            newCount: result.newCount,
+          });
+        }
+      } catch (error) {
+        console.error(`Lỗi đồng bộ môn học ${subject._id}:`, error.message);
+      }
+    }
+
+    return {
+      totalSubjects: subjects.length,
+      updatedSubjects: results.length,
+      updatedList: results,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   createSubject,
   getAllSubjects,
@@ -88,4 +163,7 @@ module.exports = {
   deleteSubject,
   getSubjectsByOrganization,
   searchSubjects,
+  countApprovedDocuments,
+  syncSubjectDocCount,
+  syncAllSubjectsDocCount,
 };

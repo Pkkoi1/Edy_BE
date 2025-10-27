@@ -2,6 +2,7 @@ const {
   getUsers,
   verifyUser,
   updateUserProfile,
+  updateUserFieldOfStudy,
   changePassword,
   getFavoriteDocuments,
   addFavoriteDocument,
@@ -58,6 +59,27 @@ exports.updateProfile = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Đã xảy ra lỗi khi cập nhật thông tin" });
+  }
+};
+
+exports.updateFieldOfStudy = async (req, res) => {
+  try {
+    const { field_of_study } = req.body;
+    const result = await updateUserFieldOfStudy(
+      req.user.userId,
+      field_of_study
+    );
+
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json({ message: result.message });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi cập nhật lĩnh vực học" });
   }
 };
 

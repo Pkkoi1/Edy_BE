@@ -41,8 +41,6 @@ const documentSchema = new mongoose.Schema({
       'PENDING',
       'APPROVED',
       'REJECTED',
-      'REQUESTED_EDIT',
-      'PENDING_EDIT',
       'NONE'
     ],
     default: 'NONE'

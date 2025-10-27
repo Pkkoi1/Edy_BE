@@ -839,7 +839,12 @@ const getPendingDocuments = async ({
 
   // Query cơ bản cho pending documents
   let query = {
-    $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
+    $or: [
+      { status: "PENDING" },
+      { status: "PENDING_EDIT" },
+      { summary_status: "PENDING" },
+      { summary_status: "PENDING_EDIT" },
+    ],
     is_deleted: false,
   };
 
@@ -847,7 +852,12 @@ const getPendingDocuments = async ({
   if (searchOr.length > 0) {
     query.$and = [
       {
-        $or: [{ status: "PENDING" }, { summary_status: "PENDING" }],
+        $or: [
+          { status: "PENDING" },
+          { status: "PENDING_EDIT" },
+          { summary_status: "PENDING" },
+          { summary_status: "PENDING_EDIT" },
+        ],
       },
       { $or: searchOr },
       { is_deleted: false },
@@ -1012,7 +1022,8 @@ const processDownload = async (downloadId, userId) => {
       user._id,
       "SPEND",
       downloadLink.cost,
-      `Tải tài liệu ${document.title}`
+      `Tải tài liệu ${document.title}`,
+      "USAGE"
     );
   }
 
@@ -1278,7 +1289,8 @@ const reactionDocument = async (documentId, userId, reactionType) => {
         userId,
         "EARN",
         1,
-        `Đánh giá tài liệu ${doc.title}`
+        `Đánh giá tài liệu ${doc.title}`,
+        "BOTH"
       );
     } catch (pointError) {
       console.error("Error creating reaction points:", pointError);
@@ -1594,6 +1606,31 @@ const getDocumentsByUserId = async ({
   };
 };
 
+const incrementViewCount = async (documentId, userId) => {
+  // Chỉ kiểm tra tài liệu tồn tại và đã được duyệt
+  const document = await Document.findById(documentId);
+
+  if (!document) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+
+  if (document.status !== "APPROVED") {
+    throw new Error("Tài liệu chưa được duyệt hoặc không khả dụng");
+  }
+
+  // Tăng view count
+  const updatedDocument = await Document.findByIdAndUpdate(
+    documentId,
+    { $inc: { view: 1 } },
+    { new: true }
+  );
+
+  return {
+    documentId,
+    newViewCount: updatedDocument.view,
+  };
+};
+
 module.exports = {
   getAllDocuments,
   getNewestDocuments,
@@ -1615,6 +1652,7 @@ module.exports = {
   addToHistory,
   getReadHistory,
   getDocumentsByUserId,
+  incrementViewCount,
 };
 
 const hasDocumentManageRole = async (accountId, documentId) => {
@@ -1636,19 +1674,16 @@ const hasDocumentManageRole = async (accountId, documentId) => {
 
 const deleteFromHistoryIfHave = async (documentId, userId) => {
   try {
-    const user = await User.findByIdAndUpdate(userId,
-      {
-        $pull: {
-          read_history: {
-            document: documentId,
-          },
+    const user = await User.findByIdAndUpdate(userId, {
+      $pull: {
+        read_history: {
+          document: documentId,
         },
-      }
-    );
+      },
+    });
     if (!user) {
       throw new Error("Người dùng không tồn tại");
-    };
-
+    }
   } catch (error) {
     throw new Error(`Lỗi xóa lịch sử đọc: ${error.message}`);
   }

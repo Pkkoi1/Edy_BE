@@ -182,6 +182,165 @@ router.get(
  *       403:
  *         description: Không có quyền
  */
-//router.put("/:id", requireAdminPermission(['MANAGE_ENTITY']), subjectController.updateSubject);
+/**
+ * @swagger
+ * /subjects/{id}:
+ *   put:
+ *     summary: Cập nhật thông tin môn học
+ *     tags:
+ *       - Subjects
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID môn học
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Toán cao cấp"
+ *               code:
+ *                 type: string
+ *                 example: "MATH101"
+ *               description:
+ *                 type: string
+ *                 example: "Môn học nền tảng cho sinh viên kỹ thuật"
+ *               organization:
+ *                 type: string
+ *                 example: "652e1c8e2f8b9c0012345678"
+ *     responses:
+ *       200:
+ *         description: Cập nhật môn học thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền
+ *       404:
+ *         description: Môn học không tồn tại
+ */
+router.put("/:id", requireUserRole, subjectController.updateSubject);
+
+/**
+ * @swagger
+ * /subjects/{id}:
+ *   delete:
+ *     summary: Xóa môn học
+ *     tags:
+ *       - Subjects
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID môn học
+ *     responses:
+ *       200:
+ *         description: Xóa môn học thành công
+ *       403:
+ *         description: Không có quyền
+ *       404:
+ *         description: Môn học không tồn tại
+ */
+router.delete("/:id", requireUserRole, subjectController.deleteSubject);
+
+/**
+ * @swagger
+ * /subjects/{id}/sync-doc-count:
+ *   post:
+ *     summary: Đồng bộ số lượng tài liệu đã duyệt của môn học
+ *     tags:
+ *       - Subjects
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID môn học
+ *     responses:
+ *       200:
+ *         description: Đồng bộ thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Đã đồng bộ số lượng tài liệu"
+ *                 old_count:
+ *                   type: integer
+ *                   example: 5
+ *                 new_count:
+ *                   type: integer
+ *                   example: 7
+ *       404:
+ *         description: Môn học không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.post(
+  "/:id/sync-doc-count",
+  requireUserRole,
+  subjectController.syncSubjectDocCount
+);
+
+/**
+ * @swagger
+ * /subjects/sync-all-doc-counts:
+ *   post:
+ *     summary: Đồng bộ số lượng tài liệu đã duyệt cho tất cả môn học
+ *     tags:
+ *       - Subjects
+ *     responses:
+ *       200:
+ *         description: Đồng bộ thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Đã đồng bộ tất cả môn học"
+ *                 total_subjects:
+ *                   type: integer
+ *                   example: 50
+ *                 updated_subjects:
+ *                   type: integer
+ *                   example: 5
+ *                 updated_list:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       subjectId:
+ *                         type: string
+ *                         example: "652e1c8e2f8b9c0012345678"
+ *                       subjectName:
+ *                         type: string
+ *                         example: "Toán cao cấp"
+ *                       oldCount:
+ *                         type: integer
+ *                         example: 5
+ *                       newCount:
+ *                         type: integer
+ *                         example: 7
+ *       500:
+ *         description: Lỗi server
+ */
+router.post(
+  "/sync-all-doc-counts",
+  requireUserRole,
+  subjectController.syncAllSubjectsDocCount
+);
 
 module.exports = router;
