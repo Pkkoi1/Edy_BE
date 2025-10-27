@@ -284,7 +284,7 @@ const getFavoriteDocuments = async (userId) => {
     const user = await User.findById(userId).populate({
       path: "favorites.document",
       select:
-        "_id title cover_page author published_year publisher organization subject level view download_count comment_count status summary_status public_mode is_deleted createdAt",
+        "_id title cover_page author published_year publisher organization subject level view download_count comment_count status public_mode is_deleted createdAt",
       populate: [
         { path: "organization", select: "_id name" },
         { path: "subject", select: "_id name" },

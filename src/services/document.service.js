@@ -77,7 +77,6 @@ const getAllDocuments = async ({
     "level",
     "subject",
     "status",
-    "summary_status",
     "public_mode",
   ];
 
@@ -102,7 +101,7 @@ const getAllDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt last_approved_at updatedAt like dislike"
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike"
       )
       .populate({
         path: "user",
@@ -561,7 +560,6 @@ const getMyDocuments = async ({
     "level",
     "subject",
     "status",
-    "summary_status",
     "public_mode",
   ];
 
@@ -602,7 +600,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode like dislike createdAt"
+        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt"
       )
       .populate({
         path: "user",
@@ -620,9 +618,7 @@ const getMyDocuments = async ({
   if (documents.length > 0) {
     // Query rejection cho documents bị rejected
     const rejectedDocIds = documents
-      .filter(
-        (doc) => doc.status === "REJECTED" || doc.summary_status === "REJECTED"
-      )
+      .filter((doc) => doc.status === "REJECTED")
       .map((doc) => doc._id);
 
     let rejections = [];
@@ -632,7 +628,7 @@ const getMyDocuments = async ({
         status: "REJECTED",
       })
         .populate("reviewed_by", "first_name last_name")
-        .select("doc message reviewed_by reviewed_at is_summary")
+        .select("doc message reviewed_by reviewed_at")
         .sort({ createdAt: -1 });
     }
 
@@ -640,16 +636,9 @@ const getMyDocuments = async ({
     documents.forEach((doc) => {
       // Chỉ set rejection cho documents bị reject
       if (doc.status === "REJECTED") {
-        doc._doc.content_rejection =
+        doc._doc.rejection =
           rejections.find(
-            (r) => r.doc.toString() === doc._id.toString() && !r.is_summary
-          ) || null;
-      }
-
-      if (doc.summary_status === "REJECTED") {
-        doc._doc.summary_rejection =
-          rejections.find(
-            (r) => r.doc.toString() === doc._id.toString() && r.is_summary
+            (r) => r.doc.toString() === doc._id.toString()
           ) || null;
       }
     });
@@ -790,27 +779,6 @@ const getDocumentById = async (id, userId) => {
         throw new Error("Bạn không có quyền truy cập tài liệu này");
       }
     }
-
-    if (!isAdmin) {
-      if (doc && doc.summary_status !== "APPROVED") {
-        if (
-          doc.description &&
-          (doc.summary_status == "REJECTED" || doc.summary_status == "NONE")
-        ) {
-          doc.description.summary_by_user =
-            "Tài liệu không được tóm tắt bởi người đăng.";
-        }
-        if (
-          !isOwner &&
-          doc.description &&
-          (doc.summary_status == "PENDING" ||
-            doc.summary_status == "PENDING_EDIT")
-        ) {
-          doc.description.summary_by_user =
-            "Tóm tắt đang chờ phê duyệt, hãy kiên nhẫn để admin duyệt bạn nhé!";
-        }
-      }
-    }
   }
 
   return doc;
@@ -839,7 +807,7 @@ const getPendingDocuments = async ({
 
   // Query cơ bản cho pending documents
   let query = {
-    $or: [{ status: "PENDING" }, {status: "PENDING_EDIT"} ,{ summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
+    $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
     is_deleted: false,
   };
 
@@ -847,7 +815,7 @@ const getPendingDocuments = async ({
   if (searchOr.length > 0) {
     query.$and = [
       {
-        $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }, { summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
+        $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
       },
       { $or: searchOr },
       { is_deleted: false },
@@ -888,7 +856,7 @@ const getPendingDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status summary_status createdAt"
+        "_id user title author published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status createdAt"
       )
       .populate({
         path: "user",

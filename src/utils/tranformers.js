@@ -19,8 +19,7 @@ env.quantized = true;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
     console.error("GEMINI_API_KEY is not set in environment variables.");
-    // Thoát hoặc xử lý lỗi tùy theo yêu cầu của ứng dụng
-    // process.exit(1); 
+
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
@@ -209,7 +208,131 @@ async function processDocumentAndCreateSummary(url, fileType) {
     }
 }
 
+/**
+ * Xử lý tài liệu với Gemini AI để tóm tắt và kiểm duyệt trong 1 lần gọi
+ * @param {string} url - Cloudinary URL của file
+ * @param {string} fileType - Loại file ('PDF' hoặc 'WORD')
+ * @returns {Promise<{summary: string, aiCheck: {violation_level: string, action_suggest: string, reason: string}}>}
+ */
+async function processDocumentWithGeminiAI(url, fileType) {
+    try {
+        const buffer = await downloadFile(url);
+        let text;
+
+        // Parse nội dung từ file
+        if (fileType === 'PDF') {
+            text = await parsePDF(url);
+        } else if (fileType === 'WORD') {
+            text = await parseDocx(buffer);
+        } else {
+            throw new Error('Loại file không được hỗ trợ');
+        }
+
+        // Giới hạn độ dài text để tránh quá tải (chỉ lấy 10000 ký tự đầu)
+        const maxLength = 10000;
+        const textToProcess = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+
+        // Prompt cho Gemini
+        const prompt = `Bạn là một hệ thống AI hỗ trợ kiểm duyệt và tóm tắt tài liệu giáo dục.
+
+Nhiệm vụ của bạn:
+1. Tóm tắt nội dung tài liệu (khoảng 200-300 từ)
+2. Kiểm tra vi phạm nội dung và đánh giá mức độ vi phạm
+
+Hãy phân tích tài liệu sau và trả về kết quả theo định dạng JSON chính xác:
+
+{
+  "summary": "Tóm tắt nội dung tài liệu bằng tiếng Việt (200-300 từ)",
+  "violation_level": "LOW|MEDIUM|HIGH",
+  "action_suggest": "AUTO_APPROVE|MANUAL_REVIEW|REJECT",
+  "reason": "Lý do đánh giá vi phạm"
+}
+
+Quy tắc đánh giá:
+- LOW: Tài liệu phù hợp. Có thể có một số nội dung hay lỗi cần xem xét nhưng vẫn an toàn và phù hợp → AUTO_APPROVE
+- MEDIUM: Có nội dung đáng nghi, cần xem xét kỹ → MANUAL_REVIEW
+- HIGH: Có nội dung vi phạm nghiêm trọng (bạo lực, bất hợp pháp, phản giáo dục) → REJECT
+
+Nội dung tài liệu:
+${textToProcess}
+
+Hãy trả về chỉ JSON, không có text thừa khác.`;
+
+        // Gọi Gemini API
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const responseText = response.text();
+
+        // Parse JSON từ response
+        let aiResult;
+        try {
+            // Tìm JSON trong response (loại bỏ markdown code block nếu có)
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                aiResult = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('Không tìm thấy JSON trong response');
+            }
+        } catch (parseError) {
+            console.error('Lỗi parse JSON từ Gemini:', parseError);
+            console.error('Response text:', responseText);
+            // Fallback: trả về kết quả mặc định
+            aiResult = {
+                summary: responseText.substring(0, 500) || 'Không thể tạo tóm tắt',
+                violation_level: 'MEDIUM',
+                action_suggest: 'MANUAL_REVIEW',
+                reason: 'Lỗi khi parse kết quả từ AI'
+            };
+        }
+
+        // Validate và chuẩn hóa kết quả
+        let violationLevel = aiResult.violation_level;
+        
+        // Nếu AI trả về NONE, chuyển thành LOW (vì sau khi AI check không bao giờ là NONE)
+        if (violationLevel === 'NONE') {
+            violationLevel = 'LOW';
+        }
+        
+        // Validate violation_level
+        if (!['LOW', 'MEDIUM', 'HIGH'].includes(violationLevel)) {
+            violationLevel = 'MEDIUM';
+        }
+
+        let actionSuggest = aiResult.action_suggest;
+        // Đảm bảo action_suggest phù hợp với violation_level
+        if (violationLevel === 'LOW') {
+            // LOW có thể AUTO_APPROVE hoặc MANUAL_REVIEW
+            actionSuggest = ['AUTO_APPROVE', 'MANUAL_REVIEW'].includes(actionSuggest) ? actionSuggest : 'MANUAL_REVIEW';
+        } else if (violationLevel === 'MEDIUM') {
+            actionSuggest = 'MANUAL_REVIEW';
+        } else if (violationLevel === 'HIGH') {
+            actionSuggest = 'REJECT';
+        }
+
+        return {
+            summary: aiResult.summary || 'Không thể tạo tóm tắt',
+            aiCheck: {
+                violation_level: violationLevel,
+                action_suggest: actionSuggest,
+                reason: aiResult.reason || (violationLevel === 'LOW' ? 'Phát hiện nội dung cần xem xét nhẹ' : 'Cần kiểm tra nội dung')
+            }
+        };
+    } catch (error) {
+        console.error('Lỗi khi xử lý với Gemini AI:', error);
+        // Trả về kết quả mặc định nếu có lỗi
+        return {
+            summary: 'Không thể tạo tóm tắt do lỗi xử lý',
+            aiCheck: {
+                violation_level: 'MEDIUM',
+                action_suggest: 'MANUAL_REVIEW',
+                reason: `Lỗi: ${error.message}`
+            }
+        };
+    }
+}
+
 module.exports = {
     processDocumentAndCreateEmbedding,
-    processDocumentAndCreateSummary
+    processDocumentAndCreateSummary,
+    processDocumentWithGeminiAI
 };
