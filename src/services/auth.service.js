@@ -88,7 +88,8 @@ const registerService = async ({ first_name, last_name, email, password }) => {
       user._id,
       "EARN",
       5,
-      "Điểm thưởng đăng ký tài khoản mới"
+      "Điểm thưởng đăng ký tài khoản mới",
+      "BOTH"
     );
   } catch (pointError) {
     console.error("Error creating registration bonus points:", pointError);
