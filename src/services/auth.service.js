@@ -9,10 +9,13 @@ const nodemailer = require("nodemailer");
 const { createPointTransaction } = require("./point_transaction.service");
 
 const generateTokens = (payload) => {
-  const cleanPayload = { ...payload };
-  delete cleanPayload.exp;
-  delete cleanPayload.iat;
-  delete cleanPayload.nbf;
+  // Chỉ lấy những trường cần thiết, tránh các trường JWT tự động thêm
+  const cleanPayload = {
+    accountId: payload.accountId,
+    userId: payload.userId,
+    roles: payload.roles,
+  };
+
   const accessToken = jwt.sign(cleanPayload, process.env.JWT_SECRET, {
     expiresIn: "15m",
   });
@@ -88,7 +91,8 @@ const registerService = async ({ first_name, last_name, email, password }) => {
       user._id,
       "EARN",
       5,
-      "Điểm thưởng đăng ký tài khoản mới"
+      "Điểm thưởng đăng ký tài khoản mới",
+      "BOTH"
     );
   } catch (pointError) {
     console.error("Error creating registration bonus points:", pointError);
@@ -98,11 +102,31 @@ const registerService = async ({ first_name, last_name, email, password }) => {
   return { success: true };
 };
 
-const getMeService = async (payload) => {
-  const account = await Account.findById(payload.accountId).select(
+const getMeService = async (payload, accessToken, refreshToken) => {
+  let finalPayload = payload;
+  let newTokens = null;
+
+  if (!accessToken || !payload || !payload.userId) {
+    if (!refreshToken) {
+      throw new Error("Access token expired and no refresh token provided");
+    }
+
+    const refreshPayload = verifyToken(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET
+    );
+    if (!refreshPayload) {
+      throw new Error("Invalid refresh token");
+    }
+
+    newTokens = await refreshTokenService(refreshPayload);
+    finalPayload = verifyToken(newTokens.accessToken, process.env.JWT_SECRET);
+  }
+
+  const account = await Account.findById(finalPayload.accountId).select(
     "-password -__v"
   );
-  const user = await User.findById(payload.userId)
+  const user = await User.findById(finalPayload.userId)
     .select("-__v")
     .populate([
       { path: "organization", select: "_id name" },
@@ -151,11 +175,45 @@ const getMeService = async (payload) => {
   if (roles.length > 0) responseRoles = roles.map((a) => a.role.code);
   if (!account.is_verified) responseRoles = ["NOT_VERIFIED"];
 
-  return { account, user, roles: responseRoles };
+  return { account, user, roles: responseRoles, newTokens };
 };
 
 const refreshTokenService = async (payload) => {
-  const { accessToken, refreshToken } = generateTokens(payload);
+  console.log("Refresh token payload:", payload); // Debug log
+
+  // Kiểm tra payload có accountId không
+  if (!payload.accountId) {
+    throw new Error("Invalid token payload: missing accountId");
+  }
+
+  // Lấy thông tin account từ database
+  const account = await Account.findById(payload.accountId).populate("user");
+  if (!account) {
+    throw new Error("Account not found");
+  }
+
+  // Lấy roles mới từ database
+  let roles = [];
+  if (!account.is_verified) roles = ["NOT_VERIFIED"];
+  else if (!account.is_admin) roles = ["USER"];
+  else {
+    const assignments = await Assignment.find({
+      account: account._id,
+      is_active: true,
+    }).populate("role");
+    roles = assignments.length ? assignments.map((a) => a.role.code) : ["USER"];
+  }
+
+  // Tạo payload mới với thông tin từ database
+  const updatedPayload = {
+    accountId: account._id.toString(),
+    userId: account.user._id.toString(),
+    roles,
+  };
+
+  console.log("Updated payload for new tokens:", updatedPayload); // Debug log
+
+  const { accessToken, refreshToken } = generateTokens(updatedPayload);
   return { accessToken, refreshToken };
 };
 
