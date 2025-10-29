@@ -216,7 +216,6 @@ exports.uploadDocument = async (req, res) => {
       public_mode,
       description: descriptionObj,
       page,
-      summary_status: descriptionObj.summary_by_user ? "PENDING" : "NONE",
     });
 
     //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
@@ -579,10 +578,6 @@ exports.updateDocumentInfo = async (req, res) => {
         ...document.description,
         summary_by_user: description,
       };
-      // Nếu có tóm tắt mới, đặt summary_status về PENDING
-      if (description && description.length > 10) {
-        updateData.summary_status = "PENDING";
-      }
     }
 
     // Validation cho các trường enum
@@ -663,7 +658,6 @@ exports.updateDocumentInfo = async (req, res) => {
         published_year: updatedDocument.published_year,
         author: updatedDocument.author,
         keyword: updatedDocument.keyword,
-        summary_status: updatedDocument.summary_status,
       },
     });
   } catch (error) {
