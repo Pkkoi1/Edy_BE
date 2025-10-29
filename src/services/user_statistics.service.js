@@ -234,8 +234,233 @@ const getUserStatisticsByYear = async (userId, year) => {
   return await getUserStatistics(userId, year);
 };
 
+// Cập nhật thống kê real-time
+const incrementCommentCount = async (userId) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    await UserStatistics.findOneAndUpdate(
+      { user: userObjectId, year: currentYear },
+      { $inc: { totalComments: 1 }, lastSyncAt: new Date() },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    console.error("Error incrementing comment count:", error);
+  }
+};
+
+const incrementDownloadCount = async (userId) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    await UserStatistics.findOneAndUpdate(
+      { user: userObjectId, year: currentYear },
+      { $inc: { totalDownloads: 1 }, lastSyncAt: new Date() },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    console.error("Error incrementing download count:", error);
+  }
+};
+
+const updateDocumentStats = async (documentId, userId, action) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const documentObjectId = new mongoose.Types.ObjectId(documentId);
+
+    // Lấy thống kê hiện tại
+    let statistics = await UserStatistics.findOne({
+      user: userObjectId,
+      year: currentYear,
+    });
+
+    if (!statistics) {
+      // Nếu chưa có thống kê, tạo mới
+      statistics = new UserStatistics({
+        user: userObjectId,
+        year: currentYear,
+        totalUploads: 0,
+        totalContributions: 0,
+        totalComments: 0,
+        totalDownloads: 0,
+        documentTypes: {
+          RESEARCH_REPORT: 0,
+          VIDEO: 0,
+          STUDY_GUIDE: 0,
+          TEXTBOOK: 0,
+          ESSAY: 0,
+          SOLUTION_SET: 0,
+          THESIS: 0,
+          LECTURE: 0,
+          OTHER: 0,
+        },
+        pointHistory: {},
+        topDocuments: [],
+        monthlyViolations: {},
+        lastSyncAt: new Date(),
+      });
+
+      // Khởi tạo pointHistory và monthlyViolations
+      for (let month = 1; month <= 12; month++) {
+        statistics.pointHistory[month] = { earned: 0, spent: 0 };
+        statistics.monthlyViolations[month] = {
+          SPAM_OR_MISLEADING: 0,
+          DUPLICATE: 0,
+          COPYRIGHT: 0,
+          INCORRECT_CATEGORY: 0,
+          PERSONAL_INFORMATION: 0,
+          LOW_QUALITY: 0,
+          INAPPROPRIATE: 0,
+          OTHER: 0,
+        };
+      }
+    }
+
+    // Tìm document trong topDocuments
+    const docIndex = statistics.topDocuments.findIndex(
+      (doc) => doc.document.toString() === documentObjectId.toString()
+    );
+
+    if (docIndex !== -1) {
+      // Cập nhật stats hiện tại
+      if (action === "view") {
+        statistics.topDocuments[docIndex].views += 1;
+      } else if (action === "download") {
+        statistics.topDocuments[docIndex].downloads += 1;
+      }
+    } else {
+      // Nếu chưa có trong top 3, kiểm tra xem có nên thêm không
+      // Lấy thông tin document để tính toán
+      const document = await Document.findById(documentObjectId);
+      if (document && document.user.toString() === userObjectId.toString()) {
+        const totalVotes = document.like + document.dislike;
+        const rating =
+          totalVotes > 0 ? Math.round((document.like / totalVotes) * 100) : 0;
+
+        const newDoc = {
+          document: documentObjectId,
+          title: document.title,
+          views: action === "view" ? 1 : 0,
+          downloads: action === "download" ? 1 : 0,
+          rating: rating,
+        };
+
+        // Nếu chưa có đủ 3 documents, thêm vào
+        if (statistics.topDocuments.length < 3) {
+          statistics.topDocuments.push(newDoc);
+        } else {
+          // Tính điểm cho document mới và so sánh
+          const newScore =
+            newDoc.views * 0.3 + newDoc.downloads * 0.4 + newDoc.rating * 0.3;
+
+          // Tìm document có điểm thấp nhất trong top 3
+          let lowestScore = Infinity;
+          let lowestIndex = -1;
+
+          statistics.topDocuments.forEach((doc, index) => {
+            const score =
+              doc.views * 0.3 + doc.downloads * 0.4 + doc.rating * 0.3;
+            if (score < lowestScore) {
+              lowestScore = score;
+              lowestIndex = index;
+            }
+          });
+
+          // Nếu điểm mới cao hơn điểm thấp nhất, thay thế
+          if (newScore > lowestScore) {
+            statistics.topDocuments[lowestIndex] = newDoc;
+          }
+        }
+      }
+    }
+
+    // Sắp xếp lại topDocuments theo điểm
+    statistics.topDocuments.sort((a, b) => {
+      const scoreA = a.views * 0.3 + a.downloads * 0.4 + a.rating * 0.3;
+      const scoreB = b.views * 0.3 + b.downloads * 0.4 + b.rating * 0.3;
+      return scoreB - scoreA;
+    });
+
+    await statistics.save();
+  } catch (error) {
+    console.error("Error updating document stats:", error);
+  }
+};
+
+const addViolation = async (userId, violationType) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // getMonth() trả về 0-11
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const updatePath = `monthlyViolations.${currentMonth}.${violationType}`;
+
+    await UserStatistics.findOneAndUpdate(
+      { user: userObjectId, year: currentYear },
+      {
+        $inc: { [updatePath]: 1 },
+        lastSyncAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    console.error("Error adding violation:", error);
+  }
+};
+
+const updatePointHistory = async (userId, type, amount) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // getMonth() trả về 0-11
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const field = type === "EARN" ? "earned" : "spent";
+    const updatePath = `pointHistory.${currentMonth}.${field}`;
+
+    await UserStatistics.findOneAndUpdate(
+      { user: userObjectId, year: currentYear },
+      {
+        $inc: { [updatePath]: amount },
+        lastSyncAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    console.error("Error updating point history:", error);
+  }
+};
+
+const updateDocumentTypeCount = async (userId, docType) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const updatePath = `documentTypes.${docType || "OTHER"}`;
+
+    await UserStatistics.findOneAndUpdate(
+      { user: userObjectId, year: currentYear },
+      {
+        $inc: { [updatePath]: 1 },
+        lastSyncAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    console.error("Error updating document type count:", error);
+  }
+};
+
 module.exports = {
   syncUserStatistics,
   getUserStatistics,
   getUserStatisticsByYear,
+  incrementCommentCount,
+  incrementDownloadCount,
+  updateDocumentStats,
+  addViolation,
+  updatePointHistory,
+  updateDocumentTypeCount,
 };
