@@ -636,6 +636,7 @@ const findSimilarDocumentsForAdmin = async (sourceDocId, limit = 10) => {
             body: {
                 query: semanticQuery,
                 size: limit,
+                min_score: 1.8,
                 sort: [
                     { _score: { order: 'desc' } }
                 ]
