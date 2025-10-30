@@ -16,6 +16,7 @@ const {
 const {
   searchDocuments,
   findSimilarDocuments,
+  findSimilarDocumentsForAdmin,
   indexDocument,
   updateDocument: updateESDocument,
   deleteDocument: deleteESDocument,
@@ -1207,6 +1208,111 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
   }
 };
 
+const getSimilarDocumentsForAdmin = async (documentId, limit = 5) => {
+  try {
+    const sourceDoc = await Document.findById(documentId)
+      .select(
+        "title author keyword description subject organization user public_mode is_deleted"
+      )
+      .populate("subject", "name");
+
+    if (!sourceDoc) {
+      throw new Error("Tài liệu không tồn tại");
+    }
+
+    if (sourceDoc.is_deleted) {
+      throw new Error("Tài liệu đã bị xóa");
+    }
+
+    const { documentIds, scores } = await findSimilarDocumentsForAdmin(
+      documentId,
+      limit
+    );
+
+    if (documentIds.length === 0) {
+      return {
+        documents: [],
+        total: 0,
+        similarity_factors: [],
+      };
+    }
+
+    // Populate thông tin
+    const documents = await Document.find({
+      _id: { $in: documentIds },
+      is_deleted: false, // Double check
+    }).populate([
+      {
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      },
+      { path: "organization", select: "_id name" },
+      { path: "subject", select: "_id name" },
+    ]);
+
+    // Sắp xếp theo score 
+    const sortedDocuments = documentIds
+      .map((id) => documents.find((doc) => doc._id.toString() === id))
+      .filter(Boolean);
+
+    // Tạo similarity factors
+    const similarity_factors = sortedDocuments.map((doc) => {
+      const factors = [];
+
+      if (
+        doc.subject &&
+        sourceDoc.subject &&
+        doc.subject._id.toString() === sourceDoc.subject._id.toString()
+      ) {
+        factors.push("same_subject");
+      }
+
+      if (sourceDoc.author && doc.author) {
+        const commonAuthors = doc.author.filter((author) =>
+          sourceDoc.author.includes(author)
+        );
+        if (commonAuthors.length > 0) {
+          factors.push("same_author");
+        }
+      }
+
+      if (sourceDoc.keyword && doc.keyword) {
+        const commonKeywords = doc.keyword.filter((keyword) =>
+          sourceDoc.keyword.includes(keyword)
+        );
+        if (commonKeywords.length > 0) {
+          factors.push("same_keywords");
+        }
+      }
+
+      return {
+        document_id: doc._id,
+        factors,
+        elasticsearch_score: scores[doc._id.toString()] || {},
+      };
+    });
+
+    return {
+      documents: sortedDocuments,
+      total: sortedDocuments.length,
+      similarity_factors,
+      source_document: {
+        id: sourceDoc._id,
+        title: sourceDoc.title,
+        subject: sourceDoc.subject?.name,
+        author: sourceDoc.author,
+        keywords: sourceDoc.keyword,
+      },
+    };
+  } catch (error) {
+    throw new Error(`Lỗi lấy tài liệu tương tự cho admin: ${error.message}`);
+  }
+};
+
 const reactionDocument = async (documentId, userId, reactionType) => {
   const doc = await Document.findById(documentId);
   if (!doc) {
@@ -1641,6 +1747,7 @@ module.exports = {
   markDownloadSuccess,
   changeAllShareLink,
   getSimilarDocuments,
+  getSimilarDocumentsForAdmin,
   reactionDocument,
   getDocumentReactions,
   canViewDocument,
