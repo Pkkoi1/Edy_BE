@@ -6,6 +6,7 @@ const {
   notifyNewComment,
   notifyCommentReply,
 } = require("./notification.service");
+const { incrementCommentCount } = require("./user_statistics.service");
 const mongoose = require("mongoose");
 
 // Tạo bình luận mới
@@ -45,6 +46,13 @@ const createComment = async (userId, documentId, content, parentId = null) => {
 
   // Cập nhật comment_count của document
   await Document.findByIdAndUpdate(documentId, { $inc: { comment_count: 1 } });
+
+  // Cập nhật thống kê user
+  try {
+    await incrementCommentCount(userId);
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê comment:", statsError);
+  }
 
   // Populate thông tin user
   await comment.populate({
