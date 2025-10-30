@@ -2,7 +2,8 @@ const ApprovalRequest = require("../models/approval_request.model");
 const User = require("../models/user.model");
 const Document = require("../models/document.model");
 const Organization = require("../models/organization.model");
-const { indexDocument } = require('./elasticsearch.service');
+const Subject = require("../models/subject.model");
+const { indexDocument, updateDocument: updateESDocument, deleteDocument: deleteESDocument } = require('./elasticsearch.service');
 const { processDocumentWithGeminiAI } = require("../utils/tranformers");
 const {
     createPointTransaction,
@@ -23,8 +24,10 @@ const createApprovalRequest = async (documentId, requesterId) => {
 
     await approvalRequest.save();
 
+    // đưa thêm tên của subject
+    const subject = await Subject.findById(document.subject);
     // Xử lý thông qua AI bao gồm tóm tắt và kiểm duyệt mềm (chạy async không block)
-    processDocumentWithAI(approvalRequest._id, document).catch(error => {
+    processDocumentWithAI(approvalRequest._id, document, subject.name).catch(error => {
         console.error(`Lỗi khi xử lý AI cho document ${document._id}:`, error);
         // Không throw error để không ảnh hưởng đến việc tạo approval request
     });
@@ -37,7 +40,7 @@ const createApprovalRequest = async (documentId, requesterId) => {
  * @param {string} approvalRequestId - ID của approval request
  * @param {Object} document - Document object
  */
-const processDocumentWithAI = async (approvalRequestId, document) => {
+const processDocumentWithAI = async (approvalRequestId, document, subjectName) => {
     try {
         // Chỉ xử lý PDF và WORD
         if (!['PDF', 'WORD'].includes(document.file_type)) {
@@ -47,33 +50,68 @@ const processDocumentWithAI = async (approvalRequestId, document) => {
 
         console.log(`Bắt đầu xử lý AI cho document ${document._id}...`);
 
-        // Gọi Gemini AI để lấy cả summary và violation check
-        const result = await processDocumentWithGeminiAI(document.url, document.file_type);
+        const documentMetadata = {
+            title: document.title,
+            summary_by_user: document.description?.summary_by_user || '',
+            author: document.author,
+            publisher: document.publisher,
+            published_year: document.published_year,
+            keyword: document.keyword,
+            subject_name: subjectName || ''
+        };
+
+        // Gọi Gemini AI - pass metadata để kiểm tra
+        const result = await processDocumentWithGeminiAI(
+            document.url, 
+            document.file_type,
+            documentMetadata
+        );
 
         // Cập nhật approval request với kết quả AI check
         const approvalRequest = await ApprovalRequest.findById(approvalRequestId);
-        if (approvalRequest) {
-            approvalRequest.ai_checked = true;
-            approvalRequest.ai_violation_level = result.aiCheck.violation_level;
-            approvalRequest.ai_action_suggest = result.aiCheck.action_suggest;
-            approvalRequest.ai_reason = result.aiCheck.reason;
-            await approvalRequest.save();
+        if (!approvalRequest) {
+            console.error('Không tìm thấy approval request');
+            return;
         }
 
-        // Cập nhật document với summary từ AI
-        const doc = await Document.findById(document._id);
-        if (doc) {
-            if (!doc.description) {
-                doc.description = {};
+        approvalRequest.ai_checked = true;
+        approvalRequest.ai_violation_level = result.aiCheck.violation_level;
+        approvalRequest.ai_action_suggest = result.aiCheck.action_suggest;
+        
+        // Bổ sung thông tin metadata validation vào reason
+        let reason = result.aiCheck.reason;
+        if (!result.metadata_valid) {
+            reason = `[Metadata không hợp lệ] ${reason}`;
+        }
+        if (result.is_intensive) {
+            reason = `[Tài liệu chuyên sâu] ${reason}`;
+        }
+        approvalRequest.ai_reason = reason;
+
+        if (result.aiCheck.action_suggest === 'AUTO_APPROVE') {
+            console.log(`AI suggest AUTO_APPROVE - tự động duyệt document ${document._id}`);
+            
+            // Tự động approve
+            await autoApproveByAI(approvalRequest, document, result);
+        } else {
+            // nếu ko chắc thì đưa admin và lưu tóm tắt vào doc
+            const doc = await Document.findById(document._id);
+            if (doc) {
+                if (!doc.description) {
+                    doc.description = {};
+                }
+                doc.description.summary_by_ai = result.summary;
+                await doc.save();
             }
-            doc.description.summary_by_ai = result.summary;
-            await doc.save();
+
+            await approvalRequest.save();
+            console.log(`AI suggest ${result.aiCheck.action_suggest} - chờ admin review`);
         }
 
         console.log(`Hoàn thành xử lý AI cho document ${document._id}`);
     } catch (error) {
         console.error(`Lỗi trong processDocumentWithAI:`, error);
-        // Cập nhật approval request với lỗi (nếu cần)
+        // Fallback logic
         try {
             const approvalRequest = await ApprovalRequest.findById(approvalRequestId);
             if (approvalRequest) {
@@ -86,6 +124,99 @@ const processDocumentWithAI = async (approvalRequestId, document) => {
         } catch (updateError) {
             console.error('Lỗi khi cập nhật approval request:', updateError);
         }
+    }
+};
+
+const autoApproveByAI = async (approvalRequest, document, aiResult) => {
+    try {
+        const user = await User.findById(approvalRequest.requester);
+        if (!user) throw new Error("Người yêu cầu không tồn tại");
+        
+        const current = new Date();
+
+        approvalRequest.reviewed_by = null;
+        approvalRequest.reviewed_at = current;
+        approvalRequest.status = "APPROVED";
+        await approvalRequest.save();
+
+        document.status = "APPROVED";
+        document.last_approved_at = current;
+        
+        if (!document.description) {
+            document.description = {};
+        }
+        document.description.summary_by_ai = aiResult.summary;
+        
+        if (aiResult.is_intensive) {
+            document.intensive = true;
+        }
+
+        await document.save();
+
+        // Tăng doc_count cho user
+        user.doc_count = (user.doc_count || 0) + 1;
+        await user.save();
+
+        // Cập nhật organization statistics
+        const organization = await Organization.findById(document.organization);
+        if (organization) {
+            if (document.subject) {
+                const existingSubject = organization.subjects.find(s =>
+                    s.subject.toString() === document.subject.toString()
+                );
+
+                if (existingSubject) {
+                    existingSubject.count = (existingSubject.count || 0) + 1;
+                } else {
+                    organization.subjects.push({
+                        subject: document.subject,
+                        count: 1
+                    });
+                }
+            }
+
+            if (document.doc_type) {
+                const existingCategory = organization.content_categories.find(
+                    (c) => c.doc_type === document.doc_type
+                );
+
+                if (existingCategory) {
+                    existingCategory.document_count = (existingCategory.document_count || 0) + 1;
+                } else {
+                    organization.content_categories.push({
+                        doc_type: document.doc_type,
+                        document_count: 1,
+                    });
+                }
+            }
+            await organization.save();
+        }
+
+        // Index vào Elasticsearch
+        try {
+            await updateESDocument(document._id.toString(), {
+                status: 'APPROVED',
+                last_approved_at: current
+            });
+        } catch (error) {
+            console.error(`Lỗi cập nhật tài liệu ${document._id} trong Elasticsearch: ${error.message}`);
+        }
+
+        // Tính điểm cho user
+        const isFirstApproval = (await ApprovalRequest.countDocuments({
+            requester: approvalRequest.requester,
+            status: "APPROVED",
+            doc: { $ne: approvalRequest.doc },
+        })) === 0;
+        
+        const base = isFirstApproval ? 20 : 15;
+        const total = aiResult.is_intensive ? base + 5 : base;
+        await earnPoints(user._id, total, `Đăng tài liệu ${document.title} (Tự động duyệt bởi AI)`);
+
+        console.log(`Tự động duyệt thành công document ${document._id} bởi AI`);
+    } catch (error) {
+        console.error(`Lỗi khi tự động duyệt document ${document._id}:`, error);
+        throw error;
     }
 };
 
@@ -167,7 +298,10 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
 
     // Cập nhật Elasticsearch
     try {
-        await indexDocument(document);
+        await updateESDocument(document._id.toString(), {
+            status: 'APPROVED',
+            last_approved_at: current
+        });
     } catch (error) {
         console.error(`Lỗi cập nhật tài liệu ${document._id} trong Elasticsearch: ${error.message}`);
     }
@@ -212,6 +346,12 @@ const rejectRequest = async (requestId, reviewerId, message) => {
     document.is_deleted = true;
     document.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
     await document.save();
+
+    try {
+        await deleteESDocument(document._id.toString());
+    } catch (error) {
+        console.error(`Lỗi xóa tài liệu ${document._id} trong Elasticsearch: ${error.message}`);
+    }
 
     //gửi thông báo cho người đăng (để sau)
 
