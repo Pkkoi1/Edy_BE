@@ -9,6 +9,7 @@ const {
     createPointTransaction,
     earnPoints,
 } = require("./point_transaction.service");
+const { updateDocumentTypeCount } = require("./user_statistics.service");
 
 const createApprovalRequest = async (documentId, requesterId) => {
     const requester = await User.findById(requesterId);
@@ -35,11 +36,6 @@ const createApprovalRequest = async (documentId, requesterId) => {
     return approvalRequest;
 };
 
-/**
- * Xử lý tài liệu với AI để tóm tắt và kiểm duyệt
- * @param {string} approvalRequestId - ID của approval request
- * @param {Object} document - Document object
- */
 const processDocumentWithAI = async (approvalRequestId, document, subjectName) => {
     try {
         // Chỉ xử lý PDF và WORD
@@ -62,7 +58,7 @@ const processDocumentWithAI = async (approvalRequestId, document, subjectName) =
 
         // Gọi Gemini AI - pass metadata để kiểm tra
         const result = await processDocumentWithGeminiAI(
-            document.url, 
+            document.url,
             document.file_type,
             documentMetadata
         );
@@ -77,7 +73,7 @@ const processDocumentWithAI = async (approvalRequestId, document, subjectName) =
         approvalRequest.ai_checked = true;
         approvalRequest.ai_violation_level = result.aiCheck.violation_level;
         approvalRequest.ai_action_suggest = result.aiCheck.action_suggest;
-        
+
         // Bổ sung thông tin metadata validation vào reason
         let reason = result.aiCheck.reason;
         if (!result.metadata_valid) {
@@ -90,7 +86,7 @@ const processDocumentWithAI = async (approvalRequestId, document, subjectName) =
 
         if (result.aiCheck.action_suggest === 'AUTO_APPROVE') {
             console.log(`AI suggest AUTO_APPROVE - tự động duyệt document ${document._id}`);
-            
+
             // Tự động approve
             await autoApproveByAI(approvalRequest, document, result);
         } else {
@@ -116,7 +112,7 @@ const processDocumentWithAI = async (approvalRequestId, document, subjectName) =
             const approvalRequest = await ApprovalRequest.findById(approvalRequestId);
             if (approvalRequest) {
                 approvalRequest.ai_checked = true;
-                approvalRequest.ai_violation_level = 'MEDIUM';
+                approvalRequest.ai_violation_level = 'NONE';
                 approvalRequest.ai_action_suggest = 'MANUAL_REVIEW';
                 approvalRequest.ai_reason = `Lỗi khi xử lý AI: ${error.message}`;
                 await approvalRequest.save();
@@ -131,7 +127,7 @@ const autoApproveByAI = async (approvalRequest, document, aiResult) => {
     try {
         const user = await User.findById(approvalRequest.requester);
         if (!user) throw new Error("Người yêu cầu không tồn tại");
-        
+
         const current = new Date();
 
         approvalRequest.reviewed_by = null;
@@ -141,12 +137,12 @@ const autoApproveByAI = async (approvalRequest, document, aiResult) => {
 
         document.status = "APPROVED";
         document.last_approved_at = current;
-        
+
         if (!document.description) {
             document.description = {};
         }
         document.description.summary_by_ai = aiResult.summary;
-        
+
         if (aiResult.is_intensive) {
             document.intensive = true;
         }
@@ -192,6 +188,12 @@ const autoApproveByAI = async (approvalRequest, document, aiResult) => {
             await organization.save();
         }
 
+        try {
+            await updateDocumentTypeCount(user._id, document.doc_type);
+        } catch (statsError) {
+            console.error("Lỗi cập nhật thống kê loại tài liệu:", statsError);
+        }
+
         // Index vào Elasticsearch
         try {
             await updateESDocument(document._id.toString(), {
@@ -208,7 +210,7 @@ const autoApproveByAI = async (approvalRequest, document, aiResult) => {
             status: "APPROVED",
             doc: { $ne: approvalRequest.doc },
         })) === 0;
-        
+
         const base = isFirstApproval ? 20 : 15;
         const total = aiResult.is_intensive ? base + 5 : base;
         await earnPoints(user._id, total, `Đăng tài liệu ${document.title} (Tự động duyệt bởi AI)`);
@@ -255,8 +257,8 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     // Thêm vào subjects và content_categories của org
     if (organization) {
         if (document.subject) {
-            const existingSubject = organization.subjects.find(s =>
-                s.subject.toString() === document.subject.toString()
+            const existingSubject = organization.subjects.find(
+                (s) => s.subject.toString() === document.subject.toString()
             );
 
             if (existingSubject) {
@@ -264,7 +266,7 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
             } else {
                 organization.subjects.push({
                     subject: document.subject,
-                    count: 1
+                    count: 1,
                 });
             }
         }
@@ -289,12 +291,18 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
         await organization.save();
     }
 
-
     if (isIntensive) {
         document.intensive = true;
     }
 
     await document.save();
+
+    // Cập nhật thống kê loại tài liệu
+    try {
+        await updateDocumentTypeCount(user._id, document.doc_type);
+    } catch (statsError) {
+        console.error("Lỗi cập nhật thống kê loại tài liệu:", statsError);
+    }
 
     // Cập nhật Elasticsearch
     try {
@@ -321,7 +329,7 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     //gửi thông báo cho người đăng (để sau)
 
     return approvalRequest;
-}
+};
 
 const rejectRequest = async (requestId, reviewerId, message) => {
     const reviewer = await User.findById(reviewerId);
@@ -363,5 +371,5 @@ module.exports = {
     getPendingRequestsByDocument,
     approveRequest,
     rejectRequest,
-    processDocumentWithAI
+    processDocumentWithAI,
 };

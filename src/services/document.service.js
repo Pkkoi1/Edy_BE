@@ -22,6 +22,10 @@ const {
   deleteDocument: deleteESDocument,
 } = require("./elasticsearch.service");
 const { updateUserDocCount } = require("./user.service");
+const {
+  incrementDownloadCount,
+  updateDocumentStats,
+} = require("./user_statistics.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 
@@ -601,7 +605,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt"
+        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt"
       )
       .populate({
         path: "user",
@@ -638,9 +642,8 @@ const getMyDocuments = async ({
       // Chỉ set rejection cho documents bị reject
       if (doc.status === "REJECTED") {
         doc._doc.rejection =
-          rejections.find(
-            (r) => r.doc.toString() === doc._id.toString()
-          ) || null;
+          rejections.find((r) => r.doc.toString() === doc._id.toString()) ||
+          null;
       }
     });
   }
@@ -990,6 +993,14 @@ const processDownload = async (downloadId, userId) => {
   document.download_count = (document.download_count || 0) + 1;
 
   await Promise.all([user.save(), document.save(), downloadLink.save()]);
+
+  // Cập nhật thống kê download
+  try {
+    await incrementDownloadCount(userId);
+    await updateDocumentStats(documentId, document.user.toString(), "download");
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê download:", statsError);
+  }
 
   return {
     downloadUrl: document.url,
@@ -1688,6 +1699,13 @@ const incrementViewCount = async (documentId, userId) => {
     { $inc: { view: 1 } },
     { new: true }
   );
+
+  // Cập nhật thống kê view
+  try {
+    await updateDocumentStats(documentId, document.user.toString(), "view");
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê view:", statsError);
+  }
 
   return {
     documentId,
