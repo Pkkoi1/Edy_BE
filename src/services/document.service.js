@@ -25,6 +25,10 @@ const {
   incrementDownloadCount,
   updateDocumentStats,
 } = require("./user_statistics.service");
+const {
+  updateViewCount,
+  updateDownloadCount,
+} = require("./document_statistics.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 
@@ -1024,6 +1028,14 @@ const markDownloadSuccess = async (downloadId) => {
   downloadLink.status = "SUCCESS";
   downloadLink.accessedAt = new Date();
   await downloadLink.save();
+
+  // Cập nhật thống kê download
+  try {
+    await updateDownloadCount(downloadLink._id);
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê download:", statsError);
+  }
+
   return downloadLink;
 };
 
@@ -1587,18 +1599,25 @@ const incrementViewCount = async (documentId, userId) => {
     throw new Error("Tài liệu chưa được duyệt hoặc không khả dụng");
   }
 
-  // Tăng view count
+  // Tăng view count trong Document model
   const updatedDocument = await Document.findByIdAndUpdate(
     documentId,
     { $inc: { view: 1 } },
     { new: true }
   );
 
-  // Cập nhật thống kê view
+  // Cập nhật thống kê view cũ (nếu cần)
   try {
     await updateDocumentStats(documentId, document.user.toString(), "view");
   } catch (statsError) {
-    console.error("Lỗi cập nhật thống kê view:", statsError);
+    console.error("Lỗi cập nhật thống kê view cũ:", statsError);
+  }
+
+  // Cập nhật thống kê view mới
+  try {
+    await updateViewCount();
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê view mới:", statsError);
   }
 
   return {
