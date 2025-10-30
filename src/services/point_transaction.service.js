@@ -1,5 +1,6 @@
 const PointTransaction = require("../models/point_transaction.model");
 const User = require("../models/user.model");
+const { updatePointHistory } = require("./user_statistics.service");
 
 const createPointTransaction = async (
   userId,
@@ -41,6 +42,13 @@ const spendUserPoints = async (userId, amount, reason) => {
     // Tạo transaction record
     await createPointTransaction(userId, "SPEND", amount, reason, "USAGE");
 
+    // Cập nhật thống kê điểm
+    try {
+      await updatePointHistory(userId, "SPEND", amount);
+    } catch (statsError) {
+      console.error("Lỗi cập nhật thống kê điểm:", statsError);
+    }
+
     return {
       success: true,
       user: {
@@ -74,6 +82,13 @@ const earnPoints = async (userId, amount, reason) => {
 
     // Tạo transaction record
     await createPointTransaction(userId, "EARN", amount, reason, "BOTH");
+
+    // Cập nhật thống kê điểm
+    try {
+      await updatePointHistory(userId, "EARN", amount);
+    } catch (statsError) {
+      console.error("Lỗi cập nhật thống kê điểm:", statsError);
+    }
 
     return {
       success: true,
@@ -144,6 +159,13 @@ const penalizeUser = async (userId, amount, reason) => {
         reason,
         "RANKPOINT"
       );
+
+      // Cập nhật thống kê điểm
+      try {
+        await updatePointHistory(userId, "SPEND", amount);
+      } catch (statsError) {
+        console.error("Lỗi cập nhật thống kê điểm:", statsError);
+      }
 
       return {
         success: true,

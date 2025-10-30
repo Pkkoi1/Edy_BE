@@ -11,6 +11,7 @@ const {
   deleteDocument,
   updateDocument,
 } = require("./elasticsearch.service");
+const { addViolation } = require("./user_statistics.service");
 const createReport = async (reportData, reporterId) => {
   try {
     const { docId, cmtId, type, reason } = reportData;
@@ -268,6 +269,15 @@ const handleReportAction = async (report, action) => {
               resolvedBy: report.resolveBy,
               reason: report.resolveReason || "Tài liệu vi phạm quy định",
             });
+
+            // Cập nhật thống kê vi phạm
+            try {
+              for (const violationType of report.validTypes) {
+                await addViolation(violatorId, violationType);
+              }
+            } catch (statsError) {
+              console.error("Lỗi cập nhật thống kê vi phạm:", statsError);
+            }
           }
 
           violator.strike += 1;
@@ -305,6 +315,15 @@ const handleReportAction = async (report, action) => {
               resolvedBy: report.resolveBy,
               reason: report.resolveReason || "Tài liệu vi phạm quy định",
             });
+
+            // Cập nhật thống kê vi phạm
+            try {
+              for (const violationType of report.validTypes) {
+                await addViolation(violatorId, violationType);
+              }
+            } catch (statsError) {
+              console.error("Lỗi cập nhật thống kê vi phạm:", statsError);
+            }
           }
 
           violator.strike += 1;
@@ -353,6 +372,15 @@ const handleReportAction = async (report, action) => {
               resolvedBy: report.resolveBy,
               reason: report.resolveReason || "Yêu cầu chỉnh sửa tài liệu",
             });
+
+            // Cập nhật thống kê vi phạm
+            try {
+              for (const violationType of report.validTypes) {
+                await addViolation(violatorId, violationType);
+              }
+            } catch (statsError) {
+              console.error("Lỗi cập nhật thống kê vi phạm:", statsError);
+            }
           }
 
           violator.strike += 1;
