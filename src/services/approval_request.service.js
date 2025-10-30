@@ -9,6 +9,7 @@ const {
   earnPoints,
 } = require("./point_transaction.service");
 const { updateDocumentTypeCount } = require("./user_statistics.service");
+const { updateDocumentApproved } = require("./document_statistics.service");
 
 const createApprovalRequest = async (documentId, requesterId) => {
   const requester = await User.findById(requesterId);
@@ -173,6 +174,13 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
     await updateDocumentTypeCount(user._id, document.doc_type);
   } catch (statsError) {
     console.error("Lỗi cập nhật thống kê loại tài liệu:", statsError);
+  }
+
+  // Cập nhật thống kê tài liệu được duyệt
+  try {
+    await updateDocumentApproved(document._id);
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê tài liệu được duyệt:", statsError);
   }
 
   // Cập nhật Elasticsearch
