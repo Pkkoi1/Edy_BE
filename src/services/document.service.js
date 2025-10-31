@@ -32,6 +32,7 @@ const {
 } = require("./document_statistics.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
+const e = require("express");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -700,25 +701,26 @@ const createDocument = async (data) => {
   const doc = new Document(docData);
   await doc.save();
 
-  // Tạo embedding cho document
-  const result = await processDocumentAndCreateEmbedding(
-    doc.url,
-    doc.file_type
-  );
-  doc.content_vector = result.embedding;
-
-  // Cập nhật số lượng tài liệu của user
   await updateUserDocCount(data.user);
 
-  try {
-    await indexDocument(doc);
-    console.log("Document indexed successfully");
-  } catch (error) {
-    console.error("Lỗi khi đánh index document:", error);
-    // Không throw error để không ảnh hưởng đến việc tạo document
-  }
+  // Tạo embedding cho document
+  embeddinngDocument(doc)
 
   return doc;
+};
+
+const embeddinngDocument = async (document) => {
+  const result = await processDocumentAndCreateEmbedding(
+    document.url,
+    document.file_type
+  );
+  document.content_vector = result.embedding;
+  try {
+    indexDocument(document);
+  } catch (error) {
+    console.error("Lỗi khi đánh index document:", error);
+  } 
+  return document;
 };
 
 const deleteDocument = async (id) => {
