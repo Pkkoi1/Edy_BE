@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require("../controllers/auth.controller");
 const {
   requireLoggedIn,
+  requireLoggedInRefresh,
   userOrUnauthenticated,
 } = require("../middlewares/auth.middleware");
 
@@ -85,7 +86,7 @@ router.post("/logout", requireLoggedIn, authController.logout);
  *       401:
  *         description: Refresh token không hợp lệ
  */
-router.post("/refresh-token", requireLoggedIn, authController.refreshToken);
+router.post("/refresh-token", requireLoggedInRefresh, authController.refreshToken);
 
 /**
  * @swagger

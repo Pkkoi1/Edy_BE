@@ -695,7 +695,6 @@ exports.getSimilarDocuments = async (req, res) => {
 };
 
 exports.getSimilarDocumentsForAdmin = async (req, res) => {
-
   try {
     const { documentId } = req.params;
     const { limit = 5 } = req.query;
