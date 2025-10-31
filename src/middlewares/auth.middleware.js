@@ -82,7 +82,7 @@ exports.requireLoggedInRefresh = async (req, res, next) => {
     const token = req.cookies.refreshToken;
     if (!token) return res.status(401).json({ message: 'Chưa xác thực' });
 
-    const payload = verifyToken(token, process.env.JWT_SECRET);
+    const payload = verifyToken(token, process.env.JWT_REFRESH_SECRET);
     if (!payload) return res.status(401).json({ message: 'Mã xác thực hông hợp lệ' });
 
     // Kiểm tra tài khoản có bị khóa không
