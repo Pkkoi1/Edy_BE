@@ -672,6 +672,22 @@ const getCoverPage = (url) => {
   return cloudinary.url(url, { page: 1, format: "jpg" });
 };
 
+// Hàm kiểm tra xem file có thể tạo embedding không (dựa trên file_type và đuôi URL)
+const canCreateEmbedding = (fileType, url) => {
+  // Kiểm tra file_type trước
+  if (fileType !== "WORD" && fileType !== "PDF") {
+    return false;
+  }
+
+  // Kiểm tra đuôi file từ URL
+  if (!url) return false;
+
+  const urlLower = url.toLowerCase();
+  const supportedExtensions = [".pdf", ".doc", ".docx"];
+
+  return supportedExtensions.some((ext) => urlLower.endsWith(ext));
+};
+
 const createDocument = async (data) => {
   const docData = {
     ...data,
@@ -703,8 +719,10 @@ const createDocument = async (data) => {
 
   await updateUserDocCount(data.user);
 
-  // Tạo embedding cho document
-  embeddinngDocument(doc)
+  // Tạo embedding cho document chỉ khi file có thể tạo embedding được
+  if (canCreateEmbedding(data.file_type, data.url)) {
+    embeddinngDocument(doc);
+  }
 
   return doc;
 };
@@ -719,7 +737,7 @@ const embeddinngDocument = async (document) => {
     indexDocument(document);
   } catch (error) {
     console.error("Lỗi khi đánh index document:", error);
-  } 
+  }
   return document;
 };
 
@@ -1256,7 +1274,7 @@ const getSimilarDocumentsForAdmin = async (documentId, limit = 5) => {
       { path: "subject", select: "_id name" },
     ]);
 
-    // Sắp xếp theo score 
+    // Sắp xếp theo score
     const sortedDocuments = documentIds
       .map((id) => documents.find((doc) => doc._id.toString() === id))
       .filter(Boolean);
