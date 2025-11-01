@@ -16,13 +16,23 @@ const {
 const {
   searchDocuments,
   findSimilarDocuments,
+  findSimilarDocumentsForAdmin,
   indexDocument,
   updateDocument: updateESDocument,
   deleteDocument: deleteESDocument,
 } = require("./elasticsearch.service");
 const { updateUserDocCount } = require("./user.service");
+const {
+  incrementDownloadCount,
+  updateDocumentStats,
+} = require("./user_statistics.service");
+const {
+  updateViewCount,
+  updateDownloadCount,
+} = require("./document_statistics.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
+const e = require("express");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -77,7 +87,6 @@ const getAllDocuments = async ({
     "level",
     "subject",
     "status",
-    "summary_status",
     "public_mode",
   ];
 
@@ -102,7 +111,7 @@ const getAllDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status summary_status public_mode createdAt last_approved_at updatedAt like dislike"
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike"
       )
       .populate({
         path: "user",
@@ -561,7 +570,6 @@ const getMyDocuments = async ({
     "level",
     "subject",
     "status",
-    "summary_status",
     "public_mode",
   ];
 
@@ -602,7 +610,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type intensive url organization subject level view download_count comment_count status summary_status public_mode like dislike createdAt"
+        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt"
       )
       .populate({
         path: "user",
@@ -620,9 +628,7 @@ const getMyDocuments = async ({
   if (documents.length > 0) {
     // Query rejection cho documents bị rejected
     const rejectedDocIds = documents
-      .filter(
-        (doc) => doc.status === "REJECTED" || doc.summary_status === "REJECTED"
-      )
+      .filter((doc) => doc.status === "REJECTED")
       .map((doc) => doc._id);
 
     let rejections = [];
@@ -632,7 +638,7 @@ const getMyDocuments = async ({
         status: "REJECTED",
       })
         .populate("reviewed_by", "first_name last_name")
-        .select("doc message reviewed_by reviewed_at is_summary")
+        .select("doc message reviewed_by reviewed_at")
         .sort({ createdAt: -1 });
     }
 
@@ -640,17 +646,9 @@ const getMyDocuments = async ({
     documents.forEach((doc) => {
       // Chỉ set rejection cho documents bị reject
       if (doc.status === "REJECTED") {
-        doc._doc.content_rejection =
-          rejections.find(
-            (r) => r.doc.toString() === doc._id.toString() && !r.is_summary
-          ) || null;
-      }
-
-      if (doc.summary_status === "REJECTED") {
-        doc._doc.summary_rejection =
-          rejections.find(
-            (r) => r.doc.toString() === doc._id.toString() && r.is_summary
-          ) || null;
+        doc._doc.rejection =
+          rejections.find((r) => r.doc.toString() === doc._id.toString()) ||
+          null;
       }
     });
   }
@@ -672,6 +670,22 @@ const getCoverPage = (url) => {
   // Ví dụ với file PDF
   if (!url) return null;
   return cloudinary.url(url, { page: 1, format: "jpg" });
+};
+
+// Hàm kiểm tra xem file có thể tạo embedding không (dựa trên file_type và đuôi URL)
+const canCreateEmbedding = (fileType, url) => {
+  // Kiểm tra file_type trước
+  if (fileType !== "WORD" && fileType !== "PDF") {
+    return false;
+  }
+
+  // Kiểm tra đuôi file từ URL
+  if (!url) return false;
+
+  const urlLower = url.toLowerCase();
+  const supportedExtensions = [".pdf", ".doc", ".docx"];
+
+  return supportedExtensions.some((ext) => urlLower.endsWith(ext));
 };
 
 const createDocument = async (data) => {
@@ -703,25 +717,28 @@ const createDocument = async (data) => {
   const doc = new Document(docData);
   await doc.save();
 
-  // Tạo embedding cho document
-  const result = await processDocumentAndCreateEmbedding(
-    doc.url,
-    doc.file_type
-  );
-  doc.content_vector = result.embedding;
-
-  // Cập nhật số lượng tài liệu của user
   await updateUserDocCount(data.user);
 
-  try {
-    await indexDocument(doc);
-    console.log("Document indexed successfully");
-  } catch (error) {
-    console.error("Lỗi khi đánh index document:", error);
-    // Không throw error để không ảnh hưởng đến việc tạo document
+  // Tạo embedding cho document chỉ khi file có thể tạo embedding được
+  if (canCreateEmbedding(data.file_type, data.url)) {
+    embeddinngDocument(doc);
   }
 
   return doc;
+};
+
+const embeddinngDocument = async (document) => {
+  const result = await processDocumentAndCreateEmbedding(
+    document.url,
+    document.file_type
+  );
+  document.content_vector = result.embedding;
+  try {
+    indexDocument(document);
+  } catch (error) {
+    console.error("Lỗi khi đánh index document:", error);
+  }
+  return document;
 };
 
 const deleteDocument = async (id) => {
@@ -790,27 +807,6 @@ const getDocumentById = async (id, userId) => {
         throw new Error("Bạn không có quyền truy cập tài liệu này");
       }
     }
-
-    if (!isAdmin) {
-      if (doc && doc.summary_status !== "APPROVED") {
-        if (
-          doc.description &&
-          (doc.summary_status == "REJECTED" || doc.summary_status == "NONE")
-        ) {
-          doc.description.summary_by_user =
-            "Tài liệu không được tóm tắt bởi người đăng.";
-        }
-        if (
-          !isOwner &&
-          doc.description &&
-          (doc.summary_status == "PENDING" ||
-            doc.summary_status == "PENDING_EDIT")
-        ) {
-          doc.description.summary_by_user =
-            "Tóm tắt đang chờ phê duyệt, hãy kiên nhẫn để admin duyệt bạn nhé!";
-        }
-      }
-    }
   }
 
   return doc;
@@ -839,7 +835,7 @@ const getPendingDocuments = async ({
 
   // Query cơ bản cho pending documents
   let query = {
-    $or: [{ status: "PENDING" }, {status: "PENDING_EDIT"} ,{ summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
+    $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
     is_deleted: false,
   };
 
@@ -847,7 +843,7 @@ const getPendingDocuments = async ({
   if (searchOr.length > 0) {
     query.$and = [
       {
-        $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }, { summary_status: "PENDING" }, { summary_status: "PENDING_EDIT" }],
+        $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
       },
       { $or: searchOr },
       { is_deleted: false },
@@ -888,7 +884,7 @@ const getPendingDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status summary_status createdAt"
+        "_id user title author published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status createdAt"
       )
       .populate({
         path: "user",
@@ -1012,7 +1008,8 @@ const processDownload = async (downloadId, userId) => {
       user._id,
       "SPEND",
       downloadLink.cost,
-      `Tải tài liệu ${document.title}`
+      `Tải tài liệu ${document.title}`,
+      "USAGE"
     );
   }
 
@@ -1020,6 +1017,14 @@ const processDownload = async (downloadId, userId) => {
   document.download_count = (document.download_count || 0) + 1;
 
   await Promise.all([user.save(), document.save(), downloadLink.save()]);
+
+  // Cập nhật thống kê download
+  try {
+    await incrementDownloadCount(userId);
+    await updateDocumentStats(documentId, document.user.toString(), "download");
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê download:", statsError);
+  }
 
   return {
     downloadUrl: document.url,
@@ -1044,6 +1049,14 @@ const markDownloadSuccess = async (downloadId) => {
   downloadLink.status = "SUCCESS";
   downloadLink.accessedAt = new Date();
   await downloadLink.save();
+
+  // Cập nhật thống kê download
+  try {
+    await updateDownloadCount(downloadLink._id);
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê download:", statsError);
+  }
+
   return downloadLink;
 };
 
@@ -1215,6 +1228,111 @@ const getSimilarDocuments = async (documentId, userId, limit = 5) => {
   }
 };
 
+const getSimilarDocumentsForAdmin = async (documentId, limit = 5) => {
+  try {
+    const sourceDoc = await Document.findById(documentId)
+      .select(
+        "title author keyword description subject organization user public_mode is_deleted"
+      )
+      .populate("subject", "name");
+
+    if (!sourceDoc) {
+      throw new Error("Tài liệu không tồn tại");
+    }
+
+    if (sourceDoc.is_deleted) {
+      throw new Error("Tài liệu đã bị xóa");
+    }
+
+    const { documentIds, scores } = await findSimilarDocumentsForAdmin(
+      documentId,
+      limit
+    );
+
+    if (documentIds.length === 0) {
+      return {
+        documents: [],
+        total: 0,
+        similarity_factors: [],
+      };
+    }
+
+    // Populate thông tin
+    const documents = await Document.find({
+      _id: { $in: documentIds },
+      is_deleted: false, // Double check
+    }).populate([
+      {
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      },
+      { path: "organization", select: "_id name" },
+      { path: "subject", select: "_id name" },
+    ]);
+
+    // Sắp xếp theo score
+    const sortedDocuments = documentIds
+      .map((id) => documents.find((doc) => doc._id.toString() === id))
+      .filter(Boolean);
+
+    // Tạo similarity factors
+    const similarity_factors = sortedDocuments.map((doc) => {
+      const factors = [];
+
+      if (
+        doc.subject &&
+        sourceDoc.subject &&
+        doc.subject._id.toString() === sourceDoc.subject._id.toString()
+      ) {
+        factors.push("same_subject");
+      }
+
+      if (sourceDoc.author && doc.author) {
+        const commonAuthors = doc.author.filter((author) =>
+          sourceDoc.author.includes(author)
+        );
+        if (commonAuthors.length > 0) {
+          factors.push("same_author");
+        }
+      }
+
+      if (sourceDoc.keyword && doc.keyword) {
+        const commonKeywords = doc.keyword.filter((keyword) =>
+          sourceDoc.keyword.includes(keyword)
+        );
+        if (commonKeywords.length > 0) {
+          factors.push("same_keywords");
+        }
+      }
+
+      return {
+        document_id: doc._id,
+        factors,
+        elasticsearch_score: scores[doc._id.toString()] || {},
+      };
+    });
+
+    return {
+      documents: sortedDocuments,
+      total: sortedDocuments.length,
+      similarity_factors,
+      source_document: {
+        id: sourceDoc._id,
+        title: sourceDoc.title,
+        subject: sourceDoc.subject?.name,
+        author: sourceDoc.author,
+        keywords: sourceDoc.keyword,
+      },
+    };
+  } catch (error) {
+    throw new Error(`Lỗi lấy tài liệu tương tự cho admin: ${error.message}`);
+  }
+};
+
 const reactionDocument = async (documentId, userId, reactionType) => {
   const doc = await Document.findById(documentId);
   if (!doc) {
@@ -1278,7 +1396,8 @@ const reactionDocument = async (documentId, userId, reactionType) => {
         userId,
         "EARN",
         1,
-        `Đánh giá tài liệu ${doc.title}`
+        `Đánh giá tài liệu ${doc.title}`,
+        "BOTH"
       );
     } catch (pointError) {
       console.error("Error creating reaction points:", pointError);
@@ -1606,12 +1725,26 @@ const incrementViewCount = async (documentId, userId) => {
     throw new Error("Tài liệu chưa được duyệt hoặc không khả dụng");
   }
 
-  // Tăng view count
+  // Tăng view count trong Document model
   const updatedDocument = await Document.findByIdAndUpdate(
     documentId,
     { $inc: { view: 1 } },
     { new: true }
   );
+
+  // Cập nhật thống kê view cũ (nếu cần)
+  try {
+    await updateDocumentStats(documentId, document.user.toString(), "view");
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê view cũ:", statsError);
+  }
+
+  // Cập nhật thống kê view mới
+  try {
+    await updateViewCount();
+  } catch (statsError) {
+    console.error("Lỗi cập nhật thống kê view mới:", statsError);
+  }
 
   return {
     documentId,
@@ -1634,6 +1767,7 @@ module.exports = {
   markDownloadSuccess,
   changeAllShareLink,
   getSimilarDocuments,
+  getSimilarDocumentsForAdmin,
   reactionDocument,
   getDocumentReactions,
   canViewDocument,
@@ -1662,19 +1796,16 @@ const hasDocumentManageRole = async (accountId, documentId) => {
 
 const deleteFromHistoryIfHave = async (documentId, userId) => {
   try {
-    const user = await User.findByIdAndUpdate(userId,
-      {
-        $pull: {
-          read_history: {
-            document: documentId,
-          },
+    const user = await User.findByIdAndUpdate(userId, {
+      $pull: {
+        read_history: {
+          document: documentId,
         },
-      }
-    );
+      },
+    });
     if (!user) {
       throw new Error("Người dùng không tồn tại");
-    };
-
+    }
   } catch (error) {
     throw new Error(`Lỗi xóa lịch sử đọc: ${error.message}`);
   }

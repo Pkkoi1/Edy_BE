@@ -1,7 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/auth.controller");
-const { requireLoggedIn } = require("../middlewares/auth.middleware");
+const {
+  requireLoggedIn,
+  requireLoggedInRefresh,
+  userOrUnauthenticated,
+} = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
@@ -82,7 +86,7 @@ router.post("/logout", requireLoggedIn, authController.logout);
  *       401:
  *         description: Refresh token không hợp lệ
  */
-router.post("/refresh-token", requireLoggedIn, authController.refreshToken);
+router.post("/refresh-token", requireLoggedInRefresh, authController.refreshToken);
 
 /**
  * @swagger
@@ -96,7 +100,7 @@ router.post("/refresh-token", requireLoggedIn, authController.refreshToken);
  *       401:
  *         description: Không có token hoặc token không hợp lệ
  * */
-router.get("/me", requireLoggedIn, authController.me);
+router.get("/me", userOrUnauthenticated, authController.me);
 
 /**
  * @swagger

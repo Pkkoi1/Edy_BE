@@ -74,6 +74,33 @@ const verifyUser = async (accountId, userId, field_of_study, organization) => {
   return { success: true };
 };
 
+const updateUserFieldOfStudy = async (userId, field_of_study) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    let fieldOfStudyArray = [];
+    if (Array.isArray(field_of_study)) {
+      fieldOfStudyArray = field_of_study;
+    } else {
+      fieldOfStudyArray = field_of_study
+        ? field_of_study
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s)
+        : [];
+    }
+    user.field_of_study = fieldOfStudyArray;
+
+    await user.save();
+    return { success: true, message: "Cập nhật lĩnh vực học thành công" };
+  } catch (error) {
+    return { error: "Lỗi khi cập nhật lĩnh vực học: " + error.message };
+  }
+};
+
 const updateUserProfile = async (
   userId,
   { first_name, last_name, organization, avatar }
@@ -284,7 +311,7 @@ const getFavoriteDocuments = async (userId) => {
     const user = await User.findById(userId).populate({
       path: "favorites.document",
       select:
-        "_id title cover_page author published_year publisher organization subject level view download_count comment_count status summary_status public_mode is_deleted createdAt",
+        "_id title cover_page author published_year publisher organization subject level view download_count comment_count status public_mode is_deleted createdAt",
       populate: [
         { path: "organization", select: "_id name" },
         { path: "subject", select: "_id name" },
@@ -553,6 +580,7 @@ module.exports = {
   getUsers,
   verifyUser,
   updateUserProfile,
+  updateUserFieldOfStudy,
   changePassword,
   updateUserDocCount,
   addFavoriteDocument,

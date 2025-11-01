@@ -35,16 +35,6 @@ const documentSchema = new mongoose.Schema({
     ],
     default: 'PENDING'
   },
-  summary_status:{
-    type: String,
-    enum: [
-      'PENDING',
-      'APPROVED',
-      'REJECTED',
-      'NONE'
-    ],
-    default: 'NONE'
-  },
   public_mode: {
     type: String,
     enum: [

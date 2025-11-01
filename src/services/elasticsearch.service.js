@@ -301,6 +301,7 @@ const getSuggestions = async (query, userId, limit = 10) => {
     }
 };
 
+// dành cho user thường, filter đầu vào để giảm số lượng tài liệu áp dụng cosine
 const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
     try {
         // Kiểm tra admin
@@ -360,7 +361,7 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
         const moreLikeThisQuery = {
             bool: {
                 must: [
-                    { exists: { field: 'content_vector' } } // ✅ lọc bỏ doc chưa có vector
+                    { exists: { field: 'content_vector' } }
                 ],
                 should: [
                     {
@@ -450,7 +451,7 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
         const sourceDocEmbedding = docInElasticsearch._source.content_vector;
         const semanticQuery = {
             script_score: {
-                query: moreLikeThisQuery, // phần query cũ bạn đã có
+                query: moreLikeThisQuery, 
                 script: {
                     source: "cosineSimilarity(params.queryVector, 'content_vector') + 1.0",
                     params: {
@@ -485,25 +486,25 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
             let similarityFactors = [];
 
             // Thêm điểm cho các yếu tố tương tự
-            // Cùng môn học: +1 điểm
+            // Cùng môn học: +5 điểm
             if (doc.subject === subjectId?.toString()) {
                 customScore += 0.5;
                 similarityFactors.push('same_subject');
             }
 
-            // Cùng người đăng: +8 điểm
+            // Cùng người đăng: +5 điểm
             if (doc.user === sourceDoc.user.toString()) {
                 customScore += 0.5;
                 similarityFactors.push('same_uploader');
             }
 
-            // Cùng author: +5 điểm cho mỗi author match
+            // Cùng author: +3 điểm cho mỗi author match
             if (sourceDoc.author && doc.author) {
                 const commonAuthors = doc.author.filter(author =>
                     sourceDoc.author.includes(author)
                 );
                 if (commonAuthors.length > 0) {
-                    customScore += (commonAuthors.length * 0.3);
+                    customScore += (commonAuthors.length * 0.2);
                     similarityFactors.push('same_author');
                 }
             }
@@ -583,6 +584,94 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
     }
 };
 
+//Dành cho admin, chỉ tìm trên vector của toàn bộ, ko filter đầu vào
+const findSimilarDocumentsForAdmin = async (sourceDocId, limit = 10) => {
+    try {
+        // Lấy document nguồn từ MongoDB
+        const sourceDoc = await Document.findById(sourceDocId);
+        if (!sourceDoc) {
+            throw new Error('Source document not found');
+        }
+
+        // Lấy content_vector từ Elasticsearch
+        const docInElasticsearch = await client.get({
+            index: 'documents',
+            id: sourceDoc._id.toString()
+        });
+
+        const sourceDocEmbedding = docInElasticsearch._source.content_vector;
+
+        if (!sourceDocEmbedding || sourceDocEmbedding.length === 0) {
+            console.log('⚠️ Source document has no content_vector');
+            return { documentIds: [], scores: {} };
+        }
+
+        // Query đơn giản: chỉ tính cosine similarity
+        const semanticQuery = {
+            script_score: {
+                query: {
+                    bool: {
+                        must: [
+                            { exists: { field: 'content_vector' } }
+                        ],
+                        filter: [
+                            { term: { is_deleted: false } }
+                        ],
+                        must_not: [
+                            { term: { _id: sourceDoc._id.toString() } }
+                        ]
+                    }
+                },
+                script: {
+                    source: "cosineSimilarity(params.queryVector, 'content_vector') + 1.0",
+                    params: {
+                        queryVector: sourceDocEmbedding
+                    }
+                }
+            }
+        };
+
+        const response = await client.search({
+            index: 'documents',
+            body: {
+                query: semanticQuery,
+                size: limit,
+                min_score: 1.95,
+                sort: [
+                    { _score: { order: 'desc' } }
+                ]
+            }
+        });
+
+        const hits = response.hits;
+
+        if (!hits || !hits.hits) {
+            console.log('⚠️ No hits found in ES response');
+            return { documentIds: [], scores: {} };
+        }
+
+        const documentIds = [];
+        const scores = {};
+
+        for (const hit of hits.hits) {
+            const docId = hit._source.id;
+            documentIds.push(docId);
+            scores[docId] = {
+                cosineSimilarity: hit._score
+            };
+        }
+
+        console.log(`✅ Found ${documentIds.length} similar documents for admin`);
+        console.log('📊 Scores:', scores);
+
+        return { documentIds, scores };
+
+    } catch (error) {
+        console.error('❌ Error in findSimilarDocumentsForAdmin:', error);
+        throw error;
+    }
+};
+
 const syncAllDocuments = async () => {
     try {
         console.log('🔄 Starting sync documents to Elasticsearch...');
@@ -631,5 +720,6 @@ module.exports = {
     searchDocuments,
     getSuggestions,
     findSimilarDocuments,
+    findSimilarDocumentsForAdmin,
     syncAllDocuments
 };

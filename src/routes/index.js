@@ -13,6 +13,9 @@ const commentRouter = require("./comment.routes");
 const notificationRouter = require("./notification.routes");
 const adminRoleRouter = require("./admin_role.routes");
 const pointTransactionRouter = require("./point_transaction.routes");
+const cloudinaryRouter = require("./cloudinary.routes");
+const userStatisticsRouter = require("./user_statistics.routes");
+const documentStatisticsRouter = require("./document_statistics.routes");
 
 // Main routes configuration
 router.use("/auth", authRouter);
@@ -27,5 +30,8 @@ router.use("/comments", commentRouter);
 router.use("/notifications", notificationRouter);
 router.use("/admin", adminRoleRouter);
 router.use("/point-transactions", pointTransactionRouter);
+router.use("/cloudinary", cloudinaryRouter);
+router.use("/user-statistics", userStatisticsRouter);
+router.use("/document-statistics", documentStatisticsRouter);
 
 module.exports = router;

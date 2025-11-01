@@ -49,8 +49,29 @@ exports.register = async (req, res) => {
 
 exports.me = async (req, res) => {
   try {
-    const result = await getMeService(req.user);
-    res.json(result);
+    const result = await getMeService(
+      req.user,
+      req.cookies.accessToken,
+      req.cookies.refreshToken
+    );
+
+    if (result.newTokens) {
+      res.cookie("accessToken", result.newTokens.accessToken, {
+        httpOnly: true,
+        maxAge: 15 * 60 * 1000,
+        secure: true,
+        sameSite: "none",
+      });
+      res.cookie("refreshToken", result.newTokens.refreshToken, {
+        httpOnly: true,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        secure: true,
+        sameSite: "none",
+      });
+    }
+
+    const { account, user, roles } = result;
+    res.json({ account, user, roles });
   } catch (error) {
     console.error(error);
     res
@@ -72,7 +93,7 @@ exports.refreshToken = async (req, res) => {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       secure: true,
-      sameSite: "none", 
+      sameSite: "none",
     });
     res.json({ message: "Refresh token thành công" });
   } catch (error) {
