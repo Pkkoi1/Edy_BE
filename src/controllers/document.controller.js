@@ -14,6 +14,7 @@ const {
   changeAllShareLink,
   getAllDocuments,
   getSimilarDocuments,
+  getSimilarDocumentsForAdmin,
   reactionDocument,
   getDocumentReactions,
   addToHistory,
@@ -685,6 +686,19 @@ exports.getSimilarDocuments = async (req, res) => {
       parseInt(limit)
     );
 
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || "Lỗi server khi lấy tài liệu tương tự",
+    });
+  }
+};
+
+exports.getSimilarDocumentsForAdmin = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { limit = 5 } = req.query;
+    const result = await getSimilarDocumentsForAdmin(documentId, limit);
     res.json(result);
   } catch (error) {
     res.status(500).json({

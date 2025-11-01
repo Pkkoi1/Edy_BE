@@ -1080,6 +1080,36 @@ router.get(
 
 /**
  * @swagger
+ * /documents/{documentId}/similar-admin:
+ *   get:
+ *     summary: Lấy danh sách tài liệu tương tự cho admin
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu tương tự thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Tài liệu không tồn tại
+ *       500:
+ *         description: Đã xảy ra lỗi khi lấy tài liệu tương tự
+ */
+router.get(
+  "/:documentId/similar-admin",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.getSimilarDocumentsForAdmin
+);
+
+/**
+ * @swagger
  * /documents/{documentId}/react:
  *   post:
  *     summary: Thêm hoặc cập nhật phản ứng
