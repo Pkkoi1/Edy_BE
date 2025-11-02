@@ -5,7 +5,9 @@ const AdminUserStatistics = require("../models/admin_user_statistics.model");
 async function resetAdminUserStatistics() {
   try {
     console.log("Kết nối đến MongoDB...");
-    await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/KLTN_Edy");
+    await mongoose.connect(
+      process.env.MONGODB_URI || "mongodb://localhost:27017/KLTN_Edy"
+    );
 
     console.log("Xóa tất cả dữ liệu cũ...");
     await AdminUserStatistics.deleteMany({});
@@ -15,10 +17,13 @@ async function resetAdminUserStatistics() {
 
     // Lấy danh sách indexes hiện tại
     const indexes = await collection.indexes();
-    console.log("Indexes hiện tại:", indexes.map(idx => idx.name));
+    console.log(
+      "Indexes hiện tại:",
+      indexes.map((idx) => idx.name)
+    );
 
     // Drop các index cũ
-    const oldIndexes = ['date_1', 'year_1', 'date_1_unique'];
+    const oldIndexes = ["date_1", "year_1", "date_1_unique"];
     for (const indexName of oldIndexes) {
       try {
         await collection.dropIndex(indexName);
@@ -33,7 +38,6 @@ async function resetAdminUserStatistics() {
 
     console.log("Hoàn thành! Collection đã được reset.");
     console.log("Bạn có thể chạy sync để tạo dữ liệu mới theo tháng.");
-
   } catch (error) {
     console.error("Lỗi:", error);
   } finally {

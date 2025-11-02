@@ -277,7 +277,10 @@ async function getYearlyStatistics(year, currentDate) {
     });
 
     // Cập nhật tổng cho năm (lấy từ tháng cuối cùng có dữ liệu)
-    if (month <= currentDate.getMonth() + 1 || year < currentDate.getFullYear()) {
+    if (
+      month <= currentDate.getMonth() + 1 ||
+      year < currentDate.getFullYear()
+    ) {
       totalUsers = monthTotalUsers;
       activeUsers = monthActiveUsers;
       inactiveUsers = monthInactiveUsers;
@@ -389,7 +392,10 @@ async function syncYearStatistics(year, currentDate) {
   // Sync tất cả 12 tháng trong năm
   for (let month = 1; month <= 12; month++) {
     // Chỉ sync các tháng đã qua hoặc tháng hiện tại
-    if (year < currentDate.getFullYear() || month <= currentDate.getMonth() + 1) {
+    if (
+      year < currentDate.getFullYear() ||
+      month <= currentDate.getMonth() + 1
+    ) {
       try {
         await syncMonthlyStatistics(year, month);
         syncedMonths++;

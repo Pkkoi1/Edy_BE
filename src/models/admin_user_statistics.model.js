@@ -25,7 +25,7 @@ adminUserStatisticsSchema.pre("save", async function (next) {
     const indexes = await collection.indexes();
 
     // Drop các index cũ
-    const oldIndexes = ['date_1', 'year_1', 'date_1_unique'];
+    const oldIndexes = ["date_1", "year_1", "date_1_unique"];
     for (const indexName of oldIndexes) {
       const index = indexes.find((idx) => idx.name === indexName);
       if (index) {
