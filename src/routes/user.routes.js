@@ -13,23 +13,159 @@ const {
  * @swagger
  * /users:
  *   get:
- *     summary: Lấy danh sách người dùng yêu cầu quyền quản lý người dùng
+ *     summary: Lấy danh sách người dùng với phân trang, tìm kiếm và lọc (yêu cầu quyền quản lý người dùng)
  *     tags: [Users]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Số trang (bắt đầu từ 1)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *         description: Số lượng user mỗi trang (1-100)
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Từ khóa tìm kiếm (tên, email, hoặc ObjectId)
+ *       - in: query
+ *         name: field_of_study
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         style: form
+ *         explode: true
+ *         description: Lọc theo lĩnh vực học (có thể truyền nhiều giá trị)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *             enum: [ACTIVE, INACTIVE, BANNED]
+ *         style: form
+ *         explode: true
+ *         description: Lọc theo trạng thái tài khoản (có thể truyền nhiều giá trị)
+ *       - in: query
+ *         name: rank_point_min
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc điểm hạng tối thiểu
+ *       - in: query
+ *         name: rank_point_max
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc điểm hạng tối đa
+ *       - in: query
+ *         name: strike_min
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc số strike tối thiểu
+ *       - in: query
+ *         name: strike_max
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc số strike tối đa
  *     responses:
  *       200:
  *         description: Thành công
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 type: object
- *       500:
- *         description: Lỗi server
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         description: ID của user
+ *                       first_name:
+ *                         type: string
+ *                         description: Họ
+ *                       last_name:
+ *                         type: string
+ *                         description: Tên
+ *                       email:
+ *                         type: string
+ *                         description: Email
+ *                       avatar:
+ *                         type: string
+ *                         description: URL avatar
+ *                       organization:
+ *                         type: object
+ *                         description: Thông tin tổ chức
+ *                       field_of_study:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                         description: Lĩnh vực học
+ *                       rank_point:
+ *                         type: number
+ *                         description: Điểm hạng
+ *                       strike:
+ *                         type: number
+ *                         description: Số lần vi phạm
+ *                       status:
+ *                         type: string
+ *                         enum: [ACTIVE, INACTIVE, BANNED]
+ *                         description: Trạng thái tài khoản
+ *                       account:
+ *                         type: object
+ *                         description: Thông tin tài khoản
+ *                       roles:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                         description: Danh sách vai trò
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Ngày tạo
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     currentPage:
+ *                       type: integer
+ *                       example: 1
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 5
+ *                     totalUsers:
+ *                       type: integer
+ *                       example: 250
+ *                     hasNextPage:
+ *                       type: boolean
+ *                       example: true
+ *                     hasPrevPage:
+ *                       type: boolean
+ *                       example: false
+ *       400:
+ *         description: Tham số không hợp lệ
  *       401:
  *         description: Chưa xác thực
  *       403:
  *         description: Không có quyền
+ *       500:
+ *         description: Lỗi server
  */
 router.get(
   "/",
