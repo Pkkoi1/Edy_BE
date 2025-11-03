@@ -13,7 +13,7 @@ const {
  * @swagger
  * /organizations:
  *   get:
- *     summary: Lấy danh sách tổ chức
+ *     summary: Lấy danh sách tổ chức (hỗ trợ tìm kiếm, lọc, phân trang)
  *     tags:
  *       - Organizations
  *     parameters:
@@ -22,6 +22,46 @@ const {
  *         schema:
  *           type: boolean
  *         example: false
+ *         description: Nếu true thì trả về danh sách rút gọn (id, name, code)
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Từ khóa tìm kiếm theo name hoặc code
+ *       - in: query
+ *         name: country
+ *         schema:
+ *           type: string
+ *         description: Lọc theo quốc gia
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: Lọc theo mã tổ chức (partial match)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Số trang (bắt đầu từ 1). Nếu không truyền sẽ trả về tất cả
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 1000
+ *         description: Số mục mỗi trang
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *         description: Trường để sắp xếp (ví dụ createdAt, name)
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Hướng sắp xếp
  *     responses:
  *       200:
  *         description: Lấy danh sách tổ chức thành công

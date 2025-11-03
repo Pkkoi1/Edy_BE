@@ -5,6 +5,7 @@ const {
   refreshTokenService,
   createOTPService,
   verifyOTPService,
+  forgotPasswordService,
 } = require("../services/auth.service");
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -168,5 +169,25 @@ exports.registerWithOTP = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Đã xảy ra lỗi khi đăng ký với OTP" });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email là bắt buộc" });
+    }
+
+    const result = await forgotPasswordService(email);
+    if (result.error) {
+      return res.status(result.status || 400).json({ message: result.error });
+    }
+
+    res.json({ message: result.message });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi đặt lại mật khẩu" });
   }
 };
