@@ -6,32 +6,137 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const Assignment = require("../models/assignment.model");
 
-const getUsers = async () => {
+const getUsers = async (page = 1, limit = 50, search = "", filters = {}) => {
   try {
-    const users = await User.find().populate("organization", "name").lean();
+    const skip = (page - 1) * limit;
 
-    const usersWithRoles = await Promise.all(
+    // Build query
+    let query = {};
+
+    // Search filter
+    if (search) {
+      // Kiểm tra xem search có phải là ObjectId không
+      if (mongoose.Types.ObjectId.isValid(search)) {
+        query._id = search;
+      } else {
+        // Tìm kiếm theo tên hoặc email
+        query = {
+          $or: [
+            { first_name: { $regex: search, $options: "i" } },
+            { last_name: { $regex: search, $options: "i" } },
+            { contact_email: { $regex: search, $options: "i" } },
+          ],
+        };
+      }
+    }
+
+    // Additional filters
+    if (filters.field_of_study && filters.field_of_study.length > 0) {
+      query.field_of_study = { $in: filters.field_of_study };
+    }
+
+    if (filters.status && filters.status.length > 0) {
+      query.status = { $in: filters.status };
+    }
+
+    if (
+      filters.rank_point_min !== undefined ||
+      filters.rank_point_max !== undefined
+    ) {
+      query.rank_point = {};
+      if (filters.rank_point_min !== undefined) {
+        query.rank_point.$gte = parseInt(filters.rank_point_min);
+      }
+      if (filters.rank_point_max !== undefined) {
+        query.rank_point.$lte = parseInt(filters.rank_point_max);
+      }
+    }
+
+    if (filters.strike_min !== undefined || filters.strike_max !== undefined) {
+      query.strike = {};
+      if (filters.strike_min !== undefined) {
+        query.strike.$gte = parseInt(filters.strike_min);
+      }
+      if (filters.strike_max !== undefined) {
+        query.strike.$lte = parseInt(filters.strike_max);
+      }
+    }
+
+    // Lấy tổng số users để tính pagination
+    const total = await User.countDocuments(query);
+
+    // Lấy users với pagination
+    const users = await User.find(query)
+      .populate("organization", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Thêm thông tin account và roles cho mỗi user
+    const usersWithDetails = await Promise.all(
       users.map(async (user) => {
         const account = await Account.findOne({ user: user._id }).lean();
 
-        if (!account) {
-          return { ...user, role_names: [] };
+        let roles = [];
+        let email = "";
+        let isVerified = false;
+        let isAdmin = false;
+
+        if (account) {
+          email = account.email;
+          isVerified = account.is_verified;
+          isAdmin = account.is_admin;
+
+          // Lấy roles từ assignments
+          const assignments = await Assignment.find({ account: account._id })
+            .populate("role", "name code")
+            .lean();
+
+          roles = assignments.map((assignment) => ({
+            name: assignment.role.name,
+            code: assignment.role.code,
+          }));
         }
 
-        const assignments = await Assignment.find({ account: account._id })
-          .populate("role", "name")
-          .lean();
-
-        const roleNames = assignments.map((assignment) => assignment.role.name);
-
         return {
-          ...user,
-          role_names: roleNames,
+          _id: user._id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          full_name: `${user.first_name} ${user.last_name}`,
+          email,
+          contact_email: user.contact_email,
+          avatar: user.avatar,
+          organization: user.organization,
+          field_of_study: user.field_of_study,
+          point: user.point,
+          rank_point: user.rank_point,
+          strike: user.strike,
+          follower: user.follower || [],
+          following: user.following || [],
+          doc_count: user.doc_count,
+          free_download_count: user.free_download_count,
+          status: user.status,
+          is_verified: isVerified,
+          is_admin: isAdmin,
+          roles,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
         };
       })
     );
 
-    return usersWithRoles;
+    return {
+      success: true,
+      data: usersWithDetails,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalUsers: total,
+        hasNextPage: page * limit < total,
+        hasPrevPage: page > 1,
+      },
+    };
   } catch (error) {
     console.error("Error getting users:", error);
     throw new Error("Lỗi khi lấy danh sách người dùng: " + error.message);

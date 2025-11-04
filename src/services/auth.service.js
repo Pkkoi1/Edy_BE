@@ -343,6 +343,99 @@ const verifyOTPService = async (email, otp, type = "REGISTER") => {
   }
 };
 
+// Tạo mật khẩu ngẫu nhiên theo yêu cầu validation
+const generateRandomPassword = () => {
+  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lowercase = "abcdefghijklmnopqrstuvwxyz";
+  const numbers = "0123456789";
+  const specialChars = "!@#"; // Chỉ sử dụng 3 ký tự đặc biệt: ! @ #
+
+  // Đảm bảo có ít nhất 1 ký tự mỗi loại
+  let password = "";
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += specialChars[Math.floor(Math.random() * specialChars.length)]; // Chỉ 1 ký tự đặc biệt
+
+  // Thêm các ký tự ngẫu nhiên còn lại để đạt độ dài tối thiểu 8
+  const allChars = uppercase + lowercase + numbers + specialChars;
+  for (let i = password.length; i < 8; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  // Shuffle password để không có pattern cố định
+  return password
+    .split("")
+    .sort(() => Math.random() - 0.5)
+    .join("");
+};
+
+// Gửi email mật khẩu mới
+const sendNewPassword = async (email, newPassword) => {
+  try {
+    const transporter = createEmailTransporter();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Mật khẩu mới - Edy",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Mật khẩu mới cho tài khoản Edy</h2>
+          <p>Xin chào,</p>
+          <p>Chúng tôi đã tạo mật khẩu mới cho tài khoản của bạn:</p>
+          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #dc3545; font-size: 24px; margin: 0; word-break: break-all;">${newPassword}</h1>
+          </div>
+          <p><strong>Lưu ý:</strong> Vui lòng đổi mật khẩu ngay sau khi đăng nhập để bảo mật tài khoản.</p>
+          <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng liên hệ với chúng tôi ngay lập tức.</p>
+          <br>
+          <p>Trân trọng,<br>Đội ngũ Edy</p>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending new password email:", error);
+    return { error: "Không thể gửi email mật khẩu mới" };
+  }
+};
+
+// Quên mật khẩu - tạo mật khẩu mới và gửi email
+const forgotPasswordService = async (email) => {
+  try {
+    // Kiểm tra email có tồn tại không
+    const account = await Account.findOne({ email });
+    if (!account) {
+      return { error: "Email không tồn tại trong hệ thống", status: 404 };
+    }
+
+    // Tạo mật khẩu mới
+    const newPassword = generateRandomPassword();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Cập nhật mật khẩu trong database
+    account.password = hashedPassword;
+    await account.save();
+
+    // Gửi email mật khẩu mới
+    const emailResult = await sendNewPassword(email, newPassword);
+    if (emailResult.error) {
+      return { error: emailResult.error, status: 500 };
+    }
+
+    return {
+      success: true,
+      message: "Mật khẩu mới đã được gửi đến email của bạn",
+    };
+  } catch (error) {
+    console.error("Error in forgot password service:", error);
+    return { error: "Không thể đặt lại mật khẩu", status: 500 };
+  }
+};
+
 module.exports = {
   generateTokens,
   loginService,
@@ -352,4 +445,5 @@ module.exports = {
   verifyToken,
   createOTPService,
   verifyOTPService,
+  forgotPasswordService,
 };
