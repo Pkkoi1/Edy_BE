@@ -31,6 +31,11 @@ const {
 } = require("../services/approval_request.service");
 
 const { checkIsFavorite } = require("../services/user.service");
+const {
+  logDocumentApproved,
+  logDocumentEditRequested,
+  logDocumentUploaded,
+} = require("../services/recent_activities.service");
 
 exports.getAllDocuments = async (req, res) => {
   try {
@@ -222,6 +227,9 @@ exports.uploadDocument = async (req, res) => {
     //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
     await createApprovalRequest(document._id, req.user.userId);
 
+    // Log activity for document upload
+    await logDocumentUploaded(document._id, req.user.userId);
+
     res.status(201).json({
       message: "Tải lên tài liệu thành công",
       document,
@@ -350,7 +358,7 @@ exports.getPendingDocuments = async (req, res) => {
       order,
       page: parseInt(page),
       limit: parseInt(limit),
-      show_all: show_all === 'true' || show_all === true,
+      show_all: show_all === "true" || show_all === true,
       ...filters,
     });
     res.json(result);
@@ -391,6 +399,10 @@ exports.approveDocument = async (req, res) => {
         .status(404)
         .json({ message: "Yêu cầu phê duyệt không tồn tại" });
     }
+
+    // Log activity for document approval
+    await logDocumentApproved(approvalRequest.document, reviewerId);
+
     res.json({ message: "Phê duyệt tài liệu thành công" });
   } catch (error) {
     console.error(error);
@@ -508,6 +520,11 @@ exports.updateDocumentStatus = async (req, res) => {
     }
 
     const updatedDocument = await updateDocument(id, updateData);
+
+    // Log activity for document edit request if status is REQUESTED_EDIT
+    if (status === "REQUESTED_EDIT") {
+      await logDocumentEditRequested(id, req.user.userId);
+    }
 
     res.json({
       message: "Cập nhật trạng thái tài liệu thành công",

@@ -5,6 +5,9 @@ const {
   updateOrganization,
   deleteOrganization,
 } = require("../services/organization.service");
+const {
+  logOrganizationCreated,
+} = require("../services/recent_activities.service");
 
 exports.createOrganization = async (req, res) => {
   try {
@@ -19,6 +22,10 @@ exports.createOrganization = async (req, res) => {
       description,
       created_by: req.user.userId,
     });
+
+    // Log activity for organization creation
+    await logOrganizationCreated(org._id, req.user.userId);
+
     res.status(201).json({ message: "Tạo mới thành công", organization: org });
   } catch (error) {
     console.error(error);
