@@ -35,7 +35,7 @@ const createEditDocument = async (documentId, editData, userId) => {
     await createEditApproval({
       doc: documentId,
       edit_doc: editDocument._id,
-      user: userId,
+      requester: userId,
       status: 'PENDING',
     });
     return editDocument;
