@@ -43,7 +43,7 @@ exports.getEditApprovalByOriginalDocId = async (req, res) => {
 exports.handleEditApproval = async (req, res) => {
     try {
         const actionData = req.body;
-        const editApproval = await handleEditApproval(req.params.editApprovalId, actionData);
+        const editApproval = await handleEditApproval(req.params.editApprovalId, actionData, req.user.userId);
         res.status(200).json({
             message: 'Xử lý phê duyệt chỉnh sửa thành công',
             editApproval

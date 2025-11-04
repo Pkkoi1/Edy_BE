@@ -1,12 +1,14 @@
+const mongoose = require('mongoose');
 const Document = require("../models/document.model");
 const EditDocument = require("../models/edit_document.model");
 const EditApproval = require("../models/edit_approval.model");
+const { getEligibleApprovers } = require("./approval_request.service");
 
 const createEditApproval = async (editApprovalData) => {
     const existingApproval = await EditApproval.findOne({
         doc: editApprovalData.doc,
         edit_doc: editApprovalData.edit_doc,
-        user: editApprovalData.user,
+        requester: editApprovalData.requester,
         status: 'PENDING'
     });
 
@@ -15,22 +17,44 @@ const createEditApproval = async (editApprovalData) => {
     }
 
     const editApproval = new EditApproval(editApprovalData);
-    return await editApproval.save();
+    await editApproval.save();
+
+    // Tự động gán edit approval request cho admin có ít pending request nhất
+    try {
+        // Lấy organization từ edit_doc hoặc doc gốc
+        const editDoc = await EditDocument.findById(editApprovalData.edit_doc);
+        const documentOrgId = editDoc?.organization || null;
+        
+        // Nếu edit_doc không có organization, lấy từ document gốc
+        if (!documentOrgId) {
+            const document = await Document.findById(editApprovalData.doc);
+            if (document) {
+                await assignEditApproval(editApproval._id, document.organization || null);
+            }
+        } else {
+            await assignEditApproval(editApproval._id, documentOrgId);
+        }
+    } catch (error) {
+        console.error(`Lỗi khi tự động gán edit approval request ${editApproval._id}:`, error);
+        // Không throw error để không ảnh hưởng đến việc tạo edit approval request
+    }
+
+    return editApproval;
 }
 
 const getEditApprovalById = async (id) => {
-    return await EditApproval.findById(id).populate('doc edit_doc user reviewed_by');
+    return await EditApproval.findById(id).populate('doc edit_doc requester reviewed_by');
 }
 
 const getEditApprovalsByEditDocId = async (editDocId) => {
-    return await EditApproval.find({ edit_doc: editDocId }).populate('doc edit_doc user reviewed_by');
+    return await EditApproval.find({ edit_doc: editDocId }).populate('doc edit_doc requester reviewed_by');
 }
 
 const getEditApprovalByOriginalDocumentId = async (docId) => {
     return await EditApproval.find({ doc: docId, status: 'PENDING' })
         .populate('doc')
         .populate('edit_doc')
-        .populate('user', 'first_name last_name')
+        .populate('requester', 'first_name last_name')
         .populate('reviewed_by', 'first_name last_name')
         .sort({ createdAt: -1 });
 }
@@ -39,7 +63,7 @@ const deleteEditApprovalByEditId = async (editId) => {
     return await EditApproval.deleteMany({ edit_doc: editId });
 }
 
-const handleEditApproval = async (editApprovalId, actionData) => {
+const handleEditApproval = async (editApprovalId, actionData, approver) => {
     const {action, message} = actionData;
     if (action !== 'APPROVE' && action !== 'REJECT') throw new Error('Hành động không hợp lệ');
     const editApproval = await getEditApprovalById(editApprovalId);
@@ -48,7 +72,7 @@ const handleEditApproval = async (editApprovalId, actionData) => {
     if (editApproval.status !== 'PENDING') throw new Error('Phê duyệt chỉnh sửa không còn đang chờ duyệt');
 
     if (action === 'APPROVE') {
-        await approveEditApproval(editApprovalId, message);
+        await approveEditApproval(editApprovalId, message, approver);
         editDoc.status = 'APPROVED';
         editDoc.expiredAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await editDoc.save()
@@ -59,32 +83,32 @@ const handleEditApproval = async (editApprovalId, actionData) => {
         editDoc.status = 'REJECTED';
         editDoc.expiredAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await editDoc.save()
-        await rejectEditApproval(editApprovalId, message);
+        await rejectEditApproval(editApprovalId, message, approver);
         return editApproval;
     }
 }
 
-const approveEditApproval = async (editApprovalId, message) => {
+const approveEditApproval = async (editApprovalId, message, approver) => {
     const currentTime = Date.now();
     const editApproval = await getEditApprovalById(editApprovalId);
     if (!editApproval) throw new Error('Edit approval not found');
     if (editApproval.status !== 'PENDING') throw new Error('Edit approval is not pending');
     editApproval.status = 'APPROVED';
     editApproval.reviewed_at = currentTime;
-    editApproval.reviewed_by = editApproval.user;
+    editApproval.reviewed_by = approver;
     editApproval.message = message;
     editApproval.expiredAt = new Date(currentTime + 24 * 60 * 60 * 1000);
     await editApproval.save();
 }
 
-const rejectEditApproval = async (editApprovalId, message) => {
+const rejectEditApproval = async (editApprovalId, message, approver) => {
     const currentTime = Date.now();
     const editApproval = await getEditApprovalById(editApprovalId);
     if (!editApproval) throw new Error('Edit approval not found');
     if (editApproval.status !== 'PENDING') throw new Error('Edit approval is not pending');
     editApproval.status = 'REJECTED';
     editApproval.reviewed_at = currentTime;
-    editApproval.reviewed_by = editApproval.user;
+    editApproval.reviewed_by = approver;
     editApproval.message = message;
     editApproval.expiredAt = new Date(currentTime + 24 * 60 * 60 * 1000);
     await editApproval.save();
@@ -135,6 +159,70 @@ const applyDataToDocument = async (editDocId) => {
     return await document.save();
 }
 
+// gán edit approval request cho admin có ít pending nhất
+const assignEditApproval = async (editApprovalId, documentOrganizationId) => {
+    try {
+        // Lấy danh sách admin có thể duyệt
+        const eligibleUserIds = await getEligibleApprovers(documentOrganizationId);
+
+        // ko có admin -> gán null. assigned_to sẽ là null
+        if (eligibleUserIds.length === 0) {
+            return null;
+        }
+        
+        // Đếm số lượng edit approval request đang pending cho mỗi admin (chỉ đếm riêng EditApproval)
+        const pendingCounts = await EditApproval.aggregate([
+            {
+                $match: {
+                    assigned_to: { $in: eligibleUserIds },
+                    status: 'PENDING'
+                }
+            },
+            {
+                $group: {
+                    _id: '$assigned_to',
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { count: 1 }
+            },
+            {
+                $limit: 1
+            }
+        ]);
+
+        // Tìm admin được chọn
+        let selectedUserId = null;
+        let minPendingCount = 0;
+
+        if (pendingCounts.length > 0) {
+            // Có admin đã có pending edit approval requests, chọn admin có ít nhất
+            selectedUserId = pendingCounts[0]._id;
+            minPendingCount = pendingCounts[0].count;
+        } else {
+            // Tất cả admin đều có 0 pending edit approval request
+            // Chọn admin đầu tiên trong danh sách eligible
+            selectedUserId = eligibleUserIds[0];
+            minPendingCount = 0;
+        }
+
+        // Cập nhật edit approval request với assigned_to
+        if (selectedUserId) {
+            await EditApproval.findByIdAndUpdate(editApprovalId, {
+                assigned_to: selectedUserId
+            }, { new: true });
+            console.log(`Đã gán edit approval request ${editApprovalId} cho admin ${selectedUserId} (có ${minPendingCount} pending request)`);
+            return selectedUserId;
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Lỗi khi gán edit approval request:', error);
+        throw new Error(`Lỗi khi gán edit approval request: ${error.message}`);
+    }
+};
+
 module.exports = {
     createEditApproval,
     getEditApprovalById,
@@ -142,4 +230,5 @@ module.exports = {
     getEditApprovalByOriginalDocumentId,
     handleEditApproval,
     deleteEditApprovalByEditId,
+    assignEditApproval,
 }

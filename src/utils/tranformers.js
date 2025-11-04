@@ -243,10 +243,23 @@ async function processDocumentWithGeminiAI(url, fileType, documentMetadata) {
             throw new Error('Loại file không được hỗ trợ');
         }
 
+        const raw = (text || '').replace(/\s+/g, ' ');
+        if (raw.length < 200){
+            return {
+                summary: 'Nội dung quá ngắn để thực hiện tóm tắt',
+                aiCheck: {
+                    violation_level: 'MEDIUM',
+                    action_suggest: 'MANUAL_REVIEW',
+                    reason: 'Nội dung quá ngắn để thực hiện tóm tắt và kiểm duyệt bằng AI'
+                },
+            }
+        }
+
         const minLengthToBreak = 6000;
         const bufferZone = 1000; // Buffer 1000 chars
         const breakThreshold = minLengthToBreak + bufferZone; // 7000
         const maxLength = 30000;
+
         let textToProcess;
 
         if (text.length <= breakThreshold) {
@@ -329,7 +342,7 @@ C. ĐÁNH GIÁ CHUYÊN SÂU (is_intensive):
 
 LƯU Ý:
 - Reason phải giải thích rõ về vi phạm, metadata, và intensive
-
+- Đối với tài liệu rỗng, nội dung linh tinh, xáo rỗng thì đánh dấu vi phạm MEDIUM
 NỘI DUNG TÀI LIỆU:
 ${textToProcess}
 

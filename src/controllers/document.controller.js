@@ -194,7 +194,7 @@ exports.uploadDocument = async (req, res) => {
       summary_by_user: null,
       summary_by_ai: null,
     };
-    if (description && description.length > 10) {
+    if (description && description.length > 0) {
       descriptionObj.summary_by_user = description;
     }
 
@@ -339,6 +339,7 @@ exports.getPendingDocuments = async (req, res) => {
       order = -1,
       page = 1,
       limit = 5,
+      show_all = false,
       ...filters
     } = req.query;
 
@@ -349,6 +350,7 @@ exports.getPendingDocuments = async (req, res) => {
       order,
       page: parseInt(page),
       limit: parseInt(limit),
+      show_all: show_all === 'true' || show_all === true,
       ...filters,
     });
     res.json(result);
