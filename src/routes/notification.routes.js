@@ -221,6 +221,10 @@ router.delete(
  *                 type: string
  *                 description: Nội dung thông báo
  *                 example: "Chúc mừng bạn đã hoàn thành nhiệm vụ!"
+ *               redirectTo:
+ *                 type: string
+ *                 description: URL điều hướng (tùy chọn, null nếu không điều hướng)
+ *                 example: "/documents/652e1c8e2f8b9c0012345679"
  *             required:
  *               - userId
  *               - type

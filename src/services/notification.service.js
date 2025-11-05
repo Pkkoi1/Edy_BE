@@ -11,6 +11,7 @@ const createNotification = async ({
   cmtId = null,
   type,
   message,
+  redirectTo = null,
 }) => {
   try {
     // Kiểm tra user tồn tại
@@ -43,6 +44,7 @@ const createNotification = async ({
       type,
       message: message.trim(),
       isRead: false,
+      redirectTo,
     });
 
     await notification.save();
@@ -238,6 +240,7 @@ const notifyDocumentApproved = async (userId, documentId) => {
     docId: documentId,
     type: "APPROVED",
     message: `Tài liệu "${document.title}" của bạn đã được phê duyệt và xuất bản thành công! 🎉`,
+    redirectTo: "DOCUMENT",
   });
 };
 
@@ -255,6 +258,7 @@ const notifyDocumentRejected = async (userId, documentId, reason = "") => {
     docId: documentId,
     type: "REJECTED",
     message,
+    redirectTo: "DOCUMENT",
   });
 };
 
@@ -272,6 +276,7 @@ const notifyDocumentRemoved = async (userId, documentId, reason = "") => {
     docId: documentId,
     type: "REMOVED",
     message,
+    redirectTo: "NONE", // Tài liệu đã bị xóa, không thể điều hướng
   });
 };
 
@@ -289,6 +294,7 @@ const notifyDocumentHidden = async (userId, documentId, reason = "") => {
     docId: documentId,
     type: "HIDDEN",
     message,
+    redirectTo: "DOCUMENT",
   });
 };
 
@@ -303,6 +309,7 @@ const notifyNewComment = async (documentOwnerId, commentId, commenterName) => {
     cmtId: commentId,
     type: "COMMENT",
     message: `${commenterName} đã bình luận về tài liệu "${comment.doc.title}" của bạn 💬`,
+    redirectTo: "COMMENT",
   });
 };
 
@@ -325,6 +332,7 @@ const notifyCommentReply = async (
     cmtId: replyId,
     type: "REPLY",
     message: `${replierName} đã trả lời bình luận của bạn trong tài liệu "${reply.doc.title}" 💭`,
+    redirectTo: "COMMENT",
   });
 };
 
@@ -334,6 +342,7 @@ const notifySystem = async (userId, message) => {
     userId,
     type: "SYSTEM",
     message,
+    redirectTo: "NONE", // Thông báo hệ thống thường không cần điều hướng
   });
 };
 
