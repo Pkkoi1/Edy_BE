@@ -380,6 +380,73 @@ router.delete(
 
 /**
  * @swagger
+ * /users/contributions:
+ *   get:
+ *     summary: Lấy thành tích đóng góp của người dùng hiện tại
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         schema:
+ *           type: integer
+ *           minimum: 2000
+ *           maximum: 2100
+ *         description: "Năm để lọc dữ liệu (tùy chọn). Nếu không cung cấp sẽ lấy tất cả thời gian"
+ *         example: 2024
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 year:
+ *                   type: integer
+ *                   nullable: true
+ *                   description: Năm được lọc (null nếu không lọc)
+ *                   example: 2024
+ *                 contributions:
+ *                   type: object
+ *                   properties:
+ *                     total_documents:
+ *                       type: integer
+ *                       description: Tổng số bài đăng (documents)
+ *                       example: 15
+ *                     total_reactions:
+ *                       type: integer
+ *                       description: Tổng số lần tương tác tài liệu (like/dislike)
+ *                       example: 45
+ *                     total_downloads:
+ *                       type: integer
+ *                       description: Tổng số lần tải tài liệu thành công
+ *                       example: 23
+ *                     total_comments:
+ *                       type: integer
+ *                       description: Tổng số bình luận
+ *                       example: 67
+ *       400:
+ *         description: Năm không hợp lệ hoặc lỗi khác
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.get(
+  "/contributions",
+  requireLoggedIn,
+  userController.getUserContributions
+);
+
+/**
+ * @swagger
  * /users/{userId}:
  *   get:
  *     summary: Lấy thông tin chi tiết của một người dùng theo ID

@@ -11,6 +11,7 @@ const {
   followUser,
   unfollowUser,
   getUserPermissions,
+  getUserContributions,
 } = require("../services/user.service");
 
 exports.getUsers = async (req, res) => {
@@ -302,6 +303,25 @@ exports.unfollowUser = async (req, res) => {
   } catch (error) {
     console.error("Error in unfollowUser controller:", error);
     res.status(500).json({ message: "Đã xảy ra lỗi khi unfollow người dùng" });
+  }
+};
+
+exports.getUserContributions = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { year } = req.query;
+
+    const result = await getUserContributions(userId, year);
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in getUserContributions controller:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy thành tích đóng góp của người dùng",
+    });
   }
 };
 
