@@ -2,10 +2,8 @@ const {
   getStatistics,
   refreshStatistics,
   getAdminTasks,
+  getRecentActivitiesForAdmin,
 } = require("../services/admin_statistics.service");
-const {
-  getRecentActivities,
-} = require("../services/recent_activities.service");
 
 exports.refreshStatistics = async (req, res) => {
   try {
@@ -53,7 +51,7 @@ exports.getDashboardStats = async (req, res) => {
     };
 
     // Get recent activities
-    const activities = await getRecentActivities(10);
+    const activitiesResult = await getRecentActivitiesForAdmin(10);
 
     // Get admin tasks
     const adminId = req.user.userId;
@@ -63,7 +61,7 @@ exports.getDashboardStats = async (req, res) => {
       success: true,
       data: {
         statistics: dashboardStats,
-        recent_activities: activities,
+        recent_activities: activitiesResult.activities,
         tasks: tasks,
       },
       cached: statsResult.cached,
