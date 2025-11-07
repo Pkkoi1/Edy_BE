@@ -11,6 +11,7 @@ const {
   syncSubjectDocCount,
   syncAllSubjectsDocCount,
 } = require("../services/subject.service");
+const { logSubjectCreated } = require("../services/recent_activities.service");
 
 exports.createSubject = async (req, res) => {
   try {
@@ -22,6 +23,10 @@ exports.createSubject = async (req, res) => {
       organization,
       created_by: req.user.userId,
     });
+
+    // Log activity for subject creation
+    await logSubjectCreated(subject._id, req.user.userId);
+
     res.status(201).json(subject);
   } catch (error) {
     res.status(500).json({ error: error.message });

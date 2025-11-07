@@ -99,7 +99,7 @@ const registerService = async ({ first_name, last_name, email, password }) => {
     // Không trả về lỗi nếu việc cộng điểm thất bại
   }
 
-  return { success: true };
+  return { success: true, userId: user._id };
 };
 
 const getMeService = async (payload, accessToken, refreshToken) => {

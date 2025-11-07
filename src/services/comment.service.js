@@ -61,34 +61,34 @@ const createComment = async (userId, documentId, content, parentId = null) => {
   });
 
   // Gửi thông báo cho chủ sở hữu tài liệu hoặc người được reply
-  try {
-    const user = await User.findById(userId);
-    const commenterName = `${user.first_name} ${user.last_name}`;
+  // try {
+  //   const user = await User.findById(userId);
+  //   const commenterName = `${user.first_name} ${user.last_name}`;
 
-    if (parentId) {
-      // Đây là reply - thông báo cho người được reply
-      const parentComment = await Comment.findById(parentId);
-      if (parentComment && parentComment.user.toString() !== userId) {
-        await notifyCommentReply(
-          parentComment.user.toString(),
-          comment._id,
-          commenterName
-        );
-      }
-    } else {
-      // Đây là comment chính - thông báo cho chủ sở hữu tài liệu
-      if (document.user.toString() !== userId) {
-        await notifyNewComment(
-          document.user.toString(),
-          comment._id,
-          commenterName
-        );
-      }
-    }
-  } catch (notificationError) {
-    // Log lỗi nhưng không làm fail việc tạo comment
-    console.error("Lỗi gửi thông báo comment:", notificationError);
-  }
+  //   if (parentId) {
+  //     // Đây là reply - thông báo cho người được reply
+  //     const parentComment = await Comment.findById(parentId);
+  //     if (parentComment && parentComment.user.toString() !== userId) {
+  //       await notifyCommentReply(
+  //         parentComment.user.toString(),
+  //         comment._id,
+  //         commenterName
+  //       );
+  //     }
+  //   } else {
+  //     // Đây là comment chính - thông báo cho chủ sở hữu tài liệu
+  //     if (document.user.toString() !== userId) {
+  //       await notifyNewComment(
+  //         document.user.toString(),
+  //         comment._id,
+  //         commenterName
+  //       );
+  //     }
+  //   }
+  // } catch (notificationError) {
+  //   // Log lỗi nhưng không làm fail việc tạo comment
+  //   console.error("Lỗi gửi thông báo comment:", notificationError);
+  // }
 
   return comment;
 };

@@ -7,6 +7,7 @@ const {
   verifyOTPService,
   forgotPasswordService,
 } = require("../services/auth.service");
+const { logUserCreated } = require("../services/recent_activities.service");
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -164,6 +165,9 @@ exports.registerWithOTP = async (req, res) => {
     });
     if (result.error)
       return res.status(result.status || 400).json({ message: result.error });
+
+    // Log activity for user creation
+    await logUserCreated(result.userId);
 
     res.status(201).json({ message: "Đăng ký thành công với OTP" });
   } catch (error) {

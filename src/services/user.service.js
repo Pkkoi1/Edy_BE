@@ -2,6 +2,9 @@ const User = require("../models/user.model");
 const Account = require("../models/account.model");
 const Organization = require("../models/organization.model");
 const Document = require("../models/document.model");
+const Reaction = require("../models/reaction.model");
+const DownloadLink = require("../models/download_link.model");
+const Comment = require("../models/comment.model");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const Assignment = require("../models/assignment.model");
@@ -416,7 +419,7 @@ const getFavoriteDocuments = async (userId) => {
     const user = await User.findById(userId).populate({
       path: "favorites.document",
       select:
-        "_id title cover_page author published_year publisher organization subject level view download_count comment_count status public_mode is_deleted createdAt",
+        "_id title cover_page author published_year intensive page publisher organization subject level view download_count comment_count status public_mode file_type is_deleted createdAt",
       populate: [
         { path: "organization", select: "_id name" },
         { path: "subject", select: "_id name" },
@@ -681,6 +684,80 @@ const getUserPermissions = async (userId) => {
   }
 };
 
+const getUserContributions = async (userId, year = null) => {
+  try {
+    // Kiểm tra user tồn tại
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    // Tạo filter cho năm nếu được cung cấp
+    let dateFilter = {};
+    if (year) {
+      const yearNum = parseInt(year);
+      if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+        return { error: "Năm không hợp lệ" };
+      }
+      const startDate = new Date(yearNum, 0, 1); // 1/1/year
+      const endDate = new Date(yearNum + 1, 0, 1); // 1/1/(year+1)
+      dateFilter = {
+        createdAt: {
+          $gte: startDate,
+          $lt: endDate,
+        },
+      };
+    }
+
+    // Lấy các thống kê song song để tối ưu performance
+    const [totalDocuments, totalReactions, totalDownloads, totalComments] =
+      await Promise.all([
+        // Tổng bài đăng (documents chưa bị xóa)
+        Document.countDocuments({
+          user: userId,
+          is_deleted: false,
+          ...dateFilter,
+        }),
+
+        // Số lần tương tác tài liệu (reactions: like/dislike)
+        Reaction.countDocuments({
+          user: userId,
+          ...dateFilter,
+        }),
+
+        // Lần tải tài liệu (download links thành công)
+        DownloadLink.countDocuments({
+          user: userId,
+          status: "SUCCESS",
+          ...dateFilter,
+        }),
+
+        // Số bình luận (comments chưa bị xóa)
+        Comment.countDocuments({
+          user: userId,
+          is_deleted: false,
+          ...dateFilter,
+        }),
+      ]);
+
+    return {
+      success: true,
+      year: year ? parseInt(year) : null,
+      contributions: {
+        total_documents: totalDocuments,
+        total_reactions: totalReactions,
+        total_downloads: totalDownloads,
+        total_comments: totalComments,
+      },
+    };
+  } catch (error) {
+    console.error("Error getting user contributions:", error);
+    return {
+      error: "Lỗi khi lấy thành tích đóng góp của người dùng: " + error.message,
+    };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
@@ -696,4 +773,5 @@ module.exports = {
   followUser,
   unfollowUser,
   getUserPermissions,
+  getUserContributions,
 };

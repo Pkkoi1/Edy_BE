@@ -8,6 +8,7 @@ const PrivateShare = require("../models/private_share.model");
 const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
 const Assignment = require("../models/assignment.model");
+const Role = require("../models/role.model");
 const { createPointTransaction } = require("./point_transaction.service");
 const {
   processDocumentAndCreateEmbedding,
@@ -30,6 +31,7 @@ const {
   updateViewCount,
   updateDownloadCount,
 } = require("./document_statistics.service");
+const { logActivity } = require("./activity_log.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 const e = require("express");
@@ -719,26 +721,26 @@ const createDocument = async (data) => {
 
   await updateUserDocCount(data.user);
 
-  // Tạo embedding cho document chỉ khi file có thể tạo embedding được
-  if (canCreateEmbedding(data.file_type, data.url)) {
-    embeddinngDocument(doc);
-  }
-
   return doc;
 };
 
 const embeddinngDocument = async (document) => {
-  const result = await processDocumentAndCreateEmbedding(
-    document.url,
-    document.file_type
-  );
-  document.content_vector = result.embedding;
   try {
-    indexDocument(document);
+    const result = await processDocumentAndCreateEmbedding(
+      document.url,
+      document.file_type
+    );
+    document.content_vector = result.embedding;
+    try {
+      await indexDocument(document);
+    } catch (error) {
+      console.error("Lỗi khi đánh index document:", error);
+    }
+    return document;
   } catch (error) {
-    console.error("Lỗi khi đánh index document:", error);
+    console.error("Lỗi khi tạo embedding cho document:", error);
+    throw new Error("Không thể tạo embedding cho tài liệu");
   }
-  return document;
 };
 
 const deleteDocument = async (id) => {
@@ -819,9 +821,62 @@ const getPendingDocuments = async ({
   order = -1,
   page = 1,
   limit = 5,
+  show_all = false,
   ...filters
 }) => {
   const skip = (page - 1) * limit;
+
+  // Kiểm tra quyền admin và filter theo organization + assigned_to
+  let hasAllPermission = false;
+  let hasManageDocumentPermission = false;
+  let allowedOrgIds = [];
+  let canReviewAllOrg = false;
+
+  if (payload && payload.accountId) {
+    const account = await Account.findById(payload.accountId);
+    if (account && account.is_admin) {
+      // Lấy tất cả assignment active của admin
+      const assignments = await Assignment.find({
+        account: payload.accountId,
+        is_active: true,
+      }).populate({
+        path: "role",
+        select: "_id code permissions",
+      });
+
+      // Kiểm tra xem admin có quyền ALL không
+      hasAllPermission = assignments.some(
+        (assignment) =>
+          assignment.role && assignment.role.permissions.includes("ALL")
+      );
+
+      if (!hasAllPermission) {
+        // Kiểm tra admin có quyền MANAGE_DOCUMENT không
+        const documentAssignments = assignments.filter(
+          (assignment) =>
+            assignment.role &&
+            assignment.role.permissions.includes("MANAGE_DOCUMENT")
+        );
+
+        if (documentAssignments.length > 0) {
+          hasManageDocumentPermission = true;
+
+          // Lấy danh sách organization IDs mà admin có thể duyệt
+          for (const assignment of documentAssignments) {
+            const assignmentOrgId = assignment.organization;
+
+            // Nếu assignment không có organization cụ thể, admin có thể duyệt tất cả
+            if (!assignmentOrgId) {
+              canReviewAllOrg = true;
+              break;
+            } else {
+              allowedOrgIds.push(assignmentOrgId);
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Điều kiện tìm kiếm
   let searchOr = [];
@@ -838,6 +893,148 @@ const getPendingDocuments = async ({
     $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
     is_deleted: false,
   };
+
+  // Kiểm tra quyền và filter theo organization + assigned_to
+  let currentAdminUserId = null;
+  if (payload && payload.accountId) {
+    const account = await Account.findById(payload.accountId);
+    if (account && account.is_admin) {
+      currentAdminUserId = account.user;
+
+      // Nếu show_all = true và admin có quyền (ALL hoặc MANAGE_DOCUMENT), xem tất cả không filter
+      if (show_all) {
+        // Chỉ cho phép xem tất cả nếu admin có quyền ALL hoặc MANAGE_DOCUMENT
+        if (hasAllPermission || hasManageDocumentPermission) {
+          // Không thêm filter nào, admin sẽ thấy tất cả pending documents
+          // Bỏ qua phần filter bên dưới
+        } else {
+          // Admin không có quyền, không thấy document nào
+          return {
+            documents: [],
+            total: 0,
+            page,
+            totalPages: 0,
+            have_next: false,
+          };
+        }
+      } else if (!hasAllPermission) {
+        // Nếu không có option show_all, áp dụng filter theo quyền như bình thường
+        // Lấy danh sách documents có approval request với assigned_to = null
+        const documentsWithNullAssignment = await ApprovalRequest.aggregate([
+          {
+            $match: {
+              status: "PENDING",
+              assigned_to: null,
+            },
+          },
+          {
+            $lookup: {
+              from: "documents",
+              localField: "doc",
+              foreignField: "_id",
+              as: "document",
+            },
+          },
+          {
+            $unwind: "$document",
+          },
+          {
+            $match: {
+              "document.status": { $in: ["PENDING", "PENDING_EDIT"] },
+              "document.is_deleted": false,
+            },
+          },
+          {
+            $project: {
+              docId: "$doc",
+            },
+          },
+        ]);
+
+        const docIdsWithNullAssignment = documentsWithNullAssignment.map(
+          (item) => item.docId
+        );
+
+        // Nếu admin có quyền MANAGE_DOCUMENT
+        if (hasManageDocumentPermission) {
+          // Tạo điều kiện OR:
+          // 1. Documents có assigned_to = null (tất cả admin MANAGE_DOCUMENT thấy được)
+          // 2. Documents được gán cho admin hiện tại
+          // 3. Documents thuộc organization mà admin được gán
+          const orConditions = [];
+
+          // Điều kiện 1: Documents có assigned_to = null
+          if (docIdsWithNullAssignment.length > 0) {
+            orConditions.push({ _id: { $in: docIdsWithNullAssignment } });
+          }
+
+          // Điều kiện 2: Documents được gán cho admin hiện tại
+          const documentsAssignedToMe = await ApprovalRequest.find({
+            status: "PENDING",
+            assigned_to: currentAdminUserId,
+          }).select("doc");
+          const docIdsAssignedToMe = documentsAssignedToMe.map(
+            (req) => req.doc
+          );
+          if (docIdsAssignedToMe.length > 0) {
+            orConditions.push({ _id: { $in: docIdsAssignedToMe } });
+          }
+
+          // Điều kiện 3: Documents thuộc organization mà admin được gán
+          if (canReviewAllOrg) {
+            // Admin có thể duyệt tất cả document có organization
+            orConditions.push({ organization: { $ne: null } });
+          } else if (allowedOrgIds.length > 0) {
+            // Admin chỉ có thể duyệt document của các organization được gán
+            orConditions.push({ organization: { $in: allowedOrgIds } });
+          }
+
+          // Nếu không có điều kiện nào, admin không thấy document nào
+          if (orConditions.length === 0) {
+            return {
+              documents: [],
+              total: 0,
+              page,
+              totalPages: 0,
+              have_next: false,
+            };
+          }
+
+          // Thêm điều kiện OR vào query
+          query.$and = query.$and || [];
+          query.$and.push({ $or: orConditions });
+        } else {
+          // Admin không có quyền MANAGE_DOCUMENT, không thấy document nào
+          return {
+            documents: [],
+            total: 0,
+            page,
+            totalPages: 0,
+            have_next: false,
+          };
+        }
+      }
+      // Nếu admin có quyền ALL, không cần thêm filter
+    } else {
+      // Không phải admin, không thấy pending documents
+      return {
+        documents: [],
+        total: 0,
+        page,
+        totalPages: 0,
+        have_next: false,
+      };
+    }
+  } else {
+    // Không có payload hoặc không phải admin, không thấy pending documents
+    return {
+      documents: [],
+      total: 0,
+      page,
+      totalPages: 0,
+      have_next: false,
+    };
+  }
 
   // Thêm điều kiện search nếu có
   if (searchOr.length > 0) {
@@ -1021,7 +1218,7 @@ const processDownload = async (downloadId, userId) => {
   // Cập nhật thống kê download
   try {
     await incrementDownloadCount(userId);
-    await updateDocumentStats(documentId, document.user.toString(), "download");
+    await updateDocumentStats(document, document.user.toString(), "download");
   } catch (statsError) {
     console.error("Lỗi cập nhật thống kê download:", statsError);
   }
@@ -1775,6 +1972,8 @@ module.exports = {
   getReadHistory,
   getDocumentsByUserId,
   incrementViewCount,
+  canCreateEmbedding,
+  embeddinngDocument,
 };
 
 const hasDocumentManageRole = async (accountId, documentId) => {
