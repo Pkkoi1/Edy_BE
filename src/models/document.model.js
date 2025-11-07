@@ -75,6 +75,10 @@ const documentSchema = new mongoose.Schema({
   dislike: { type: Number, default: 0 },
   is_deleted: { type: Boolean, default: false },
   last_approved_at: { type: Date, default: null },
+  is_delete_by_admin: { type: Boolean, default: false },
+  delete_by_admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  delete_by_admin_reason: { type: String, default: null },
+  delete_by_admin_at: { type: Date, default: null },
   expiredAt: { type: Date, default: null },
 }, {
   timestamps: true

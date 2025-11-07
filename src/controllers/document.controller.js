@@ -6,6 +6,7 @@ const {
   getDocumentById,
   getMyDocuments,
   getPendingDocuments,
+  getMyPendingDocuments,
   getDocumentsBySubject,
   processDownload,
   createDownloadLink,
@@ -21,6 +22,8 @@ const {
   getReadHistory,
   getDocumentsByUserId,
   incrementViewCount,
+  requestEditDocument,
+  deleteDocument
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -28,6 +31,7 @@ const {
   getPendingRequestsByDocument,
   approveRequest,
   rejectRequest,
+  requestEdit,
 } = require("../services/approval_request.service");
 
 const { checkIsFavorite } = require("../services/user.service");
@@ -370,6 +374,30 @@ exports.getPendingDocuments = async (req, res) => {
   }
 };
 
+exports.getMyPendingDocuments = async (req, res) => {
+  try {
+    const {
+      ordering = "createdAt",
+      order = -1,
+      page = 1,
+      limit = 5,
+    } = req.query;
+
+    const result = await getMyPendingDocuments(req.user.userId, {
+      ordering,
+      order,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi lấy tài liệu chờ duyệt" });
+  }
+}
+
 exports.getPendingRequestsByDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -426,6 +454,39 @@ exports.rejectDocument = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Đã xảy ra lỗi khi từ chối tài liệu" });
+  }
+};
+
+exports.requestEdit = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { message = "" } = req.body;
+    const reviewerId = req.user.userId;
+
+    const editApproval = await requestEdit(requestId, reviewerId, message);
+    if (!editApproval) {
+      return res
+        .status(404)
+        .json({ message: "Yêu cầu chỉnh sửa tài liệu không tồn tại" });
+    }
+    
+    res.json({ message: "Yêu cầu chỉnh sửa tài liệu thành công", editApproval });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
+  }
+};
+
+exports.requestEditDirect = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { reason = "" } = req.body;
+
+    await requestEditDocument(documentId, reason);
+    res.json({ message: "Yêu cầu chỉnh sửa tài liệu thành công" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
   }
 };
 
@@ -849,5 +910,18 @@ exports.incrementView = async (req, res) => {
     res.status(500).json({
       message: "Đã xảy ra lỗi khi tăng số lượt xem: " + error.message,
     });
+  }
+};
+
+exports.deleteDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const reason = req.body.reason || '';
+    const userId = req.user.userId;
+
+    await deleteDocument(documentId, userId, reason);
+    res.json({ message: "Xóa tài liệu thành công (soft delete)" });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi khi xóa tài liệu: " + error.message });
   }
 };
