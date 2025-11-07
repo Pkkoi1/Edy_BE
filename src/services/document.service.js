@@ -31,6 +31,7 @@ const {
   updateViewCount,
   updateDownloadCount,
 } = require("./document_statistics.service");
+const { logActivity } = require("./activity_log.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 const e = require("express");
@@ -837,21 +838,24 @@ const getPendingDocuments = async ({
       // Lấy tất cả assignment active của admin
       const assignments = await Assignment.find({
         account: payload.accountId,
-        is_active: true
+        is_active: true,
       }).populate({
-        path: 'role',
-        select: '_id code permissions'
+        path: "role",
+        select: "_id code permissions",
       });
 
       // Kiểm tra xem admin có quyền ALL không
-      hasAllPermission = assignments.some(assignment =>
-        assignment.role && assignment.role.permissions.includes('ALL')
+      hasAllPermission = assignments.some(
+        (assignment) =>
+          assignment.role && assignment.role.permissions.includes("ALL")
       );
 
       if (!hasAllPermission) {
         // Kiểm tra admin có quyền MANAGE_DOCUMENT không
-        const documentAssignments = assignments.filter(assignment =>
-          assignment.role && assignment.role.permissions.includes('MANAGE_DOCUMENT')
+        const documentAssignments = assignments.filter(
+          (assignment) =>
+            assignment.role &&
+            assignment.role.permissions.includes("MANAGE_DOCUMENT")
         );
 
         if (documentAssignments.length > 0) {
@@ -919,35 +923,37 @@ const getPendingDocuments = async ({
         const documentsWithNullAssignment = await ApprovalRequest.aggregate([
           {
             $match: {
-              status: 'PENDING',
-              assigned_to: null
-            }
+              status: "PENDING",
+              assigned_to: null,
+            },
           },
           {
             $lookup: {
-              from: 'documents',
-              localField: 'doc',
-              foreignField: '_id',
-              as: 'document'
-            }
+              from: "documents",
+              localField: "doc",
+              foreignField: "_id",
+              as: "document",
+            },
           },
           {
-            $unwind: '$document'
+            $unwind: "$document",
           },
           {
             $match: {
-              'document.status': { $in: ['PENDING', 'PENDING_EDIT'] },
-              'document.is_deleted': false
-            }
+              "document.status": { $in: ["PENDING", "PENDING_EDIT"] },
+              "document.is_deleted": false,
+            },
           },
           {
             $project: {
-              docId: '$doc'
-            }
-          }
+              docId: "$doc",
+            },
+          },
         ]);
 
-        const docIdsWithNullAssignment = documentsWithNullAssignment.map(item => item.docId);
+        const docIdsWithNullAssignment = documentsWithNullAssignment.map(
+          (item) => item.docId
+        );
 
         // Nếu admin có quyền MANAGE_DOCUMENT
         if (hasManageDocumentPermission) {
@@ -964,10 +970,12 @@ const getPendingDocuments = async ({
 
           // Điều kiện 2: Documents được gán cho admin hiện tại
           const documentsAssignedToMe = await ApprovalRequest.find({
-            status: 'PENDING',
-            assigned_to: currentAdminUserId
-          }).select('doc');
-          const docIdsAssignedToMe = documentsAssignedToMe.map(req => req.doc);
+            status: "PENDING",
+            assigned_to: currentAdminUserId,
+          }).select("doc");
+          const docIdsAssignedToMe = documentsAssignedToMe.map(
+            (req) => req.doc
+          );
           if (docIdsAssignedToMe.length > 0) {
             orConditions.push({ _id: { $in: docIdsAssignedToMe } });
           }

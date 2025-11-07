@@ -6,6 +6,7 @@ const Report = require("../models/report.model");
 const Subject = require("../models/subject.model");
 const ApprovalRequest = require("../models/approval_request.model");
 const Download = require("../models/download_link.model"); // Assuming this exists for downloads
+const { getRecentActivities } = require("./activity_log.service");
 
 const calculateStatistics = async () => {
   try {
@@ -346,10 +347,191 @@ const getAdminTasks = async (adminId, limit = 20) => {
   }
 };
 
+/**
+ * Lấy hoạt động gần đây từ tất cả user
+ * @param {Number} limit - Số lượng hoạt động cần lấy
+ */
+const getRecentActivitiesForAdmin = async (limit = 30) => {
+  try {
+    const result = await getRecentActivities({ limit });
+
+    if (!result.success) {
+      throw new Error("Không thể lấy danh sách hoạt động");
+    }
+
+    // Format activities for admin dashboard
+    const formattedActivities = result.activities.map((activity) => {
+      const redirectInfo = getRedirectInfo(
+        activity.action,
+        activity.target_type,
+        activity.target_id,
+        activity.metadata
+      );
+
+      return {
+        id: activity._id,
+        user: {
+          id: activity.user._id,
+          name: `${activity.user.first_name} ${activity.user.last_name}`,
+          avatar: activity.user.avatar,
+          email: activity.user.contact_email,
+        },
+        action: activity.action,
+        actionLabel: getActionLabel(activity.action),
+        targetType: activity.target_type,
+        targetId: activity.target_id,
+        targetTitle: activity.target_title,
+        description: activity.description,
+        metadata: activity.metadata,
+        redirectTo: redirectInfo.route,
+        redirectParams: redirectInfo.params,
+        timestamp: activity.createdAt,
+      };
+    });
+
+    return {
+      success: true,
+      activities: formattedActivities,
+      total: formattedActivities.length,
+    };
+  } catch (error) {
+    console.error("Error getting recent activities for admin:", error);
+    throw new Error("Lỗi khi lấy hoạt động gần đây: " + error.message);
+  }
+};
+
+/**
+ * Convert action enum to readable label
+ */
+const getActionLabel = (action) => {
+  const labels = {
+    DOCUMENT_CREATED: "Tạo tài liệu",
+    DOCUMENT_APPROVED: "Duyệt tài liệu",
+    DOCUMENT_REJECTED: "Từ chối tài liệu",
+    DOCUMENT_DELETED: "Xóa tài liệu",
+    DOCUMENT_EDITED: "Chỉnh sửa tài liệu",
+    DOCUMENT_HIDDEN: "Ẩn tài liệu",
+    EDIT_REQUEST_CREATED: "Tạo yêu cầu chỉnh sửa",
+    EDIT_REQUEST_APPROVED: "Duyệt yêu cầu chỉnh sửa",
+    EDIT_REQUEST_REJECTED: "Từ chối yêu cầu chỉnh sửa",
+    APPROVAL_REQUEST_CREATED: "Tạo yêu cầu duyệt",
+    APPROVAL_REQUEST_APPROVED: "Duyệt yêu cầu",
+    APPROVAL_REQUEST_REJECTED: "Từ chối yêu cầu",
+    REPORT_CREATED: "Tạo báo cáo vi phạm",
+    REPORT_RESOLVED: "Giải quyết báo cáo",
+    REPORT_DISMISSED: "Bỏ qua báo cáo",
+    COMMENT_CREATED: "Tạo bình luận",
+    COMMENT_DELETED: "Xóa bình luận",
+    USER_BANNED: "Cấm người dùng",
+    USER_UNBANNED: "Gỡ cấm người dùng",
+    ORGANIZATION_CREATED: "Tạo tổ chức",
+    ORGANIZATION_UPDATED: "Cập nhật tổ chức",
+    SUBJECT_CREATED: "Tạo môn học",
+    SUBJECT_UPDATED: "Cập nhật môn học",
+  };
+  return labels[action] || action;
+};
+
+/**
+ * Xác định route và params để điều hướng dựa trên action và target
+ */
+const getRedirectInfo = (action, targetType, targetId, metadata = {}) => {
+  const redirectInfo = {
+    route: null,
+    params: {},
+  };
+
+  switch (targetType) {
+    case "Document":
+      if (action.includes("APPROVAL_REQUEST")) {
+        // Điều hướng đến trang quản lý approval requests
+        redirectInfo.route = "/admin/approval-requests";
+        redirectInfo.params = {
+          requestId: metadata.requestId || targetId,
+          documentId: metadata.documentId || targetId,
+        };
+      } else if (action.includes("EDIT_REQUEST")) {
+        // Điều hướng đến trang quản lý edit requests
+        redirectInfo.route = "/admin/edit-requests";
+        redirectInfo.params = {
+          requestId: metadata.requestId || targetId,
+          documentId: metadata.documentId || targetId,
+        };
+      } else {
+        // Điều hướng đến chi tiết document
+        redirectInfo.route = "/documents/:id";
+        redirectInfo.params = { id: targetId };
+      }
+      break;
+
+    case "Report":
+      // Điều hướng đến trang quản lý reports
+      redirectInfo.route = "/admin/reports";
+      redirectInfo.params = {
+        reportId: targetId,
+        documentId: metadata.documentId,
+      };
+      break;
+
+    case "Comment":
+      // Điều hướng đến document với focus vào comment
+      redirectInfo.route = "/documents/:id";
+      redirectInfo.params = {
+        id: metadata.documentId || targetId,
+        commentId: targetId,
+      };
+      break;
+
+    case "User":
+      // Điều hướng đến profile user
+      redirectInfo.route = "/users/:id";
+      redirectInfo.params = { id: targetId };
+      break;
+
+    case "ApprovalRequest":
+      // Điều hướng đến trang quản lý approval requests
+      redirectInfo.route = "/admin/approval-requests";
+      redirectInfo.params = {
+        requestId: targetId,
+        documentId: metadata.documentId,
+      };
+      break;
+
+    case "EditApproval":
+      // Điều hướng đến trang quản lý edit approvals
+      redirectInfo.route = "/admin/edit-requests";
+      redirectInfo.params = {
+        requestId: targetId,
+        documentId: metadata.documentId,
+      };
+      break;
+
+    case "Organization":
+      // Điều hướng đến trang quản lý organizations
+      redirectInfo.route = "/admin/organizations";
+      redirectInfo.params = { id: targetId };
+      break;
+
+    case "Subject":
+      // Điều hướng đến trang quản lý subjects
+      redirectInfo.route = "/admin/subjects";
+      redirectInfo.params = { id: targetId };
+      break;
+
+    default:
+      // Không có route cụ thể
+      redirectInfo.route = null;
+      redirectInfo.params = {};
+  }
+
+  return redirectInfo;
+};
+
 module.exports = {
   calculateStatistics,
   getStatistics,
   refreshStatistics,
   getDetailedStatistics,
   getAdminTasks,
+  getRecentActivitiesForAdmin,
 };
