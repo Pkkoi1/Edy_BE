@@ -12,5 +12,5 @@ const commentSchema = new mongoose.Schema({
 });
 
 // Tạo index để xóa tự động sau 1 ngày
-// commentSchema.index({ expiredAt: 1 }, {expireAfterSeconds: 0});
+commentSchema.index({ expiredAt: 1 }, {expireAfterSeconds: 0});
 module.exports = mongoose.model('Comment', commentSchema);

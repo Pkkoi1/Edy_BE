@@ -187,7 +187,7 @@ const resolveReport = async (reportId, adminId, resolution) => {
     report.validTypes = validTypes || [];
     report.resolveBy = adminId;
     report.resolvedAt = new Date();
-
+    report.expiredAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
     await report.save();
 
     // Xử lý action tương ứng
@@ -252,7 +252,7 @@ const handleReportAction = async (report, action) => {
           // Xóa comment
           await Comment.findByIdAndUpdate(report.cmt, {
             is_deleted: true,
-            expiredAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiredAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
           });
 
           // ghi log
@@ -299,7 +299,11 @@ const handleReportAction = async (report, action) => {
           // Xóa document
           await Document.findByIdAndUpdate(report.doc, {
             is_deleted: true,
-            expiredAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiredAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+            is_delete_by_admin: true,
+            delete_by_admin: report.resolveBy,
+            delete_by_admin_reason: report.resolveReason || "Tài liệu vi phạm quy định",
+            delete_by_admin_at: new Date(),
           });
 
           const document = await Document.findById(report.doc).populate("user");
