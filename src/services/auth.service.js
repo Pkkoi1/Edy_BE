@@ -237,6 +237,8 @@ const verifyToken = (token, secret) => {
 const createEmailTransporter = () => {
   return nodemailer.createTransport({
     service: "gmail",
+    port: 465,
+    secure: true,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
