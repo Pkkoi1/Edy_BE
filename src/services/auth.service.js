@@ -7,6 +7,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { createPointTransaction } = require("./point_transaction.service");
+const { getUserPermissions } = require("./user.service");
 
 const generateTokens = (payload) => {
   // Chỉ lấy những trường cần thiết, tránh các trường JWT tự động thêm
@@ -175,7 +176,14 @@ const getMeService = async (payload, accessToken, refreshToken) => {
   if (roles.length > 0) responseRoles = roles.map((a) => a.role.code);
   if (!account.is_verified) responseRoles = ["NOT_VERIFIED"];
 
-  return { account, user, roles: responseRoles, newTokens };
+  // Get user permissions
+  const permissions = await getUserPermissions(user._id);
+
+  // Convert to plain object and add permissions
+  const userObj = user.toObject();
+  userObj.permissions = permissions.permissions;
+
+  return { account, user: userObj, roles: responseRoles, newTokens };
 };
 
 const refreshTokenService = async (payload) => {

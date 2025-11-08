@@ -1,4 +1,8 @@
 const Organization = require("../models/organization.model");
+const User = require("../models/user.model");
+const Account = require("../models/account.model");
+const Assignment = require("../models/assignment.model");
+const mongoose = require("mongoose");
 
 const createOrganization = async (data) => {
   const code = data.code.trim().toUpperCase();
@@ -25,7 +29,63 @@ const updateOrganization = async (id, data) => {
 };
 
 const getOrganizationById = async (id) => {
-  return Organization.findOne({ _id: id, is_deleted: false });
+  const org = await Organization.findOne({ _id: id, is_deleted: false })
+    .populate([
+      { path: "created_by", select: "_id first_name last_name avatar" },
+      { path: "subjects.subject", select: "_id name" },
+    ])
+    .lean();
+
+  if (!org) return null;
+
+  const users = await getUsersForOrganization(id);
+  org.users = users;
+  org.user_count = users.length;
+
+  return org;
+};
+
+const getUsersForOrganization = async (orgId) => {
+  return await User.aggregate([
+    { $match: { organization: new mongoose.Types.ObjectId(orgId) } },
+    {
+      $lookup: {
+        from: "accounts",
+        localField: "_id",
+        foreignField: "user",
+        as: "account",
+      },
+    },
+    {
+      $lookup: {
+        from: "assignments",
+        localField: "_id",
+        foreignField: "user",
+        as: "assignments",
+      },
+    },
+    { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        is_vip: { $ifNull: ["$account.is_vip", false] },
+        roles: "$assignments.role",
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        avatar: 1,
+        first_name: 1,
+        last_name: 1,
+        doc_count: 1,
+        rank_point: 1,
+        strike: 1,
+        status: 1,
+        is_vip: 1,
+        roles: 1,
+      },
+    },
+  ]);
 };
 
 // Lấy danh sách tổ chức, nếu is_dropdown=true thì chỉ lấy id, name, code
@@ -88,8 +148,7 @@ const getOrganizations = async ({
         ])
         .sort(sort)
         .skip(skip)
-        .limit(limitNum)
-        .lean(),
+        .limit(limitNum),
     ]);
 
     return {
