@@ -565,22 +565,26 @@ const rejectRequest = async (requestId, reviewerId, message) => {
   const approvalRequest = await ApprovalRequest.findById(requestId);
   if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
 
-  const current = new Date();
-  approvalRequest.reviewed_by = reviewer._id;
-  approvalRequest.reviewed_at = current;
-  approvalRequest.status = "REJECTED";
-  approvalRequest.message = message;
-  approvalRequest.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
-  await approvalRequest.save();
+    const current = new Date();
+    approvalRequest.reviewed_by = reviewer._id;
+    approvalRequest.reviewed_at = current;
+    approvalRequest.status = "REJECTED";
+    approvalRequest.message = message;
+    approvalRequest.expiredAt = current + 5 * 24 * 60 * 60 * 1000;
+    await approvalRequest.save();
 
   const document = await Document.findById(approvalRequest.doc);
   if (!document) throw new Error("Tài liệu không tồn tại");
 
-  // Reject document
-  document.status = "REJECTED";
-  document.is_deleted = true;
-  document.expiredAt = current + 7 * 24 * 60 * 60 * 1000;
-  await document.save();
+    // Reject document
+    document.status = "REJECTED";
+    document.is_deleted = true;
+    document.expiredAt = new Date(current.getTime() + 7 * 24 * 60 * 60 * 1000);
+    document.is_delete_by_admin = true;
+    document.delete_by_admin = reviewer._id;
+    document.delete_by_admin_reason = message;
+    document.delete_by_admin_at = current;
+    await document.save();
 
   try {
     await deleteESDocument(document._id.toString());
@@ -609,6 +613,29 @@ const rejectRequest = async (requestId, reviewerId, message) => {
 
   return approvalRequest;
 };
+
+const requestEdit = async (requestId, reviewerId, message) => {
+    const reviewer = await User.findById(reviewerId);
+    if (!reviewer) throw new Error("Người duyệt không tồn tại");
+
+    const approvalRequest = await ApprovalRequest.findById(requestId);
+    if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
+
+    const current = new Date();
+    approvalRequest.reviewed_by = reviewer._id;
+    approvalRequest.reviewed_at = current;
+    approvalRequest.status = "REJECTED";
+    approvalRequest.message = message;
+    await approvalRequest.save();
+
+    const document = await Document.findById(approvalRequest.doc);
+    if (!document) throw new Error("Tài liệu không tồn tại");
+
+    document.status = "REQUESTED_EDIT";
+    await document.save();
+
+    return approvalRequest;
+}
 
 const getEligibleApprovers = async (documentOrganizationId) => {
   try {
@@ -696,60 +723,55 @@ const assignApprovalRequest = async (
       return null;
     }
 
-    const pendingCounts = await ApprovalRequest.aggregate([
-      {
-        $match: {
-          assigned_to: { $in: eligibleUserIds },
-          status: "PENDING",
-        },
-      },
-      {
-        $group: {
-          _id: "$assigned_to",
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { count: 1 },
-      },
-      {
-        $limit: 1,
-      },
-    ]);
+        const pendingCounts = await ApprovalRequest.aggregate([
+            {
+                $match: {
+                    assigned_to: { $in: eligibleUserIds },
+                    status: 'PENDING'
+                }
+            },
+            {
+                $group: {
+                    _id: '$assigned_to',
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { count: 1 }
+            }
+        ]);
 
-    let selectedUserId = null;
+        const countsByUser = {};
 
-    if (pendingCounts.length > 0) {
-      // Có admin đã có pending requests, chọn admin có ít nhất
-      selectedUserId = pendingCounts[0]._id;
-    } else {
-      // Tất cả admin đều có 0 pending request
-      // Chọn admin đầu tiên trong danh sách eligible
-      selectedUserId = eligibleUserIds[0];
+        eligibleUserIds.forEach(id => { countsByUser[id.toString()] = 0; });
+
+        pendingCounts.forEach(item => {
+            countsByUser[item._id.toString()] = item.count;
+        });
+
+        const minCount = Math.min(...Object.values(countsByUser));
+        const candidates = eligibleUserIds.filter(id => countsByUser[id.toString()] === minCount);
+        const selectedUserId = candidates[Math.floor(Math.random() * candidates.length)];
+
+        // Cập nhật approval request với assigned_to
+        await ApprovalRequest.findByIdAndUpdate(approvalRequestId, {
+            assigned_to: selectedUserId
+        }, { new: true });
+        
+        return selectedUserId;
+    } catch (error) {
+        console.error('Lỗi khi gán approval request:', error);
+        throw new Error(`Lỗi khi gán approval request: ${error.message}`);
     }
-
-    // Cập nhật approval request với assigned_to
-    await ApprovalRequest.findByIdAndUpdate(
-      approvalRequestId,
-      {
-        assigned_to: selectedUserId,
-      },
-      { new: true }
-    );
-
-    return selectedUserId;
-  } catch (error) {
-    console.error("Lỗi khi gán approval request:", error);
-    throw new Error(`Lỗi khi gán approval request: ${error.message}`);
-  }
 };
 
 module.exports = {
-  createApprovalRequest,
-  getPendingRequestsByDocument,
-  approveRequest,
-  rejectRequest,
-  processDocumentWithAI,
-  getEligibleApprovers,
-  assignApprovalRequest,
+    createApprovalRequest,
+    getPendingRequestsByDocument,
+    approveRequest,
+    rejectRequest,
+    requestEdit,
+    processDocumentWithAI,
+    getEligibleApprovers,
+    assignApprovalRequest,
 };

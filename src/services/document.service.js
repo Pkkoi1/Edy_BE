@@ -7,6 +7,7 @@ const DownloadLink = require("../models/download_link.model");
 const PrivateShare = require("../models/private_share.model");
 const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
+const EditApproval = require("../models/edit_approval.model");
 const Assignment = require("../models/assignment.model");
 const Role = require("../models/role.model");
 const { createPointTransaction } = require("./point_transaction.service");
@@ -743,25 +744,46 @@ const embeddinngDocument = async (document) => {
   }
 };
 
-const deleteDocument = async (id) => {
-  const doc = await Document.findByIdAndUpdate(
-    id,
-    {
-      is_deleted: true,
-      expiredAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-    },
-    { new: true }
-  );
+const deleteDocument = async (documentId, userId, reason) => {
+  const doc = await Document.findById(documentId);
+  if (!doc) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+  const isOwner = doc.user._id.toString() === userId;
+  const isAdmin = await Account.findOne({ user: userId, is_admin: true });
+  // Kiểm tra quyền: owner hoặc admin
+  if (!isOwner && !isAdmin) {
+    throw new Error("Bạn không có quyền xóa tài liệu này");
+  }
+
+  if(!isOwner){
+    if(isAdmin){
+      doc.is_delete_by_admin = true;
+      doc.delete_by_admin = userId;
+      doc.delete_by_admin_reason = reason;
+      doc.delete_by_admin_at = new Date();
+    }
+  }
+
+  doc.is_deleted = true;
+  doc.expiredAt = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
+  await doc.save();
 
   // Cập nhật số lượng tài liệu của user
   if (doc && doc.user) {
     await updateUserDocCount(doc.user);
   }
   try {
-    await deleteESDocument(id);
+    await deleteESDocument(documentId);
   } catch (error) {
     console.error("Lỗi khi xóa document trong Elasticsearch:", error);
   }
+
+  // xoas lioch su neu can thiet
+  await User.updateMany(
+    { "read_history.document": documentId },
+    { $pull: { read_history: { document: documentId } } }
+  );
 
   return doc;
 };
@@ -1107,6 +1129,80 @@ const getPendingDocuments = async ({
   };
 };
 
+const getMyPendingDocuments = async (userId, { ordering = "createdAt", order = -1, page = 1, limit = 5 } = {}) => {
+  // Thu thập docIds từ ApprovalRequest được gán cho tôi
+  const approvals = await ApprovalRequest.find({
+    assigned_to: userId,
+    status: "PENDING",
+  }).select("doc");
+  const docIdsFromApprovals = approvals.map((a) => a.doc);
+
+  // Thu thập docIds từ EditApproval được gán cho tôi
+  const editApprovals = await EditApproval.find({
+    assigned_to: userId,
+    status: "PENDING",
+  }).select("doc");
+  const docIdsFromEditApprovals = editApprovals.map((ea) => ea.doc);
+
+  const docIdSet = new Set([
+    ...docIdsFromApprovals.map((id) => id.toString()),
+    ...docIdsFromEditApprovals.map((id) => id.toString()),
+  ]);
+  const docIds = Array.from(docIdSet).map((id) => new mongoose.Types.ObjectId(id));
+
+  // Không có tài liệu được gán -> trả về rỗng cùng format
+  if (docIds.length === 0) {
+    return {
+      documents: [],
+      total: 0,
+      page,
+      totalPages: 0,
+      have_next: false,
+    };
+  }
+
+  const query = {
+    _id: { $in: docIds },
+    is_deleted: false,
+    $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
+  };
+
+  const skip = (page - 1) * limit;
+  const sort = {};
+  sort[ordering] = parseInt(order);
+
+  const [documents, total] = await Promise.all([
+    Document.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "_id user title author published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status createdAt"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar organization doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" }),
+    Document.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const have_next = page < totalPages;
+
+  return {
+    documents,
+    total,
+    page,
+    totalPages,
+    have_next,
+  };
+};
 const createDownloadLink = async (userId, documentId) => {
   const currentTime = new Date();
   // Kiểm tra quyền xem tài liệu
@@ -1910,6 +2006,23 @@ const getDocumentsByUserId = async ({
   };
 };
 
+const requestEditDocument = async (documentId, reason) => {
+  // Kiểm tra tài liệu tồn tại
+  const document = await Document.findById(documentId);
+  if (!document) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+
+  // Kiểm tra trạng thái hiện tại
+  if (document.status !== "APPROVED") {
+    throw new Error("Tài liệu không thể yêu cầu chỉnh sửa");
+  }
+
+  // Tạo yêu cầu chỉnh sửa
+  document.status = "REQUESTED_EDIT";
+  await document.save();
+};
+
 const incrementViewCount = async (documentId, userId) => {
   // Chỉ kiểm tra tài liệu tồn tại và đã được duyệt
   const document = await Document.findById(documentId);
@@ -1958,6 +2071,7 @@ module.exports = {
   getDocumentById,
   getDocumentsBySubject,
   getPendingDocuments,
+  getMyPendingDocuments,
   getMyDocuments,
   createDownloadLink,
   processDownload,
@@ -1974,6 +2088,7 @@ module.exports = {
   incrementViewCount,
   canCreateEmbedding,
   embeddinngDocument,
+  requestEditDocument,
 };
 
 const hasDocumentManageRole = async (accountId, documentId) => {

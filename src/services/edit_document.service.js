@@ -8,7 +8,8 @@ const createEditDocument = async (documentId, editData, userId) => {
     const document = await Document.findById(documentId);
     if(!document) throw new Error("Tài liệu không tồn tại");
     if(document.user.toString() !== userId) throw new Error("Bạn không có quyền chỉnh sửa tài liệu này");
-    
+    if(document.status == 'REJECTED') throw new Error("Tài liệu đã bị từ chối, không thể chỉnh sửa");
+    if(document.is_deleted) throw new Error("Tài liệu đã bị xóa, không thể chỉnh sửa");
     // có rồi thì override
     const existingEditDocument = await EditDocument.findOne({ original_document: documentId, is_deleted: false, status: 'PENDING' });
     if(existingEditDocument) {

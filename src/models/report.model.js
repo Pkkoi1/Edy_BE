@@ -31,4 +31,6 @@ const reportSchema = new mongoose.Schema({
   timestamps: true
 });
 
+reportSchema.index({resolvedAt: 1}, {expireAfterSeconds:0})
+
 module.exports = mongoose.model('Report', reportSchema);
