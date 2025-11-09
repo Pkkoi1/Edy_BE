@@ -6,6 +6,7 @@ const OTP = require("../models/otp.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const { SMTPClient } = require('emailjs');
 const { createPointTransaction } = require("./point_transaction.service");
 const { getUserPermissions } = require("./user.service");
 
@@ -235,16 +236,12 @@ const verifyToken = (token, secret) => {
 
 // Tạo transporter email
 const createEmailTransporter = () => {
-  return nodemailer.createTransport({
+  return new SMTPClient({
     service: "gmail",
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // dùng STARTTLS
-    requireTLS: true,
-    auth: {
+    host: 'smtp.gmail.com',
+    ssl: true,
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
+      password: process.env.EMAIL_PASS,
   });
 };
 
@@ -258,27 +255,32 @@ const sendOTP = async (email, otp) => {
   try {
     const transporter = createEmailTransporter();
 
-    const mailOptions = {
+    await transporter.sendAsync({
+      text: '', // Để trống nếu gửi HTML
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Mã OTP xác thực tài khoản - Edy",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Xác thực tài khoản Edy</h2>
-          <p>Xin chào,</p>
-          <p>Mã OTP của bạn là:</p>
-          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
-            <h1 style="color: #007bff; font-size: 32px; margin: 0; letter-spacing: 5px;">${otp}</h1>
-          </div>
-          <p>Mã này sẽ hết hạn sau 10 phút.</p>
-          <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
-          <br>
-          <p>Trân trọng,<br>Đội ngũ Edy</p>
-        </div>
-      `,
-    };
+      subject: 'Mã OTP xác thực tài khoản - Edy',
+      attachment: [
+        {
+          data: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #333;">Xác thực tài khoản Edy</h2>
+              <p>Xin chào,</p>
+              <p>Mã OTP của bạn là:</p>
+              <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
+                <h1 style="color: #007bff; font-size: 32px; margin: 0; letter-spacing: 5px;">${otp}</h1>
+              </div>
+              <p>Mã này sẽ hết hạn sau 10 phút.</p>
+              <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
+              <br>
+              <p>Trân trọng,<br>Đội ngũ Edy</p>
+            </div>
+          `,
+          alternative: true, // ✅ Cờ này nói rằng đây là HTML content
+        },
+      ],
+    });
 
-    await transporter.sendMail(mailOptions);
     return { success: true };
   } catch (error) {
     console.error("Error sending OTP email:", error);
