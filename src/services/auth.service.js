@@ -236,15 +236,14 @@ const verifyToken = (token, secret) => {
 // Tạo transporter email
 const createEmailTransporter = () => {
   return nodemailer.createTransport({
-    host: "smtp.sendgrid.net",
-    port: 587,
-    secure: false,
+    service: "gmail",
     auth: {
-      user: "apikey", // Luôn là "apikey"
-      pass: process.env.SENDGRID_API_KEY, // API Key từ Render
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
   });
 };
+
 // Tạo OTP ngẫu nhiên 6 chữ số
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
