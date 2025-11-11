@@ -312,11 +312,102 @@ const logReportResolved = async (reportId, resolvedBy) => {
   }
 };
 
+const logDocumentEdited = async (documentId, editedBy) => {
+  try {
+    const document = await Document.findById(documentId).select("title");
+    if (!document) return;
+
+    await createActivity({
+      type: "DOCUMENT_EDITED",
+      description: `Tài liệu "${document.title}" đã được chỉnh sửa`,
+      actor: {
+        user: editedBy,
+      },
+      target: {
+        type: "DOCUMENT",
+        id: documentId,
+        name: document.title,
+      },
+      color: "info",
+      icon: "edit",
+    });
+  } catch (error) {
+    console.error("Error logging document edited:", error);
+  }
+};
+
+const logEditApprovalApproved = async (editApprovalId, approvedBy) => {
+  try {
+    const editApproval = await require("../models/edit_approval.model")
+      .findById(editApprovalId)
+      .populate("edit_doc");
+    if (!editApproval || !editApproval.edit_doc) return;
+
+    const document = await Document.findById(
+      editApproval.edit_doc.original_document
+    ).select("title");
+    if (!document) return;
+
+    await createActivity({
+      type: "EDIT_APPROVAL_APPROVED",
+      description: `Yêu cầu chỉnh sửa tài liệu "${document.title}" đã được duyệt`,
+      actor: {
+        user: approvedBy,
+        role: "ADMIN",
+      },
+      target: {
+        type: "DOCUMENT",
+        id: editApproval.edit_doc.original_document,
+        name: document.title,
+      },
+      color: "success",
+      icon: "check-circle",
+    });
+  } catch (error) {
+    console.error("Error logging edit approval approved:", error);
+  }
+};
+
+const logEditApprovalRejected = async (editApprovalId, rejectedBy) => {
+  try {
+    const editApproval = await require("../models/edit_approval.model")
+      .findById(editApprovalId)
+      .populate("edit_doc");
+    if (!editApproval || !editApproval.edit_doc) return;
+
+    const document = await Document.findById(
+      editApproval.edit_doc.original_document
+    ).select("title");
+    if (!document) return;
+
+    await createActivity({
+      type: "EDIT_APPROVAL_REJECTED",
+      description: `Yêu cầu chỉnh sửa tài liệu "${document.title}" đã bị từ chối`,
+      actor: {
+        user: rejectedBy,
+        role: "ADMIN",
+      },
+      target: {
+        type: "DOCUMENT",
+        id: editApproval.edit_doc.original_document,
+        name: document.title,
+      },
+      color: "danger",
+      icon: "x-circle",
+    });
+  } catch (error) {
+    console.error("Error logging edit approval rejected:", error);
+  }
+};
+
 module.exports = {
   createActivity,
   getRecentActivities,
   logDocumentApproved,
   logDocumentEditRequested,
+  logDocumentEdited,
+  logEditApprovalApproved,
+  logEditApprovalRejected,
   logDocumentDeleted,
   logDocumentUploaded,
   logUserCreated,
