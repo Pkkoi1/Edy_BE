@@ -400,6 +400,35 @@ const logEditApprovalRejected = async (editApprovalId, rejectedBy) => {
   }
 };
 
+const logUserRolesRevoked = async (accountId, revokedBy) => {
+  try {
+    const user = await User.findOne({ account: accountId }).select(
+      "first_name last_name"
+    );
+    if (!user) return;
+
+    const userName = `${user.first_name} ${user.last_name}`;
+
+    await createActivity({
+      type: "USER_ROLES_REVOKED",
+      description: `Tất cả vai trò của người dùng ${userName} đã bị gỡ`,
+      actor: {
+        user: revokedBy,
+        role: "ADMIN",
+      },
+      target: {
+        type: "USER",
+        id: accountId,
+        name: userName,
+      },
+      color: "warning",
+      icon: "user-minus",
+    });
+  } catch (error) {
+    console.error("Error logging user roles revoked:", error);
+  }
+};
+
 module.exports = {
   createActivity,
   getRecentActivities,
@@ -416,4 +445,5 @@ module.exports = {
   logUserBanned,
   logUserUnbanned,
   logReportResolved,
+  logUserRolesRevoked,
 };
