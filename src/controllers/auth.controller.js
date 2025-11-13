@@ -7,7 +7,7 @@ const {
   verifyOTPService,
   forgotPasswordService,
 } = require("../services/auth.service");
-const { logUserCreated } = require("../services/recent_activities.service");
+const { logUserCreated } = require("../services/activity_log.service");
 
 const isProduction = process.env.NODE_ENV === "production";
 

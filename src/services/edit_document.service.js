@@ -2,9 +2,6 @@ const Document = require("../models/document.model");
 const EditDocument = require("../models/edit_document.model");
 const User = require("../models/user.model");
 const { createEditApproval } = require("../services/edit_approval.service");
-const {
-  logDocumentEditRequested,
-} = require("../services/recent_activities.service");
 
 const createEditDocument = async (documentId, editData, userId) => {
   try {
@@ -49,13 +46,6 @@ const createEditDocument = async (documentId, editData, userId) => {
       requester: userId,
       status: "PENDING",
     });
-
-    // Log activity for edit request
-    try {
-      await logDocumentEditRequested(documentId, userId);
-    } catch (logError) {
-      console.error("Error logging document edit requested:", logError);
-    }
 
     return editDocument;
   } catch (error) {

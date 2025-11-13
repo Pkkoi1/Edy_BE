@@ -2,7 +2,6 @@ const Role = require("../models/role.model");
 const Assignment = require("../models/assignment.model");
 const Account = require("../models/account.model");
 const User = require("../models/user.model");
-const { logUserRolesRevoked } = require("./recent_activities.service");
 
 const getAllRole = async (accountId, query) => {
   if (!(await hasManageRole(accountId))) {
@@ -325,9 +324,6 @@ const revokeAllRoles = async (accountIdToRevoke, requesterAccountId) => {
 
   // Cập nhật lại trạng thái is_admin cho tài khoản (sẽ false nếu không còn assignment nào)
   await updateAccountAdminStatus(accountIdToRevoke);
-
-  // Log hoạt động gỡ role
-  await logUserRolesRevoked(accountIdToRevoke, requesterAccountId);
 
   return { deletedCount: deleteResult.deletedCount || 0 };
 };

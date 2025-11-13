@@ -3,7 +3,7 @@ const {
   getAllReports,
   resolveReport,
 } = require("../services/report_service");
-const { logReportResolved } = require("../services/recent_activities.service");
+const { logReportResolved } = require("../services/activity_log.service");
 
 exports.createReport = async (req, res) => {
   try {

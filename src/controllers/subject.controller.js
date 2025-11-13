@@ -11,7 +11,7 @@ const {
   syncSubjectDocCount,
   syncAllSubjectsDocCount,
 } = require("../services/subject.service");
-const { logSubjectCreated } = require("../services/recent_activities.service");
+const { logSubjectCreated } = require("../services/activity_log.service");
 
 exports.createSubject = async (req, res) => {
   try {

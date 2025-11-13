@@ -5,9 +5,7 @@ const {
   updateOrganization,
   deleteOrganization,
 } = require("../services/organization.service");
-const {
-  logOrganizationCreated,
-} = require("../services/recent_activities.service");
+const { logOrganizationCreated } = require("../services/activity_log.service");
 
 exports.createOrganization = async (req, res) => {
   try {

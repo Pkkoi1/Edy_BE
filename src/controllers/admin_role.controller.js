@@ -1,4 +1,5 @@
 const adminRoleService = require("../services/admin_role.service");
+const { logUserRolesRevoked } = require("../services/activity_log.service");
 
 // ROLE CONTROLLERS
 exports.getAllRoles = async (req, res) => {
@@ -305,13 +306,15 @@ exports.revokeAllRoles = async (req, res) => {
       accountId,
       reqAccountId
     );
-    return res
-      .status(200)
-      .json({
-        success: true,
-        data: result,
-        message: "Revoked all roles for the account",
-      });
+
+    // Log hoạt động gỡ role
+    await logUserRolesRevoked(accountId, reqAccountId);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: "Revoked all roles for the account",
+    });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }

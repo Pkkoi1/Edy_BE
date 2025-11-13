@@ -75,3 +75,31 @@ exports.getDashboardStats = async (req, res) => {
     });
   }
 };
+
+exports.getRecentActivities = async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    // Validate limit
+    const limitNum = parseInt(limit, 10);
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 50) {
+      return res.status(400).json({
+        success: false,
+        message: "Limit phải là số từ 1 đến 50",
+      });
+    }
+
+    const activitiesResult = await getRecentActivitiesForAdmin(limitNum);
+
+    res.json({
+      success: true,
+      data: activitiesResult.activities,
+    });
+  } catch (error) {
+    console.error("Error in getRecentActivities controller:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
