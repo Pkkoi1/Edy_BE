@@ -1,5 +1,8 @@
 const adminRoleService = require("../services/admin_role.service");
-const { logUserRolesRevoked } = require("../services/activity_log.service");
+const {
+  logUserRolesRevoked,
+  logUserRolesAssigned,
+} = require("../services/activity_log.service");
 
 // ROLE CONTROLLERS
 exports.getAllRoles = async (req, res) => {
@@ -195,6 +198,14 @@ exports.createAssignment = async (req, res) => {
       assignmentData,
       reqAccountId
     );
+
+    // Log hoạt động gán role
+    await logUserRolesAssigned(
+      assignmentData.account,
+      assignmentData.role,
+      reqAccountId
+    );
+
     return res.status(201).json({
       success: true,
       data: assignment,

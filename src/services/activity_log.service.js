@@ -1,5 +1,7 @@
 const ActivityLog = require("../models/activity_log.model");
 const User = require("../models/user.model");
+const Account = require("../models/account.model");
+const Role = require("../models/role.model");
 const Document = require("../models/document.model");
 const Organization = require("../models/organization.model");
 const Subject = require("../models/subject.model");
@@ -42,24 +44,83 @@ const getRecentActivities = async (limit = 10) => {
   }
 };
 
+// Generic logActivity function for flexible activity logging
+const logActivity = async ({
+  userId,
+  action,
+  targetType,
+  targetId,
+  targetTitle,
+  description,
+  metadata = {},
+}) => {
+  try {
+    // Determine color and icon based on action
+    const getActivityStyle = (action) => {
+      const styles = {
+        APPROVAL_REQUEST_CREATED: { color: "info", icon: "plus-circle" },
+        APPROVAL_REQUEST_APPROVED: { color: "success", icon: "check-circle" },
+        APPROVAL_REQUEST_REJECTED: { color: "danger", icon: "x-circle" },
+        DOCUMENT_CREATED: { color: "info", icon: "file-plus" },
+        DOCUMENT_APPROVED: { color: "success", icon: "check-circle" },
+        DOCUMENT_REJECTED: { color: "danger", icon: "x-circle" },
+        DOCUMENT_DELETED: { color: "danger", icon: "trash" },
+        DOCUMENT_EDITED: { color: "info", icon: "edit" },
+        DOCUMENT_UPLOADED: { color: "info", icon: "upload" },
+        EDIT_REQUEST_CREATED: { color: "warning", icon: "edit" },
+        EDIT_REQUEST_APPROVED: { color: "success", icon: "check-circle" },
+        EDIT_REQUEST_REJECTED: { color: "danger", icon: "x-circle" },
+        REPORT_CREATED: { color: "warning", icon: "alert-triangle" },
+        REPORT_RESOLVED: { color: "success", icon: "check" },
+        REPORT_DISMISSED: { color: "secondary", icon: "x" },
+        COMMENT_CREATED: { color: "info", icon: "message-circle" },
+        COMMENT_DELETED: { color: "danger", icon: "message-circle" },
+        USER_CREATED: { color: "success", icon: "user-plus" },
+        USER_BANNED: { color: "danger", icon: "ban" },
+        USER_UNBANNED: { color: "success", icon: "unlock" },
+        USER_ROLES_ASSIGNED: { color: "success", icon: "user-plus" },
+        USER_ROLES_REVOKED: { color: "warning", icon: "user-minus" },
+        ORGANIZATION_CREATED: { color: "info", icon: "building" },
+        ORGANIZATION_UPDATED: { color: "info", icon: "building" },
+        SUBJECT_CREATED: { color: "info", icon: "book" },
+        SUBJECT_UPDATED: { color: "info", icon: "book" },
+      };
+      return styles[action] || { color: "info", icon: "activity" };
+    };
+
+    const style = getActivityStyle(action);
+
+    // Create activity directly with the correct field names for the ActivityLog model
+    await ActivityLog.create({
+      user: userId,
+      action: action,
+      target_type: targetType,
+      target_id: targetId,
+      target_title: targetTitle,
+      description: description,
+      color: style.color,
+      icon: style.icon,
+      metadata: metadata,
+    });
+  } catch (error) {
+    console.error("Error logging activity:", error);
+    // Don't throw error to avoid disrupting main flow
+  }
+};
+
 // Các hàm helper để tạo hoạt động cụ thể
 const logDocumentApproved = async (documentId, approvedBy) => {
   try {
     const document = await Document.findById(documentId).select("title");
     if (!document) return;
 
-    await createActivity({
-      type: "DOCUMENT_APPROVED",
+    await ActivityLog.create({
+      user: approvedBy,
+      action: "DOCUMENT_APPROVED",
+      target_type: "Document",
+      target_id: documentId,
+      target_title: document.title,
       description: `Tài liệu "${document.title}" đã được duyệt`,
-      actor: {
-        user: approvedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "DOCUMENT",
-        id: documentId,
-        name: document.title,
-      },
       color: "success",
       icon: "check-circle",
     });
@@ -73,18 +134,13 @@ const logDocumentEditRequested = async (documentId, requestedBy) => {
     const document = await Document.findById(documentId).select("title");
     if (!document) return;
 
-    await createActivity({
-      type: "DOCUMENT_EDIT_REQUESTED",
+    await ActivityLog.create({
+      user: requestedBy,
+      action: "DOCUMENT_EDIT_REQUESTED",
+      target_type: "Document",
+      target_id: documentId,
+      target_title: document.title,
       description: `Yêu cầu chỉnh sửa tài liệu "${document.title}"`,
-      actor: {
-        user: requestedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "DOCUMENT",
-        id: documentId,
-        name: document.title,
-      },
       color: "warning",
       icon: "edit",
     });
@@ -98,18 +154,13 @@ const logDocumentDeleted = async (documentId, deletedBy) => {
     const document = await Document.findById(documentId).select("title");
     if (!document) return;
 
-    await createActivity({
-      type: "DOCUMENT_DELETED",
+    await ActivityLog.create({
+      user: deletedBy,
+      action: "DOCUMENT_DELETED",
+      target_type: "Document",
+      target_id: documentId,
+      target_title: document.title,
       description: `Tài liệu "${document.title}" đã bị xóa`,
-      actor: {
-        user: deletedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "DOCUMENT",
-        id: documentId,
-        name: document.title,
-      },
       color: "danger",
       icon: "trash",
     });
@@ -123,17 +174,13 @@ const logDocumentUploaded = async (documentId, uploadedBy) => {
     const document = await Document.findById(documentId).select("title");
     if (!document) return;
 
-    await createActivity({
-      type: "DOCUMENT_UPLOADED",
+    await ActivityLog.create({
+      user: uploadedBy,
+      action: "DOCUMENT_UPLOADED",
+      target_type: "Document",
+      target_id: documentId,
+      target_title: document.title,
       description: `Tài liệu mới "${document.title}" được tải lên`,
-      actor: {
-        user: uploadedBy,
-      },
-      target: {
-        type: "DOCUMENT",
-        id: documentId,
-        name: document.title,
-      },
       color: "info",
       icon: "upload",
     });
@@ -149,23 +196,13 @@ const logUserCreated = async (userId, createdBy = null) => {
 
     const userName = `${user.first_name} ${user.last_name}`;
 
-    await createActivity({
-      type: "USER_CREATED",
+    await ActivityLog.create({
+      user: createdBy || userId,
+      action: "USER_CREATED",
+      target_type: "User",
+      target_id: userId,
+      target_title: userName,
       description: `Người dùng mới: ${userName}`,
-      actor: createdBy
-        ? {
-            user: createdBy,
-            role: "ADMIN",
-          }
-        : {
-            user: userId,
-            name: userName,
-          },
-      target: {
-        type: "USER",
-        id: userId,
-        name: userName,
-      },
       color: "success",
       icon: "user-plus",
     });
@@ -181,17 +218,13 @@ const logOrganizationCreated = async (organizationId, createdBy) => {
     );
     if (!organization) return;
 
-    await createActivity({
-      type: "ORGANIZATION_CREATED",
+    await ActivityLog.create({
+      user: createdBy,
+      action: "ORGANIZATION_CREATED",
+      target_type: "Organization",
+      target_id: organizationId,
+      target_title: organization.name,
       description: `Trường mới "${organization.name}" được tạo`,
-      actor: {
-        user: createdBy,
-      },
-      target: {
-        type: "ORGANIZATION",
-        id: organizationId,
-        name: organization.name,
-      },
       color: "info",
       icon: "building",
     });
@@ -205,17 +238,13 @@ const logSubjectCreated = async (subjectId, createdBy) => {
     const subject = await Subject.findById(subjectId).select("name");
     if (!subject) return;
 
-    await createActivity({
-      type: "SUBJECT_CREATED",
+    await ActivityLog.create({
+      user: createdBy,
+      action: "SUBJECT_CREATED",
+      target_type: "Subject",
+      target_id: subjectId,
+      target_title: subject.name,
       description: `Môn học mới "${subject.name}" được thêm`,
-      actor: {
-        user: createdBy,
-      },
-      target: {
-        type: "SUBJECT",
-        id: subjectId,
-        name: subject.name,
-      },
       color: "info",
       icon: "book",
     });
@@ -231,18 +260,17 @@ const logUserBanned = async (userId, bannedBy) => {
 
     const userName = `${user.first_name} ${user.last_name}`;
 
-    await createActivity({
-      type: "USER_BANNED",
+    // Tìm userId thực sự của người thực hiện hành động
+    const bannedByAccount = await Account.findById(bannedBy);
+    if (!bannedByAccount) return;
+
+    await ActivityLog.create({
+      user: bannedByAccount.user,
+      action: "USER_BANNED",
+      target_type: "User",
+      target_id: userId,
+      target_title: userName,
       description: `Người dùng ${userName} đã bị cấm`,
-      actor: {
-        user: bannedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "USER",
-        id: userId,
-        name: userName,
-      },
       color: "danger",
       icon: "ban",
     });
@@ -258,18 +286,17 @@ const logUserUnbanned = async (userId, unbannedBy) => {
 
     const userName = `${user.first_name} ${user.last_name}`;
 
-    await createActivity({
-      type: "USER_UNBANNED",
+    // Tìm userId thực sự của người thực hiện hành động
+    const unbannedByAccount = await Account.findById(unbannedBy);
+    if (!unbannedByAccount) return;
+
+    await ActivityLog.create({
+      user: unbannedByAccount.user,
+      action: "USER_UNBANNED",
+      target_type: "User",
+      target_id: userId,
+      target_title: userName,
       description: `Người dùng ${userName} được bỏ cấm`,
-      actor: {
-        user: unbannedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "USER",
-        id: userId,
-        name: userName,
-      },
       color: "success",
       icon: "unlock",
     });
@@ -285,17 +312,17 @@ const logReportResolved = async (reportId, resolvedBy) => {
     const report = await Report.findById(reportId).select("type");
     if (!report) return;
 
-    await createActivity({
-      type: "REPORT_RESOLVED",
+    // Tìm userId thực sự của người thực hiện hành động
+    const resolvedByAccount = await Account.findById(resolvedBy);
+    if (!resolvedByAccount) return;
+
+    await ActivityLog.create({
+      user: resolvedByAccount.user,
+      action: "REPORT_RESOLVED",
+      target_type: "Report",
+      target_id: reportId,
+      target_title: report.type || "",
       description: `Báo cáo vi phạm ${report.type} đã được xử lý`,
-      actor: {
-        user: resolvedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "REPORT",
-        id: reportId,
-      },
       color: "success",
       icon: "check",
     });
@@ -309,17 +336,13 @@ const logDocumentEdited = async (documentId, editedBy) => {
     const document = await Document.findById(documentId).select("title");
     if (!document) return;
 
-    await createActivity({
-      type: "DOCUMENT_EDITED",
+    await ActivityLog.create({
+      user: editedBy,
+      action: "DOCUMENT_EDITED",
+      target_type: "Document",
+      target_id: documentId,
+      target_title: document.title,
       description: `Tài liệu "${document.title}" đã được chỉnh sửa`,
-      actor: {
-        user: editedBy,
-      },
-      target: {
-        type: "DOCUMENT",
-        id: documentId,
-        name: document.title,
-      },
       color: "info",
       icon: "edit",
     });
@@ -340,18 +363,13 @@ const logEditApprovalApproved = async (editApprovalId, approvedBy) => {
     ).select("title");
     if (!document) return;
 
-    await createActivity({
-      type: "EDIT_APPROVAL_APPROVED",
+    await ActivityLog.create({
+      user: approvedBy,
+      action: "EDIT_APPROVAL_APPROVED",
+      target_type: "Document",
+      target_id: editApproval.edit_doc.original_document,
+      target_title: document.title,
       description: `Yêu cầu chỉnh sửa tài liệu "${document.title}" đã được duyệt`,
-      actor: {
-        user: approvedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "DOCUMENT",
-        id: editApproval.edit_doc.original_document,
-        name: document.title,
-      },
       color: "success",
       icon: "check-circle",
     });
@@ -372,18 +390,13 @@ const logEditApprovalRejected = async (editApprovalId, rejectedBy) => {
     ).select("title");
     if (!document) return;
 
-    await createActivity({
-      type: "EDIT_APPROVAL_REJECTED",
+    await ActivityLog.create({
+      user: rejectedBy,
+      action: "EDIT_APPROVAL_REJECTED",
+      target_type: "Document",
+      target_id: editApproval.edit_doc.original_document,
+      target_title: document.title,
       description: `Yêu cầu chỉnh sửa tài liệu "${document.title}" đã bị từ chối`,
-      actor: {
-        user: rejectedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "DOCUMENT",
-        id: editApproval.edit_doc.original_document,
-        name: document.title,
-      },
       color: "danger",
       icon: "x-circle",
     });
@@ -394,25 +407,28 @@ const logEditApprovalRejected = async (editApprovalId, rejectedBy) => {
 
 const logUserRolesRevoked = async (accountId, revokedBy) => {
   try {
-    const user = await User.findOne({ account: accountId }).select(
+    // Tìm Account của người bị gỡ quyền để lấy thông tin user
+    const account = await Account.findById(accountId);
+    if (!account) return;
+
+    const user = await User.findById(account.user).select(
       "first_name last_name"
     );
     if (!user) return;
 
+    // Tìm Account của người thực hiện hành động để lấy userId thực sự
+    const revokedByAccount = await Account.findById(revokedBy);
+    if (!revokedByAccount) return;
+
     const userName = `${user.first_name} ${user.last_name}`;
 
-    await createActivity({
-      type: "USER_ROLES_REVOKED",
+    await ActivityLog.create({
+      user: revokedByAccount.user, // Lưu userId thực sự của người thực hiện
+      action: "USER_ROLES_REVOKED",
+      target_type: "User",
+      target_id: accountId,
+      target_title: userName,
       description: `Tất cả vai trò của người dùng ${userName} đã bị gỡ`,
-      actor: {
-        user: revokedBy,
-        role: "ADMIN",
-      },
-      target: {
-        type: "USER",
-        id: accountId,
-        name: userName,
-      },
       color: "warning",
       icon: "user-minus",
     });
@@ -422,9 +438,52 @@ const logUserRolesRevoked = async (accountId, revokedBy) => {
   }
 };
 
+const logUserRolesAssigned = async (accountId, roleId, assignedBy) => {
+  try {
+    // Tìm Account của người được gán quyền để lấy thông tin user
+    const account = await Account.findById(accountId);
+    if (!account) return;
+
+    const user = await User.findById(account.user).select(
+      "first_name last_name"
+    );
+    if (!user) return;
+
+    // Tìm thông tin role
+    const role = await Role.findById(roleId).select("name");
+    if (!role) return;
+
+    // Tìm Account của người thực hiện hành động để lấy userId thực sự
+    const assignedByAccount = await Account.findById(assignedBy);
+    if (!assignedByAccount) return;
+
+    const userName = `${user.first_name} ${user.last_name}`;
+
+    await ActivityLog.create({
+      user: assignedByAccount.user, // Lưu userId thực sự của người thực hiện
+      action: "USER_ROLES_ASSIGNED",
+      target_type: "User",
+      target_id: accountId,
+      target_title: userName,
+      description: `Người dùng ${userName} đã được gán vai trò "${role.name}"`,
+      color: "success",
+      icon: "user-plus",
+    });
+    console.log(
+      "Logged user roles assigned activity for",
+      userName,
+      "with role",
+      role.name
+    );
+  } catch (error) {
+    console.error("Error logging user roles assigned:", error);
+  }
+};
+
 module.exports = {
   createActivity,
   getRecentActivities,
+  logActivity,
   logDocumentApproved,
   logDocumentEditRequested,
   logDocumentEdited,
@@ -439,4 +498,5 @@ module.exports = {
   logUserUnbanned,
   logReportResolved,
   logUserRolesRevoked,
+  logUserRolesAssigned,
 };

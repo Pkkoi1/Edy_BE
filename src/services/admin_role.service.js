@@ -1,7 +1,42 @@
+const Account = require("../models/account.model");
 const Role = require("../models/role.model");
 const Assignment = require("../models/assignment.model");
-const Account = require("../models/account.model");
-const User = require("../models/user.model");
+
+const updateAccountAdminStatus = async (accountId) => {
+  const account = await Account.findById(accountId);
+  if (!account) {
+    throw new Error("Account not found");
+  }
+  const assignments = await Assignment.find({
+    account: accountId,
+    is_active: true,
+  });
+  if (assignments.length > 0) {
+    account.is_admin = true;
+  } else {
+    account.is_admin = false;
+  }
+  await account.save();
+  return account;
+};
+
+const hasManageRole = async (accountId) => {
+  //chi role co MANAGE_ROLE va ALL moi duoc phep lay ra toan bo role
+  const assignments = await Assignment.find({
+    account: accountId,
+    is_active: true,
+  }).populate("role");
+  // lấy ra role của người dùng, nếu người dùng hiện tại ko có role MANAGE ROLE hay ALL thì báo lỗi, ko thì trả toàn bộ role
+  const userRoles = assignments.filter(
+    (assignment) =>
+      assignment.role.permissions.includes("MANAGE_ROLE") ||
+      assignment.role.permissions.includes("ALL")
+  );
+  if (userRoles.length === 0) {
+    throw new Error("User does not have permission to manage roles");
+  }
+  return true;
+};
 
 const getAllRole = async (accountId, query) => {
   if (!(await hasManageRole(accountId))) {
@@ -344,40 +379,4 @@ module.exports = {
   getAssignmentById,
   getAllAssignment,
   revokeAllRoles,
-};
-
-const updateAccountAdminStatus = async (accountId) => {
-  const account = await Account.findById(accountId);
-  if (!account) {
-    throw new Error("Account not found");
-  }
-  const assignments = await Assignment.find({
-    account: accountId,
-    is_active: true,
-  });
-  if (assignments.length > 0) {
-    account.is_admin = true;
-  } else {
-    account.is_admin = false;
-  }
-  await account.save();
-  return account;
-};
-
-const hasManageRole = async (accountId) => {
-  //chi role co MANAGE_ROLE va ALL moi duoc phep lay ra toan bo role
-  const assignments = await Assignment.find({
-    account: accountId,
-    is_active: true,
-  }).populate("role");
-  // lấy ra role của người dùng, nếu người dùng hiện tại ko có role MANAGE ROLE hay ALL thì báo lỗi, ko thì trả toàn bộ role
-  const userRoles = assignments.filter(
-    (assignment) =>
-      assignment.role.permissions.includes("MANAGE_ROLE") ||
-      assignment.role.permissions.includes("ALL")
-  );
-  if (userRoles.length === 0) {
-    throw new Error("User does not have permission to manage roles");
-  }
-  return true;
 };

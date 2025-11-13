@@ -367,14 +367,22 @@ const getRecentActivitiesForAdmin = async (limit = 30) => {
       const targetId = activity.target_id;
       const targetTitle = activity.target_title;
 
-      // User info from populated user field (old format)
-      const userInfo = {
-        _id: activity.user._id,
-        first_name: activity.user.first_name,
-        last_name: activity.user.last_name,
-        avatar: activity.user.avatar,
-        contact_email: activity.user.contact_email || "",
-      };
+      // User info from populated user field (handle null user case)
+      const userInfo = activity.user
+        ? {
+            _id: activity.user._id,
+            first_name: activity.user.first_name,
+            last_name: activity.user.last_name,
+            avatar: activity.user.avatar,
+            contact_email: activity.user.contact_email || "",
+          }
+        : {
+            _id: null,
+            first_name: "Unknown",
+            last_name: "User",
+            avatar: null,
+            contact_email: "",
+          };
 
       const redirectInfo = getRedirectInfo(
         action,
