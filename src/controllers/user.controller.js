@@ -12,6 +12,7 @@ const {
   unfollowUser,
   getUserPermissions,
   getUserContributions,
+  updateUserStatus,
 } = require("../services/user.service");
 
 exports.getUsers = async (req, res) => {
@@ -343,5 +344,33 @@ exports.getUserPermissions = async (req, res) => {
     res
       .status(500)
       .json({ message: "Đã xảy ra lỗi khi lấy quyền của người dùng" });
+  }
+};
+
+exports.updateUserStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    if (!status) {
+      return res.status(400).json({ message: "Vui lòng cung cấp status" });
+    }
+
+    const result = await updateUserStatus(userId, status, req.user.userId);
+
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in updateUserStatus controller:", error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi cập nhật trạng thái người dùng" });
   }
 };

@@ -34,6 +34,7 @@ const activityLogSchema = new mongoose.Schema(
         "USER_CREATED",
         "USER_BANNED",
         "USER_UNBANNED",
+        "USER_STATUS_CHANGED",
         "USER_ROLES_ASSIGNED",
         "USER_ROLES_REVOKED",
         "ORGANIZATION_CREATED",

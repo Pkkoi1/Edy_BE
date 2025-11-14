@@ -8,6 +8,7 @@ const Comment = require("../models/comment.model");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const Assignment = require("../models/assignment.model");
+const { logActivity } = require("./activity_log.service");
 
 const getUsers = async (page = 1, limit = 50, search = "", filters = {}) => {
   try {
@@ -758,6 +759,69 @@ const getUserContributions = async (userId, year = null) => {
   }
 };
 
+const updateUserStatus = async (userId, status, updatedBy) => {
+  try {
+    // Validate status
+    const validStatuses = ["ACTIVE", "INACTIVE", "BANNED"];
+    if (!validStatuses.includes(status)) {
+      return {
+        error: `Trạng thái không hợp lệ. Các giá trị hợp lệ: ${validStatuses.join(
+          ", "
+        )}`,
+      };
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    // Check if status is already the same
+    if (user.status === status) {
+      return { error: `Người dùng đã ở trạng thái ${status}` };
+    }
+
+    // Update status
+    const oldStatus = user.status;
+    user.status = status;
+    await user.save();
+
+    // Log activity for status change
+    await logActivity({
+      userId: updatedBy,
+      action: "USER_STATUS_CHANGED",
+      targetType: "User",
+      targetId: userId,
+      targetTitle: `${user.first_name} ${user.last_name}`,
+      description: `Trạng thái tài khoản của người dùng ${user.first_name} ${user.last_name} đã được thay đổi từ ${oldStatus} thành ${status}`,
+      metadata: {
+        oldStatus,
+        newStatus: status,
+        userId: user._id,
+        updatedBy,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Cập nhật trạng thái người dùng thành công`,
+      data: {
+        userId: user._id,
+        oldStatus,
+        newStatus: status,
+        updatedBy,
+        updatedAt: new Date(),
+      },
+    };
+  } catch (error) {
+    console.error("Error updating user status:", error);
+    return {
+      error: "Lỗi khi cập nhật trạng thái người dùng: " + error.message,
+    };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
@@ -774,4 +838,5 @@ module.exports = {
   unfollowUser,
   getUserPermissions,
   getUserContributions,
+  updateUserStatus,
 };

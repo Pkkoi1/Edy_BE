@@ -78,6 +78,7 @@ const logActivity = async ({
         USER_CREATED: { color: "success", icon: "user-plus" },
         USER_BANNED: { color: "danger", icon: "ban" },
         USER_UNBANNED: { color: "success", icon: "unlock" },
+        USER_STATUS_CHANGED: { color: "warning", icon: "user-check" },
         USER_ROLES_ASSIGNED: { color: "success", icon: "user-plus" },
         USER_ROLES_REVOKED: { color: "warning", icon: "user-minus" },
         ORGANIZATION_CREATED: { color: "info", icon: "building" },

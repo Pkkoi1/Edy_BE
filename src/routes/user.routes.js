@@ -580,4 +580,85 @@ router.get(
   userController.getUserPermissions
 );
 
+/**
+ * @swagger
+ * /users/{userId}/status:
+ *   put:
+ *     summary: Cập nhật trạng thái tài khoản của người dùng (yêu cầu quyền quản lý người dùng)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [ACTIVE, INACTIVE, BANNED]
+ *                 example: "ACTIVE"
+ *                 description: "Trạng thái mới của tài khoản"
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Cập nhật trạng thái người dùng thành công"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       description: ID của người dùng
+ *                     oldStatus:
+ *                       type: string
+ *                       enum: [ACTIVE, INACTIVE, BANNED]
+ *                       description: Trạng thái cũ
+ *                     newStatus:
+ *                       type: string
+ *                       enum: [ACTIVE, INACTIVE, BANNED]
+ *                       description: Trạng thái mới
+ *                     updatedBy:
+ *                       type: string
+ *                       description: ID của người thực hiện cập nhật
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Thời gian cập nhật
+ *       400:
+ *         description: Dữ liệu không hợp lệ hoặc trạng thái không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ *       403:
+ *         description: Không có quyền quản lý người dùng
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.put(
+  "/:userId/status",
+  requireAdminPermission(["MANAGE_USER"]),
+  userController.updateUserStatus
+);
+
 module.exports = router;
