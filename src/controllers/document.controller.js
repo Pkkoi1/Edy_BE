@@ -23,7 +23,7 @@ const {
   getDocumentsByUserId,
   incrementViewCount,
   requestEditDocument,
-  deleteDocument
+  deleteDocument,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -39,7 +39,7 @@ const {
   logDocumentApproved,
   logDocumentEditRequested,
   logDocumentUploaded,
-} = require("../services/recent_activities.service");
+} = require("../services/activity_log.service");
 
 exports.getAllDocuments = async (req, res) => {
   try {
@@ -396,7 +396,7 @@ exports.getMyPendingDocuments = async (req, res) => {
       .status(500)
       .json({ message: "Đã xảy ra lỗi khi lấy tài liệu chờ duyệt" });
   }
-}
+};
 
 exports.getPendingRequestsByDocument = async (req, res) => {
   try {
@@ -469,11 +469,16 @@ exports.requestEdit = async (req, res) => {
         .status(404)
         .json({ message: "Yêu cầu chỉnh sửa tài liệu không tồn tại" });
     }
-    
-    res.json({ message: "Yêu cầu chỉnh sửa tài liệu thành công", editApproval });
+
+    res.json({
+      message: "Yêu cầu chỉnh sửa tài liệu thành công",
+      editApproval,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
   }
 };
 
@@ -486,7 +491,9 @@ exports.requestEditDirect = async (req, res) => {
     res.json({ message: "Yêu cầu chỉnh sửa tài liệu thành công" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
   }
 };
 
@@ -916,7 +923,7 @@ exports.incrementView = async (req, res) => {
 exports.deleteDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
-    const reason = req.body.reason || '';
+    const reason = req.body.reason || "";
     const userId = req.user.userId;
 
     await deleteDocument(documentId, userId, reason);

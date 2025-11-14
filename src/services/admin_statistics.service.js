@@ -359,30 +359,48 @@ const getRecentActivitiesForAdmin = async (limit = 30) => {
       throw new Error("Không thể lấy danh sách hoạt động");
     }
 
-    // Format activities for admin dashboard
+    // Format activities for admin dashboard (use old format only)
     const formattedActivities = result.activities.map((activity) => {
+      // Use old format fields directly since database uses old format
+      const action = activity.action;
+      const targetType = activity.target_type;
+      const targetId = activity.target_id;
+      const targetTitle = activity.target_title;
+
+      // User info from populated user field (handle null user case)
+      const userInfo = activity.user
+        ? {
+            _id: activity.user._id,
+            first_name: activity.user.first_name,
+            last_name: activity.user.last_name,
+            avatar: activity.user.avatar,
+            contact_email: activity.user.contact_email || "",
+          }
+        : {
+            _id: null,
+            first_name: "Unknown",
+            last_name: "User",
+            avatar: null,
+            contact_email: "",
+          };
+
       const redirectInfo = getRedirectInfo(
-        activity.action,
-        activity.target_type,
-        activity.target_id,
-        activity.metadata
+        action,
+        targetType,
+        targetId,
+        activity.metadata || {}
       );
 
       return {
         id: activity._id,
-        user: {
-          id: activity.user._id,
-          name: `${activity.user.first_name} ${activity.user.last_name}`,
-          avatar: activity.user.avatar,
-          email: activity.user.contact_email,
-        },
-        action: activity.action,
-        actionLabel: getActionLabel(activity.action),
-        targetType: activity.target_type,
-        targetId: activity.target_id,
-        targetTitle: activity.target_title,
+        user: userInfo,
+        action: action,
+        actionLabel: getActionLabel(action),
+        target_type: targetType,
+        target_id: targetId,
+        target_title: targetTitle,
         description: activity.description,
-        metadata: activity.metadata,
+        metadata: activity.metadata || {},
         redirectTo: redirectInfo.route,
         redirectParams: redirectInfo.params,
         timestamp: activity.createdAt,
@@ -400,11 +418,14 @@ const getRecentActivitiesForAdmin = async (limit = 30) => {
   }
 };
 
-/**
- * Convert action enum to readable label
- */
 const getActionLabel = (action) => {
   const labels = {
+    // Old format actions (from existing database)
+    APPROVAL_REQUEST_APPROVED: "Duyệt yêu cầu duyệt",
+    APPROVAL_REQUEST_CREATED: "Tạo yêu cầu duyệt",
+    APPROVAL_REQUEST_REJECTED: "Từ chối yêu cầu duyệt",
+
+    // Old format actions (general)
     DOCUMENT_CREATED: "Tạo tài liệu",
     DOCUMENT_APPROVED: "Duyệt tài liệu",
     DOCUMENT_REJECTED: "Từ chối tài liệu",
@@ -414,9 +435,6 @@ const getActionLabel = (action) => {
     EDIT_REQUEST_CREATED: "Tạo yêu cầu chỉnh sửa",
     EDIT_REQUEST_APPROVED: "Duyệt yêu cầu chỉnh sửa",
     EDIT_REQUEST_REJECTED: "Từ chối yêu cầu chỉnh sửa",
-    APPROVAL_REQUEST_CREATED: "Tạo yêu cầu duyệt",
-    APPROVAL_REQUEST_APPROVED: "Duyệt yêu cầu",
-    APPROVAL_REQUEST_REJECTED: "Từ chối yêu cầu",
     REPORT_CREATED: "Tạo báo cáo vi phạm",
     REPORT_RESOLVED: "Giải quyết báo cáo",
     REPORT_DISMISSED: "Bỏ qua báo cáo",
@@ -428,6 +446,22 @@ const getActionLabel = (action) => {
     ORGANIZATION_UPDATED: "Cập nhật tổ chức",
     SUBJECT_CREATED: "Tạo môn học",
     SUBJECT_UPDATED: "Cập nhật môn học",
+
+    // New format actions
+    DOCUMENT_APPROVED: "Duyệt tài liệu",
+    DOCUMENT_EDIT_REQUESTED: "Yêu cầu chỉnh sửa tài liệu",
+    DOCUMENT_DELETED: "Xóa tài liệu",
+    DOCUMENT_UPLOADED: "Tải lên tài liệu",
+    DOCUMENT_EDITED: "Chỉnh sửa tài liệu",
+    EDIT_APPROVAL_APPROVED: "Duyệt yêu cầu chỉnh sửa",
+    EDIT_APPROVAL_REJECTED: "Từ chối yêu cầu chỉnh sửa",
+    USER_CREATED: "Tạo người dùng",
+    USER_ROLES_REVOKED: "Gỡ vai trò người dùng",
+    ORGANIZATION_CREATED: "Tạo tổ chức",
+    SUBJECT_CREATED: "Tạo môn học",
+    USER_BANNED: "Cấm người dùng",
+    USER_UNBANNED: "Gỡ cấm người dùng",
+    REPORT_RESOLVED: "Giải quyết báo cáo",
   };
   return labels[action] || action;
 };
@@ -441,9 +475,16 @@ const getRedirectInfo = (action, targetType, targetId, metadata = {}) => {
     params: {},
   };
 
-  switch (targetType) {
-    case "Document":
-      if (action.includes("APPROVAL_REQUEST")) {
+  // Normalize targetType to handle both old and new formats
+  const normalizedTargetType = (targetType || "").toLowerCase();
+
+  switch (normalizedTargetType) {
+    case "document":
+      if (
+        action.includes("APPROVAL_REQUEST") ||
+        action.includes("APPROVAL") ||
+        action.includes("EDIT_APPROVAL")
+      ) {
         // Điều hướng đến trang quản lý approval requests
         redirectInfo.route = "/admin/approval-requests";
         redirectInfo.params = {
@@ -464,31 +505,7 @@ const getRedirectInfo = (action, targetType, targetId, metadata = {}) => {
       }
       break;
 
-    case "Report":
-      // Điều hướng đến trang quản lý reports
-      redirectInfo.route = "/admin/reports";
-      redirectInfo.params = {
-        reportId: targetId,
-        documentId: metadata.documentId,
-      };
-      break;
-
-    case "Comment":
-      // Điều hướng đến document với focus vào comment
-      redirectInfo.route = "/documents/:id";
-      redirectInfo.params = {
-        id: metadata.documentId || targetId,
-        commentId: targetId,
-      };
-      break;
-
-    case "User":
-      // Điều hướng đến profile user
-      redirectInfo.route = "/users/:id";
-      redirectInfo.params = { id: targetId };
-      break;
-
-    case "ApprovalRequest":
+    case "approvalrequest":
       // Điều hướng đến trang quản lý approval requests
       redirectInfo.route = "/admin/approval-requests";
       redirectInfo.params = {
@@ -497,22 +514,28 @@ const getRedirectInfo = (action, targetType, targetId, metadata = {}) => {
       };
       break;
 
-    case "EditApproval":
-      // Điều hướng đến trang quản lý edit approvals
-      redirectInfo.route = "/admin/edit-requests";
+    case "report":
+      // Điều hướng đến trang quản lý reports
+      redirectInfo.route = "/admin/reports";
       redirectInfo.params = {
-        requestId: targetId,
+        reportId: targetId,
         documentId: metadata.documentId,
       };
       break;
 
-    case "Organization":
+    case "user":
+      // Điều hướng đến profile user
+      redirectInfo.route = "/users/:id";
+      redirectInfo.params = { id: targetId };
+      break;
+
+    case "organization":
       // Điều hướng đến trang quản lý organizations
       redirectInfo.route = "/admin/organizations";
       redirectInfo.params = { id: targetId };
       break;
 
-    case "Subject":
+    case "subject":
       // Điều hướng đến trang quản lý subjects
       redirectInfo.route = "/admin/subjects";
       redirectInfo.params = { id: targetId };

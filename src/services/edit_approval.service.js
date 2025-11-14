@@ -10,11 +10,6 @@ const { earnPoints } = require("./point_transaction.service");
 const { updateDocument: updateESDocument } = require("./elasticsearch.service");
 const { updateDocumentTypeCount } = require("./user_statistics.service");
 const { updateDocumentApproved } = require("./document_statistics.service");
-const {
-  logEditApprovalApproved,
-  logEditApprovalRejected,
-  logDocumentEdited,
-} = require("./recent_activities.service");
 
 const createEditApproval = async (editApprovalData) => {
   const existingApproval = await EditApproval.findOne({
@@ -125,9 +120,6 @@ const approveEditApproval = async (editApprovalId, message, approver) => {
     new Date(currentTime).getTime() + 24 * 60 * 60 * 1000
   );
   await editApproval.save();
-
-  // Log activity
-  await logEditApprovalApproved(editApprovalId, approver);
 };
 
 const rejectEditApproval = async (editApprovalId, message, approver) => {
@@ -144,9 +136,6 @@ const rejectEditApproval = async (editApprovalId, message, approver) => {
     new Date(currentTime).getTime() + 24 * 60 * 60 * 1000
   );
   await editApproval.save();
-
-  // Log activity
-  await logEditApprovalRejected(editApprovalId, approver);
 };
 
 const updateEditDocumentStatus = async (editDocId, status) => {

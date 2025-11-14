@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const recentActivitiesController = require("../controllers/recent_activities.controller");
+const adminStatisticsController = require("../controllers/admin_statistics.controller");
 const { requireAdminPermission } = require("../middlewares/auth.middleware");
 
 /**
@@ -83,7 +83,8 @@ const { requireAdminPermission } = require("../middlewares/auth.middleware");
  */
 router.get(
   "/",
-  recentActivitiesController.getRecentActivities
+  requireAdminPermission(),
+  adminStatisticsController.getRecentActivities
 );
 
 module.exports = router;
