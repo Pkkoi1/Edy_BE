@@ -2,6 +2,8 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const {
   getNewestDocuments,
+  getFeaturedDocuments,
+  getRecommendedDocuments,
   createDocument,
   getDocumentById,
   getMyDocuments,
@@ -90,6 +92,41 @@ exports.getNewestDocuments = async (req, res) => {
     res
       .status(500)
       .json({ message: "Đã xảy ra lỗi khi lấy tài liệu: " + error.message });
+  }
+};
+
+exports.getFeaturedDocuments = async (req, res) => {
+  try {
+    const { from, to, days = 60, page = 1, limit = 5, ...filters } = req.query;
+
+    const result = await getFeaturedDocuments({
+      payload: req.user,
+      from,
+      to,
+      days: parseInt(days),
+      page: parseInt(page),
+      limit: parseInt(limit),
+      ...filters,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu nổi bật: " + error.message });
+  }
+};
+
+exports.getRecommendedDocuments = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const result = await getRecommendedDocuments({
+      payload: req.user,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy gợi ý tài liệu: " + error.message });
   }
 };
 

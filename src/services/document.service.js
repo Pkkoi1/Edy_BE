@@ -299,6 +299,460 @@ const getNewestDocuments = async ({
   };
 };
 
+// Lấy tài liệu nổi bật gần đây trong một khoảng thời gian
+// Dựa trên lượt tải xuống và lượt reaction trong khoảng thời gian chỉ định
+const getFeaturedDocuments = async ({
+  payload,
+  from,
+  to,
+  days = 60,
+  page = 1,
+  limit = 5,
+  ...filters
+}) => {
+  // Đảm bảo trả về tối thiểu 5 tài liệu
+  const MIN_COUNT = 5;
+  // Xác định khoảng thời gian
+  const end = to ? new Date(to) : new Date();
+  const start = from ? new Date(from) : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+  // Build quyền truy cập tương tự getNewestDocuments
+  let user = null;
+  let sharedDocIds = [];
+  if (payload && payload.userId) {
+    user = await User.findById(payload.userId).select("organization shared_documents");
+    if (user && user.shared_documents && user.shared_documents.length > 0) {
+      sharedDocIds = user.shared_documents.map((item) => item.document);
+    }
+  }
+
+  let accessOr = [];
+  if (user && user.organization) {
+    accessOr = [
+      { public_mode: "PUBLIC" },
+      { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
+      { user: user._id },
+    ];
+    if (sharedDocIds.length > 0) {
+      accessOr.push({ _id: { $in: sharedDocIds } });
+    }
+  } else {
+    accessOr = [{ public_mode: "PUBLIC" }];
+  }
+
+  // Lấy thống kê trong khoảng thời gian: downloads và reactions
+  const [downloadsAgg, reactionsAgg] = await Promise.all([
+    DownloadLink.aggregate([
+      { $match: { status: "SUCCESS", accessedAt: { $gte: start, $lte: end } } },
+      { $group: { _id: "$doc", downloads: { $sum: 1 } } },
+    ]),
+    Reaction.aggregate([
+      { $match: { createdAt: { $gte: start, $lte: end } } },
+      { $group: { _id: { doc: "$doc", type: "$type" }, count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const likesByDoc = {};
+  const dislikesByDoc = {};
+  reactionsAgg.forEach((r) => {
+    const docId = r._id.doc.toString();
+    if (r._id.type === "LIKE") likesByDoc[docId] = (likesByDoc[docId] || 0) + r.count;
+    if (r._id.type === "DISLIKE") dislikesByDoc[docId] = (dislikesByDoc[docId] || 0) + r.count;
+  });
+
+  const downloadByDoc = {};
+  downloadsAgg.forEach((d) => {
+    const docId = d._id.toString();
+    downloadByDoc[docId] = d.downloads;
+  });
+
+  // Tập doc có tương tác trong khoảng thời gian
+  const candidateIds = Array.from(
+    new Set([
+      ...Object.keys(downloadByDoc),
+      ...Object.keys(likesByDoc),
+      ...Object.keys(dislikesByDoc),
+    ])
+  ).map((id) => new mongoose.Types.ObjectId(id));
+
+  // Query filter cơ bản
+  const baseQuery = {
+    status: "APPROVED",
+    is_deleted: false,
+    last_approved_at: { $ne: null, $gte: start, $lte: end },
+  };
+
+  // Áp dụng các filter bổ sung (nếu có)
+  const filterFields = [
+    "organization",
+    "publisher",
+    "published_year",
+    "intensive",
+    "author",
+    "user",
+    "keyword",
+    "doc_type",
+    "level",
+    "subject",
+  ];
+  filterFields.forEach((field) => {
+    if (filters[field] !== undefined) {
+      if (Array.isArray(filters[field])) {
+        baseQuery[field] = { $in: filters[field] };
+      } else {
+        baseQuery[field] = filters[field];
+      }
+    }
+  });
+
+  const skip = (page - 1) * limit;
+
+  // Nếu không có doc tương tác, fallback: lấy theo thời gian duyệt mới nhất trong khoảng
+  if (candidateIds.length === 0) {
+    const query = { ...baseQuery, $or: accessOr };
+    // Luôn cố gắng trả về tối thiểu MIN_COUNT tài liệu
+    const desired = Math.max(limit, MIN_COUNT);
+    const [documents, totalRaw] = await Promise.all([
+      Document.find(query)
+        .sort({ last_approved_at: -1 })
+        .skip(skip)
+        .limit(desired)
+        .select(
+          "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+        )
+        .populate({
+          path: "user",
+          select: "_id first_name last_name avatar doc_count",
+          populate: { path: "organization", select: "_id name" },
+        })
+        .populate({ path: "organization", select: "_id name" })
+        .populate({ path: "subject", select: "_id name" }),
+      Document.countDocuments(query),
+    ]);
+    const total = Math.min(totalRaw, 30);
+    // Nếu vẫn chưa đủ, bổ sung thêm từ tất cả thời gian (bỏ qua giới hạn khoảng thời gian)
+    let filledDocs = documents;
+    if (filledDocs.length < desired) {
+      const excludeIds = new Set(filledDocs.map((d) => d._id.toString()));
+      const allTimeQuery = {
+        status: "APPROVED",
+        is_deleted: false,
+        $or: accessOr,
+        _id: { $nin: Array.from(excludeIds).map((id) => new mongoose.Types.ObjectId(id)) },
+      };
+      const moreAllTime = await Document.find(allTimeQuery)
+        .sort({ last_approved_at: -1 })
+        .limit(desired - filledDocs.length)
+        .select(
+          "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+        )
+        .populate({
+          path: "user",
+          select: "_id first_name last_name avatar doc_count",
+          populate: { path: "organization", select: "_id name" },
+        })
+        .populate({ path: "organization", select: "_id name" })
+        .populate({ path: "subject", select: "_id name" });
+      filledDocs = [...filledDocs, ...moreAllTime];
+    }
+    // Nếu vẫn chưa đủ, bổ sung thêm bằng newest (APPROVED mới duyệt)
+    if (filledDocs.length < desired) {
+      const excludeSet = new Set(filledDocs.map((d) => d._id.toString()));
+      const newestRes = await getNewestDocuments({
+        payload,
+        page: 1,
+        limit: desired - filledDocs.length,
+        ordering: "last_approved_at",
+        order: -1,
+        ...filters,
+      });
+      const extraNewest = (newestRes.documents || []).filter(
+        (d) => !excludeSet.has(d._id.toString())
+      );
+      filledDocs = [...filledDocs, ...extraNewest];
+    }
+    return {
+      documents: filledDocs,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      have_next: page < Math.ceil(total / limit),
+      period: { from: start, to: end },
+    };
+  }
+
+  // Lấy đầy đủ thông tin các candidate, có áp dụng quyền truy cập
+  const query = { ...baseQuery, $or: accessOr, _id: { $in: candidateIds } };
+  const candidates = await Document.find(query)
+    .select(
+      "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at like dislike"
+    )
+    .populate({
+      path: "user",
+      select: "_id first_name last_name avatar doc_count",
+      populate: { path: "organization", select: "_id name" },
+    })
+    .populate({ path: "organization", select: "_id name" })
+    .populate({ path: "subject", select: "_id name" });
+
+  // Tính điểm nổi bật: downloads*3 + likes*2 - dislikes + bonus theo độ mới
+  const now = end.getTime();
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const scored = candidates.map((doc) => {
+    const id = doc._id.toString();
+    const dl = downloadByDoc[id] || 0;
+    const lk = likesByDoc[id] || 0;
+    const dk = dislikesByDoc[id] || 0;
+    const daysSince = doc.last_approved_at
+      ? Math.max(0, (now - new Date(doc.last_approved_at).getTime()) / msPerDay)
+      : days;
+    const recencyBoost = 1 / (1 + daysSince); // càng mới càng cao
+    const score = dl * 3 + lk * 2 - dk + recencyBoost;
+    return { score, doc };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const total = Math.min(scored.length, 30);
+  const totalPages = Math.ceil(total / limit);
+  let slice = scored.slice(0, 30).slice(skip, skip + limit).map((s) => s.doc);
+
+  // Bổ sung fallback để đảm bảo ít nhất MIN_COUNT tài liệu
+  const desired = Math.max(limit, MIN_COUNT);
+  if (slice.length < desired) {
+    const excludeIds = new Set(slice.map((d) => d._id.toString()));
+    const excludedAll = new Set([
+      ...excludeIds,
+      ...candidateIds.map((id) => id.toString()),
+    ]);
+
+    // Ưu tiên bổ sung trong cùng khoảng thời gian nhưng không thuộc candidate
+    const timeframeFallbackQuery = {
+      ...baseQuery,
+      $or: accessOr,
+      _id: { $nin: Array.from(excludedAll).map((id) => new mongoose.Types.ObjectId(id)) },
+    };
+    const extraInTimeframe = await Document.find(timeframeFallbackQuery)
+      .sort({ last_approved_at: -1 })
+      .limit(desired - slice.length)
+      .select(
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: { path: "organization", select: "_id name" },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" });
+
+    slice = [...slice, ...extraInTimeframe];
+
+    
+    // Nếu vẫn chưa đủ, bổ sung thêm từ tất cả thời gian
+    if (slice.length < desired) {
+      const excludeIds2 = new Set(slice.map((d) => d._id.toString()));
+      const allTimeQuery = {
+        status: "APPROVED",
+        is_deleted: false,
+        $or: accessOr,
+        _id: { $nin: Array.from(excludeIds2).map((id) => new mongoose.Types.ObjectId(id)) },
+      };
+      const extraAllTime = await Document.find(allTimeQuery)
+        .sort({ last_approved_at: -1 })
+        .limit(desired - slice.length)
+        .select(
+          "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+        )
+        .populate({
+          path: "user",
+          select: "_id first_name last_name avatar doc_count",
+          populate: { path: "organization", select: "_id name" },
+        })
+        .populate({ path: "organization", select: "_id name" })
+        .populate({ path: "subject", select: "_id name" });
+      slice = [...slice, ...extraAllTime];
+    }
+    // Nếu vẫn chưa đủ, bổ sung thêm bằng newest (APPROVED mới duyệt)
+    if (slice.length < desired) {
+      const excludeSet = new Set(slice.map((d) => d._id.toString()));
+      const newestRes = await getNewestDocuments({
+        payload,
+        page: 1,
+        limit: desired - slice.length,
+        ordering: "last_approved_at",
+        order: -1,
+        ...filters,
+      });
+      const extraNewest = (newestRes.documents || []).filter(
+        (d) => !excludeSet.has(d._id.toString())
+      );
+      slice = [...slice, ...extraNewest];
+    }
+  }
+
+  return {
+    documents: slice,
+    total,
+    page,
+    totalPages,
+    have_next: page < totalPages,
+    period: { from: start, to: end },
+  };
+};
+
+// Gợi ý tài liệu có thể bạn quan tâm dựa theo thông tin user
+const getRecommendedDocuments = async ({
+  payload,
+  page = 1,
+  limit = 10,
+}) => {
+  if (!payload || !payload.userId) {
+    // Khách: fallback dùng newest
+    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+  }
+
+  const userId = payload.userId;
+  const user = await User.findById(userId).select(
+    "organization shared_documents search_history read_history favorites field_of_study"
+  );
+
+  // Access filter cho ES
+  let sharedDocIds = [];
+  if (user && user.shared_documents && user.shared_documents.length > 0) {
+    sharedDocIds = user.shared_documents.map((item) => item.document.toString());
+  }
+
+  let accessFilter;
+  if (user && user.organization) {
+    accessFilter = {
+      bool: {
+        should: [
+          { term: { public_mode: "PUBLIC" } },
+          {
+            bool: {
+              must: [
+                { term: { public_mode: "SHARE_ORGANIZATION" } },
+                { term: { organization: user.organization.toString() } },
+              ],
+            },
+          },
+          { term: { user: user._id.toString() } },
+        ],
+      },
+    };
+    if (sharedDocIds.length > 0) {
+      accessFilter.bool.should.push({ terms: { id: sharedDocIds } });
+    }
+  } else {
+    accessFilter = { term: { public_mode: "PUBLIC" } };
+  }
+
+  // Gom seed: từ khoá tìm kiếm, field_of_study, tác giả/keyword/subject từ favorites & read_history
+  const keywordSeeds = (user.search_history || [])
+    .sort((a, b) => new Date(b.searched_at) - new Date(a.searched_at))
+    .slice(0, 10)
+    .map((x) => x.keyword)
+    .filter(Boolean);
+
+  const studyFields = (user.field_of_study || []).slice(0, 5);
+
+  const favoriteDocIds = (user.favorites || [])
+    .sort((a, b) => new Date(b.added_at) - new Date(a.added_at))
+    .slice(0, 5)
+    .map((x) => x.document.toString());
+
+  const readDocIds = (user.read_history || [])
+    .sort((a, b) => new Date(b.read_at) - new Date(a.read_at))
+    .slice(0, 10)
+    .map((x) => x.document.toString());
+
+  const excludeIds = new Set([...favoriteDocIds, ...readDocIds]);
+
+  const seedIds = [...favoriteDocIds, ...readDocIds];
+  let authorSeeds = [];
+  let keywordDocSeeds = [];
+  let subjectSeeds = [];
+  if (seedIds.length > 0) {
+    const seedDocs = await Document.find({ _id: { $in: seedIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+      .select("author keyword subject")
+      .populate({ path: "subject", select: "name" });
+    for (const d of seedDocs) {
+      if (Array.isArray(d.author)) authorSeeds.push(...d.author);
+      if (Array.isArray(d.keyword)) keywordDocSeeds.push(...d.keyword);
+      if (d.subject && d.subject.name) subjectSeeds.push(d.subject.name);
+    }
+  }
+
+  // Hợp nhất và giới hạn số token
+  const tokensSet = new Set([
+    ...keywordSeeds,
+    ...studyFields,
+    ...authorSeeds,
+    ...keywordDocSeeds,
+    ...subjectSeeds,
+  ].filter((t) => !!t && String(t).trim().length >= 2));
+
+  const tokens = Array.from(tokensSet).slice(0, 20);
+  if (tokens.length === 0) {
+    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+  }
+
+  const combinedQuery = tokens.join(" ");
+
+  // Gọi ES một lần với query tổng hợp
+  let esResult;
+  try {
+    esResult = await searchDocuments(combinedQuery, accessFilter, {
+      page: 1,
+      limit: Math.max(limit * 5, 30),
+      ordering: "last_approved_at",
+      order: -1,
+    });
+  } catch (e) {
+    // lỗi ES -> fallback newest
+    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+  }
+
+  const { documents, highlights } = esResult || { documents: [], highlights: {} };
+  if (!documents || documents.length === 0) {
+    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+  }
+
+  // Chấm điểm theo highlight + độ mới, loại trừ đã yêu thích/đã đọc
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const scored = documents
+    .filter((doc) => !excludeIds.has(doc._id.toString()))
+    .map((doc) => {
+      const id = doc._id.toString();
+      const hl = highlights?.[id] || {};
+      const matchScore = (Array.isArray(hl.title) ? hl.title.length : 0) * 2
+        + (Array.isArray(hl.author) ? hl.author.length : 0) * 1.5
+        + (Array.isArray(hl.keyword) ? hl.keyword.length : 0) * 1.5;
+      const daysSince = doc.last_approved_at
+        ? Math.max(0, (now - new Date(doc.last_approved_at).getTime()) / msPerDay)
+        : 365;
+      const recencyBoost = 0.5 / (1 + daysSince);
+      return { score: matchScore + recencyBoost, doc };
+    });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const total = scored.length;
+  const totalPages = Math.ceil(total / limit);
+  const skip = (page - 1) * limit;
+  const slice = scored.slice(skip, skip + limit).map((s) => s.doc);
+
+  return {
+    documents: slice,
+    total,
+    page,
+    totalPages,
+    have_next: page < totalPages,
+  };
+};
+
 const searchWithElasticsearch = async ({
   payload,
   search,
@@ -2065,6 +2519,8 @@ const incrementViewCount = async (documentId, userId) => {
 module.exports = {
   getAllDocuments,
   getNewestDocuments,
+  getFeaturedDocuments,
+  getRecommendedDocuments,
   createDocument,
   deleteDocument,
   updateDocument,

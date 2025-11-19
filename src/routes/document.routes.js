@@ -218,6 +218,81 @@ router.get(
 
 /**
  * @swagger
+ * /documents/featured:
+ *   get:
+ *     summary: Lấy danh sách tài liệu nổi bật gần đây trong khoảng thời gian
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *         description: Thời điểm bắt đầu (ISO hoặc yyyy-MM-dd)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *         description: Thời điểm kết thúc (mặc định là hiện tại)
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *         description: Số ngày gần đây (fallback nếu không truyền from/to)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu nổi bật thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ */
+router.get(
+  "/featured",
+  userOrUnauthenticated,
+  documentController.getFeaturedDocuments
+);
+
+/**
+ * @swagger
+ * /documents/recommended:
+ *   get:
+ *     summary: Lấy danh sách tài liệu có thể bạn quan tâm
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách gợi ý tài liệu thành công
+ *       401:
+ *         description: Yêu cầu đăng nhập
+ */
+router.get(
+  "/recommended",
+  requireLoggedIn,
+  documentController.getRecommendedDocuments
+);
+
+/**
+ * @swagger
  * /documents:
  *   post:
  *     summary: Tải lên tài liệu mới
