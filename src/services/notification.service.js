@@ -346,6 +346,20 @@ const notifySystem = async (userId, message) => {
   });
 };
 
+// Thông báo thay đổi trạng thái VIP
+const notifyVipStatusChanged = async (userId, isVip) => {
+  const message = isVip
+    ? "🎉 Chúc mừng! Bạn đã trở thành thành viên VIP với nhiều đặc quyền hấp dẫn!"
+    : "😔 Bạn đã mất trạng thái VIP. Tiếp tục tích lũy điểm để trở lại VIP nhé!";
+
+  return await createNotification({
+    userId,
+    type: isVip ? "VIP_UPGRADED" : "VIP_DOWNGRADED",
+    message,
+    redirectTo: "PROFILE", // Điều hướng đến trang profile để xem trạng thái VIP
+  });
+};
+
 module.exports = {
   createNotification,
   getNotifications,
@@ -363,4 +377,5 @@ module.exports = {
   notifyNewComment,
   notifyCommentReply,
   notifySystem,
+  notifyVipStatusChanged,
 };

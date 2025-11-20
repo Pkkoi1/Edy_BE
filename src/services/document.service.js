@@ -756,8 +756,8 @@ const deleteDocument = async (documentId, userId, reason) => {
     throw new Error("Bạn không có quyền xóa tài liệu này");
   }
 
-  if(!isOwner){
-    if(isAdmin){
+  if (!isOwner) {
+    if (isAdmin) {
       doc.is_delete_by_admin = true;
       doc.delete_by_admin = userId;
       doc.delete_by_admin_reason = reason;
@@ -801,7 +801,7 @@ const updateDocument = async (id, data) => {
 };
 
 const getDocumentById = async (id, userId) => {
-  const doc = await Document.findOne({ _id: id })
+  let doc = await Document.findOne({ _id: id })
     .populate({
       path: "user",
       select:
@@ -829,6 +829,22 @@ const getDocumentById = async (id, userId) => {
       if (!isOwner && !isAdmin) {
         await deleteFromHistoryIfHave(id, userId);
         throw new Error("Bạn không có quyền truy cập tài liệu này");
+      }
+    }
+  }
+
+  // VIP users get access to AI-generated summary; non-VIP users should not see it
+  if (userId && doc) {
+    const account = await Account.findOne({ user: userId }).select("is_vip");
+    if (account?.is_vip) {
+      // keep summary as-is (already on doc)
+    } else {
+      // remove summary for non-VIP users
+      if (doc.summary_by_ai) {
+        // convert to plain object and null out summary
+        const obj = doc.toObject ? doc.toObject() : { ...doc };
+        obj.summary_by_ai = null;
+        doc = obj;
       }
     }
   }
@@ -1129,7 +1145,10 @@ const getPendingDocuments = async ({
   };
 };
 
-const getMyPendingDocuments = async (userId, { ordering = "createdAt", order = -1, page = 1, limit = 5 } = {}) => {
+const getMyPendingDocuments = async (
+  userId,
+  { ordering = "createdAt", order = -1, page = 1, limit = 5 } = {}
+) => {
   // Thu thập docIds từ ApprovalRequest được gán cho tôi
   const approvals = await ApprovalRequest.find({
     assigned_to: userId,
@@ -1148,7 +1167,9 @@ const getMyPendingDocuments = async (userId, { ordering = "createdAt", order = -
     ...docIdsFromApprovals.map((id) => id.toString()),
     ...docIdsFromEditApprovals.map((id) => id.toString()),
   ]);
-  const docIds = Array.from(docIdSet).map((id) => new mongoose.Types.ObjectId(id));
+  const docIds = Array.from(docIdSet).map(
+    (id) => new mongoose.Types.ObjectId(id)
+  );
 
   // Không có tài liệu được gán -> trả về rỗng cùng format
   if (docIds.length === 0) {
@@ -1228,13 +1249,8 @@ const createDownloadLink = async (userId, documentId) => {
   //   );
   // }
 
-  const type = user.free_download_count > 0 ? "FREE" : "POINT";
+  const type = user.daily_download_limit > 0 ? "FREE" : "POINT";
   const cost = type === "FREE" ? 0 : await getDownloadPrice(documentId, user);
-  if (type === "POINT" && user.point < cost) {
-    throw new Error(
-      `Không đủ điểm để tải tài liệu. Tài liệu cần ${cost} điểm, bạn hiện có ${user.point} điểm.`
-    );
-  }
 
   //Tạo download link
 
@@ -1251,7 +1267,7 @@ const createDownloadLink = async (userId, documentId) => {
   await downloadLink.save();
 
   let remaining_free_downloads =
-    type === "FREE" ? user.free_download_count - 1 : user.free_download_count;
+    type === "FREE" ? user.daily_download_limit - 1 : user.daily_download_limit;
   return {
     downloadId: downloadLink._id,
     url: `/download/${downloadLink._id}`,
@@ -1294,7 +1310,7 @@ const processDownload = async (downloadId, userId) => {
 
   // Tính điểm
   if (downloadLink.type === "FREE") {
-    user.free_download_count = Math.max(0, user.free_download_count - 1);
+    user.daily_download_limit = Math.max(0, user.daily_download_limit - 1);
   } else {
     user.point = Math.max(0, user.point - downloadLink.cost);
     await createPointTransaction(
@@ -1327,7 +1343,7 @@ const processDownload = async (downloadId, userId) => {
       title: document.title,
       author: document.author,
     },
-    remaining_free_downloads: user.free_download_count,
+    remaining_free_downloads: user.daily_download_limit,
   };
 };
 
@@ -1853,7 +1869,7 @@ const addToHistory = async (userId, documentId) => {
     document: documentId,
     read_at: new Date(),
   });
-  
+
   // Giữ chỉ 10 tài liệu gần nhất
   if (newHistory.length > 10) {
     newHistory = newHistory.slice(0, 10);

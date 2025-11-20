@@ -81,6 +81,8 @@ const logActivity = async ({
         USER_STATUS_CHANGED: { color: "warning", icon: "user-check" },
         USER_ROLES_ASSIGNED: { color: "success", icon: "user-plus" },
         USER_ROLES_REVOKED: { color: "warning", icon: "user-minus" },
+        USER_BECAME_VIP: { color: "success", icon: "star" },
+        USER_LOST_VIP: { color: "warning", icon: "user-minus" },
         ORGANIZATION_CREATED: { color: "info", icon: "building" },
         ORGANIZATION_UPDATED: { color: "info", icon: "building" },
         SUBJECT_CREATED: { color: "info", icon: "book" },
@@ -481,6 +483,36 @@ const logUserRolesAssigned = async (accountId, roleId, assignedBy) => {
   }
 };
 
+const logUserVipStatusChanged = async (userId, isVip, changedBy = null) => {
+  try {
+    const user = await User.findById(userId).select("first_name last_name");
+    if (!user) return;
+
+    const userName = `${user.first_name} ${user.last_name}`;
+    const action = isVip ? "USER_BECAME_VIP" : "USER_LOST_VIP";
+    const description = isVip
+      ? `Người dùng ${userName} đã trở thành thành viên VIP`
+      : `Người dùng ${userName} đã mất trạng thái VIP`;
+
+    await logActivity({
+      userId: changedBy || userId,
+      action: action,
+      targetType: "User",
+      targetId: userId,
+      targetTitle: userName,
+      description: description,
+    });
+
+    console.log(
+      `Logged VIP status change for ${userName}: ${
+        isVip ? "became VIP" : "lost VIP"
+      }`
+    );
+  } catch (error) {
+    console.error("Error logging VIP status change:", error);
+  }
+};
+
 module.exports = {
   createActivity,
   getRecentActivities,
@@ -500,4 +532,5 @@ module.exports = {
   logReportResolved,
   logUserRolesRevoked,
   logUserRolesAssigned,
+  logUserVipStatusChanged,
 };
