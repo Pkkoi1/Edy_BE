@@ -8,6 +8,10 @@ const {
   forgotPasswordService,
 } = require("../services/auth.service");
 const { logUserCreated } = require("../services/activity_log.service");
+const Account = require("../models/account.model");
+const User = require("../models/user.model");
+const { notifyVipStatusChanged } = require("../services/notification.service");
+const { logUserVipStatusChanged } = require("../services/activity_log.service");
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -73,6 +77,34 @@ exports.me = async (req, res) => {
     }
 
     const { account, user, roles } = result;
+
+    // Check and update VIP status when getting user profile
+    try {
+      const shouldBeVip = user.rank_point >= 500;
+      const isCurrentlyVip = account.is_vip;
+
+      if (shouldBeVip !== isCurrentlyVip) {
+        account.is_vip = shouldBeVip;
+
+        // Handle VIP benefits - only increase free download count for first time VIP
+        if (shouldBeVip && !account.has_been_vip) {
+          await User.findByIdAndUpdate(user._id, {
+            $inc: { free_download_count: 10 },
+          });
+          account.has_been_vip = true;
+        }
+
+        await account.save();
+
+        // Send notification and log activity
+        await notifyVipStatusChanged(user._id, shouldBeVip);
+        await logUserVipStatusChanged(user._id, shouldBeVip);
+      }
+    } catch (vipError) {
+      console.error("Error updating VIP status in me endpoint:", vipError);
+      // Don't fail the main operation if VIP update fails
+    }
+
     res.json({ account, user, roles });
   } catch (error) {
     console.error(error);

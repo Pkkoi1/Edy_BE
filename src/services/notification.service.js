@@ -354,9 +354,9 @@ const notifyVipStatusChanged = async (userId, isVip) => {
 
   return await createNotification({
     userId,
-    type: isVip ? "VIP_UPGRADED" : "VIP_DOWNGRADED",
+    type: "SYSTEM",
     message,
-    redirectTo: "PROFILE", // Điều hướng đến trang profile để xem trạng thái VIP
+    redirectTo: "USER", // Điều hướng đến trang profile của user
   });
 };
 
