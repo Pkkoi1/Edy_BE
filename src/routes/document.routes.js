@@ -287,7 +287,7 @@ router.get(
  */
 router.get(
   "/recommended",
-  requireLoggedIn,
+  userOrUnauthenticated,
   documentController.getRecommendedDocuments
 );
 

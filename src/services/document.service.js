@@ -439,7 +439,7 @@ const getFeaturedDocuments = async ({
         .populate({ path: "subject", select: "_id name" }),
       Document.countDocuments(query),
     ]);
-    const total = Math.min(totalRaw, 30);
+    const total = Math.min(totalRaw, 50);
     // Nếu vẫn chưa đủ, bổ sung thêm từ tất cả thời gian (bỏ qua giới hạn khoảng thời gian)
     let filledDocs = documents;
     if (filledDocs.length < desired) {
@@ -527,10 +527,10 @@ const getFeaturedDocuments = async ({
 
   scored.sort((a, b) => b.score - a.score);
 
-  const total = Math.min(scored.length, 30);
+  const total = Math.min(scored.length, 50);
   const totalPages = Math.ceil(total / limit);
   let slice = scored
-    .slice(0, 30)
+    .slice(0, 50)
     .slice(skip, skip + limit)
     .map((s) => s.doc);
 
