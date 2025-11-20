@@ -494,6 +494,13 @@ const logUserVipStatusChanged = async (userId, isVip, changedBy = null) => {
       ? `Người dùng ${userName} đã trở thành thành viên VIP`
       : `Người dùng ${userName} đã mất trạng thái VIP`;
 
+    // Validate action before logging
+    const validActions = ["USER_BECAME_VIP", "USER_LOST_VIP"];
+    if (!validActions.includes(action)) {
+      console.error(`Invalid action: ${action}`);
+      return;
+    }
+
     await logActivity({
       userId: changedBy || userId,
       action: action,
@@ -510,6 +517,7 @@ const logUserVipStatusChanged = async (userId, isVip, changedBy = null) => {
     );
   } catch (error) {
     console.error("Error logging VIP status change:", error);
+    // Don't throw error to avoid disrupting main flow
   }
 };
 

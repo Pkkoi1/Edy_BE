@@ -10,7 +10,11 @@ const ApprovalRequest = require("../models/approval_request.model");
 const EditApproval = require("../models/edit_approval.model");
 const Assignment = require("../models/assignment.model");
 const Role = require("../models/role.model");
-const { createPointTransaction } = require("./point_transaction.service");
+const PointTransaction = require("../models/point_transaction.model");
+const {
+  createPointTransaction,
+  earnPoints,
+} = require("./point_transaction.service");
 const {
   processDocumentAndCreateEmbedding,
   processDocumentAndCreateSummary,
@@ -314,13 +318,17 @@ const getFeaturedDocuments = async ({
   const MIN_COUNT = 5;
   // Xác định khoảng thời gian
   const end = to ? new Date(to) : new Date();
-  const start = from ? new Date(from) : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  const start = from
+    ? new Date(from)
+    : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
 
   // Build quyền truy cập tương tự getNewestDocuments
   let user = null;
   let sharedDocIds = [];
   if (payload && payload.userId) {
-    user = await User.findById(payload.userId).select("organization shared_documents");
+    user = await User.findById(payload.userId).select(
+      "organization shared_documents"
+    );
     if (user && user.shared_documents && user.shared_documents.length > 0) {
       sharedDocIds = user.shared_documents.map((item) => item.document);
     }
@@ -356,8 +364,10 @@ const getFeaturedDocuments = async ({
   const dislikesByDoc = {};
   reactionsAgg.forEach((r) => {
     const docId = r._id.doc.toString();
-    if (r._id.type === "LIKE") likesByDoc[docId] = (likesByDoc[docId] || 0) + r.count;
-    if (r._id.type === "DISLIKE") dislikesByDoc[docId] = (dislikesByDoc[docId] || 0) + r.count;
+    if (r._id.type === "LIKE")
+      likesByDoc[docId] = (likesByDoc[docId] || 0) + r.count;
+    if (r._id.type === "DISLIKE")
+      dislikesByDoc[docId] = (dislikesByDoc[docId] || 0) + r.count;
   });
 
   const downloadByDoc = {};
@@ -438,7 +448,11 @@ const getFeaturedDocuments = async ({
         status: "APPROVED",
         is_deleted: false,
         $or: accessOr,
-        _id: { $nin: Array.from(excludeIds).map((id) => new mongoose.Types.ObjectId(id)) },
+        _id: {
+          $nin: Array.from(excludeIds).map(
+            (id) => new mongoose.Types.ObjectId(id)
+          ),
+        },
       };
       const moreAllTime = await Document.find(allTimeQuery)
         .sort({ last_approved_at: -1 })
@@ -515,7 +529,10 @@ const getFeaturedDocuments = async ({
 
   const total = Math.min(scored.length, 30);
   const totalPages = Math.ceil(total / limit);
-  let slice = scored.slice(0, 30).slice(skip, skip + limit).map((s) => s.doc);
+  let slice = scored
+    .slice(0, 30)
+    .slice(skip, skip + limit)
+    .map((s) => s.doc);
 
   // Bổ sung fallback để đảm bảo ít nhất MIN_COUNT tài liệu
   const desired = Math.max(limit, MIN_COUNT);
@@ -530,7 +547,11 @@ const getFeaturedDocuments = async ({
     const timeframeFallbackQuery = {
       ...baseQuery,
       $or: accessOr,
-      _id: { $nin: Array.from(excludedAll).map((id) => new mongoose.Types.ObjectId(id)) },
+      _id: {
+        $nin: Array.from(excludedAll).map(
+          (id) => new mongoose.Types.ObjectId(id)
+        ),
+      },
     };
     const extraInTimeframe = await Document.find(timeframeFallbackQuery)
       .sort({ last_approved_at: -1 })
@@ -548,7 +569,6 @@ const getFeaturedDocuments = async ({
 
     slice = [...slice, ...extraInTimeframe];
 
-    
     // Nếu vẫn chưa đủ, bổ sung thêm từ tất cả thời gian
     if (slice.length < desired) {
       const excludeIds2 = new Set(slice.map((d) => d._id.toString()));
@@ -556,7 +576,11 @@ const getFeaturedDocuments = async ({
         status: "APPROVED",
         is_deleted: false,
         $or: accessOr,
-        _id: { $nin: Array.from(excludeIds2).map((id) => new mongoose.Types.ObjectId(id)) },
+        _id: {
+          $nin: Array.from(excludeIds2).map(
+            (id) => new mongoose.Types.ObjectId(id)
+          ),
+        },
       };
       const extraAllTime = await Document.find(allTimeQuery)
         .sort({ last_approved_at: -1 })
@@ -602,14 +626,16 @@ const getFeaturedDocuments = async ({
 };
 
 // Gợi ý tài liệu có thể bạn quan tâm dựa theo thông tin user
-const getRecommendedDocuments = async ({
-  payload,
-  page = 1,
-  limit = 10,
-}) => {
+const getRecommendedDocuments = async ({ payload, page = 1, limit = 10 }) => {
   if (!payload || !payload.userId) {
     // Khách: fallback dùng newest
-    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
   }
 
   const userId = payload.userId;
@@ -620,7 +646,9 @@ const getRecommendedDocuments = async ({
   // Access filter cho ES
   let sharedDocIds = [];
   if (user && user.shared_documents && user.shared_documents.length > 0) {
-    sharedDocIds = user.shared_documents.map((item) => item.document.toString());
+    sharedDocIds = user.shared_documents.map((item) =>
+      item.document.toString()
+    );
   }
 
   let accessFilter;
@@ -674,7 +702,9 @@ const getRecommendedDocuments = async ({
   let keywordDocSeeds = [];
   let subjectSeeds = [];
   if (seedIds.length > 0) {
-    const seedDocs = await Document.find({ _id: { $in: seedIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+    const seedDocs = await Document.find({
+      _id: { $in: seedIds.map((id) => new mongoose.Types.ObjectId(id)) },
+    })
       .select("author keyword subject")
       .populate({ path: "subject", select: "name" });
     for (const d of seedDocs) {
@@ -685,17 +715,25 @@ const getRecommendedDocuments = async ({
   }
 
   // Hợp nhất và giới hạn số token
-  const tokensSet = new Set([
-    ...keywordSeeds,
-    ...studyFields,
-    ...authorSeeds,
-    ...keywordDocSeeds,
-    ...subjectSeeds,
-  ].filter((t) => !!t && String(t).trim().length >= 2));
+  const tokensSet = new Set(
+    [
+      ...keywordSeeds,
+      ...studyFields,
+      ...authorSeeds,
+      ...keywordDocSeeds,
+      ...subjectSeeds,
+    ].filter((t) => !!t && String(t).trim().length >= 2)
+  );
 
   const tokens = Array.from(tokensSet).slice(0, 20);
   if (tokens.length === 0) {
-    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
   }
 
   const combinedQuery = tokens.join(" ");
@@ -711,12 +749,27 @@ const getRecommendedDocuments = async ({
     });
   } catch (e) {
     // lỗi ES -> fallback newest
-    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
   }
 
-  const { documents, highlights } = esResult || { documents: [], highlights: {} };
+  const { documents, highlights } = esResult || {
+    documents: [],
+    highlights: {},
+  };
   if (!documents || documents.length === 0) {
-    return await getNewestDocuments({ payload, page, limit, ordering: "last_approved_at", order: -1 });
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
   }
 
   // Chấm điểm theo highlight + độ mới, loại trừ đã yêu thích/đã đọc
@@ -727,11 +780,15 @@ const getRecommendedDocuments = async ({
     .map((doc) => {
       const id = doc._id.toString();
       const hl = highlights?.[id] || {};
-      const matchScore = (Array.isArray(hl.title) ? hl.title.length : 0) * 2
-        + (Array.isArray(hl.author) ? hl.author.length : 0) * 1.5
-        + (Array.isArray(hl.keyword) ? hl.keyword.length : 0) * 1.5;
+      const matchScore =
+        (Array.isArray(hl.title) ? hl.title.length : 0) * 2 +
+        (Array.isArray(hl.author) ? hl.author.length : 0) * 1.5 +
+        (Array.isArray(hl.keyword) ? hl.keyword.length : 0) * 1.5;
       const daysSince = doc.last_approved_at
-        ? Math.max(0, (now - new Date(doc.last_approved_at).getTime()) / msPerDay)
+        ? Math.max(
+            0,
+            (now - new Date(doc.last_approved_at).getTime()) / msPerDay
+          )
         : 365;
       const recencyBoost = 0.5 / (1 + daysSince);
       return { score: matchScore + recencyBoost, doc };
@@ -1772,7 +1829,8 @@ const processDownload = async (downloadId, userId) => {
       "SPEND",
       downloadLink.cost,
       `Tải tài liệu ${document.title}`,
-      "USAGE"
+      "USAGE",
+      document._id
     );
   }
 
@@ -2124,8 +2182,10 @@ const reactionDocument = async (documentId, userId, reactionType) => {
     return { documentId, userId, reactionType };
   }
 
-  if (!["LIKE", "DISLIKE"].includes(reactionType)) {
-    throw new Error("Loại reaction không hợp lệ");
+  if (!["LIKE", "DISLIKE", "UNREACT"].includes(reactionType)) {
+    throw new Error(
+      "Loại reaction không hợp lệ. Chỉ chấp nhận: LIKE, DISLIKE, UNREACT"
+    );
   }
 
   if (existingReaction) {
@@ -2153,18 +2213,67 @@ const reactionDocument = async (documentId, userId, reactionType) => {
     }
     await newReaction.save();
 
-    // Cộng 1 điểm cho việc đánh giá tài liệu
-    try {
-      await createPointTransaction(
-        userId,
-        "EARN",
-        1,
-        `Đánh giá tài liệu ${doc.title}`,
-        "BOTH"
-      );
-    } catch (pointError) {
-      console.error("Error creating reaction points:", pointError);
-      // Không làm fail việc reaction nếu cộng điểm thất bại
+    // Kiểm tra xem user đã từng được cộng điểm cho việc đánh giá document này chưa
+    const existingEarnTransaction = await PointTransaction.findOne({
+      user: userId,
+      type: "EARN",
+      reason: { $regex: `Đánh giá tài liệu ${doc.title}`, $options: "i" },
+    });
+
+    if (!existingEarnTransaction) {
+      // Cộng 1 điểm cho việc đánh giá tài liệu
+      try {
+        await earnPoints(
+          userId,
+          1,
+          `Đánh giá tài liệu ${doc.title}`,
+          documentId
+        );
+
+        // Tạo notification cho việc cộng điểm
+        const { notifySystem } = require("./notification.service");
+        await notifySystem(
+          userId,
+          `🎯 Bạn đã nhận được 1 điểm thưởng cho việc đánh giá tài liệu "${doc.title}"!`
+        );
+
+        // Kiểm tra xem user đã comment trên document này chưa
+        // Nếu có thì cộng thêm 1 điểm bonus cho việc reaction + comment
+        const Comment = require("../models/comment.model");
+        const existingComment = await Comment.findOne({
+          doc: documentId,
+          user: userId,
+        });
+
+        if (existingComment) {
+          // Kiểm tra xem user đã nhận bonus points cho document này chưa
+          const existingBonusTransaction = await PointTransaction.findOne({
+            user: userId,
+            type: "EARN",
+            reason: { $regex: "Thưởng comment và đánh giá tài liệu" },
+            doc: documentId,
+          });
+
+          if (!existingBonusTransaction) {
+            // User đã comment và vừa reaction → cộng 1 điểm bonus
+            await earnPoints(
+              userId,
+              1,
+              `Thưởng comment và đánh giá tài liệu ${doc.title}`,
+              documentId
+            );
+
+            // Tạo notification cho điểm bonus
+            await notifySystem(
+              userId,
+              `🎯 Bạn đã nhận được 1 điểm thưởng thêm cho việc vừa bình luận vừa đánh giá tài liệu "${doc.title}"!`
+            );
+          }
+        }
+      } catch (pointError) {
+        console.error("Error creating reaction points:", pointError);
+        // Không làm fail việc reaction nếu cộng điểm thất bại
+      }
     }
   }
   await doc.save();

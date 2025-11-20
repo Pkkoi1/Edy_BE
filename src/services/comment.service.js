@@ -7,6 +7,9 @@ const {
   notifyCommentReply,
 } = require("./notification.service");
 const { incrementCommentCount } = require("./user_statistics.service");
+const { earnPoints } = require("./point_transaction.service");
+const Reaction = require("../models/reaction.model");
+const PointTransaction = require("../models/point_transaction.model");
 const mongoose = require("mongoose");
 
 // Tạo bình luận mới
@@ -59,6 +62,48 @@ const createComment = async (userId, documentId, content, parentId = null) => {
     path: "user",
     select: "_id first_name last_name avatar",
   });
+
+  // Kiểm tra xem user đã reaction trên document này chưa
+  // Nếu có thì cộng thêm 1 điểm bonus cho việc comment + reaction
+  try {
+    const existingReaction = await Reaction.findOne({
+      doc: documentId,
+      user: userId,
+    });
+
+    if (existingReaction) {
+      // Kiểm tra xem user đã nhận bonus points cho document này chưa
+      const existingBonusTransaction = await PointTransaction.findOne({
+        user: userId,
+        type: "EARN",
+        reason: { $regex: "Thưởng comment và đánh giá tài liệu" },
+        doc: documentId,
+      });
+
+      if (!existingBonusTransaction) {
+        // User đã reaction và vừa comment → cộng 1 điểm bonus
+        await earnPoints(
+          userId,
+          1,
+          `Thưởng comment và đánh giá tài liệu ${document.title}`,
+          documentId
+        );
+
+        // Tạo notification cho điểm bonus
+        const { notifySystem } = require("./notification.service");
+        await notifySystem(
+          userId,
+          `🎯 Bạn đã nhận được 1 điểm thưởng thêm cho việc vừa bình luận vừa đánh giá tài liệu "${document.title}"!`
+        );
+      }
+    }
+  } catch (bonusError) {
+    console.error(
+      "Error creating bonus points for comment + reaction:",
+      bonusError
+    );
+    // Không làm fail việc tạo comment nếu cộng điểm bonus thất bại
+  }
 
   // Gửi thông báo cho chủ sở hữu tài liệu hoặc người được reply
   // try {

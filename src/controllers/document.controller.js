@@ -111,7 +111,9 @@ exports.getFeaturedDocuments = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy tài liệu nổi bật: " + error.message });
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy tài liệu nổi bật: " + error.message,
+    });
   }
 };
 
@@ -126,7 +128,9 @@ exports.getRecommendedDocuments = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy gợi ý tài liệu: " + error.message });
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy gợi ý tài liệu: " + error.message,
+    });
   }
 };
 
@@ -837,7 +841,10 @@ exports.reactionDocument = async (req, res) => {
     const { reaction } = req.body;
     const userId = req.user?.userId;
     if (!["LIKE", "DISLIKE", "UNREACT"].includes(reaction)) {
-      return res.status(400).json({ message: "Loại tương tác không hợp lệ" });
+      return res.status(400).json({
+        message:
+          "Loại reaction không hợp lệ. Chỉ chấp nhận: LIKE, DISLIKE, UNREACT",
+      });
     }
 
     if (!mongoose.Types.ObjectId.isValid(documentId)) {
@@ -967,5 +974,22 @@ exports.deleteDocument = async (req, res) => {
     res.json({ message: "Xóa tài liệu thành công (soft delete)" });
   } catch (error) {
     res.status(500).json({ message: "Lỗi khi xóa tài liệu: " + error.message });
+  }
+};
+
+// Get document reactions
+exports.getDocumentReactions = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const userId = req.user?.userId;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ message: "ID tài liệu không hợp lệ" });
+    }
+    const result = await getDocumentReactions(documentId, userId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || "Lỗi server khi lấy thông tin tương tác",
+    });
   }
 };

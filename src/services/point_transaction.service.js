@@ -2,15 +2,14 @@ const PointTransaction = require("../models/point_transaction.model");
 const User = require("../models/user.model");
 const Account = require("../models/account.model");
 const { updatePointHistory } = require("./user_statistics.service");
-const { logUserVipStatusChanged } = require("./activity_log.service");
-const { notifyVipStatusChanged } = require("./notification.service");
 
 const createPointTransaction = async (
   userId,
   type,
   amount,
   reason,
-  pointType
+  pointType,
+  docId = null
 ) => {
   const transaction = new PointTransaction({
     user: userId,
@@ -18,6 +17,7 @@ const createPointTransaction = async (
     point: amount,
     reason,
     pointType,
+    doc: docId,
   });
   await transaction.save();
 };
@@ -68,7 +68,7 @@ const spendUserPoints = async (userId, amount, reason) => {
   }
 };
 
-const earnPoints = async (userId, amount, reason) => {
+const earnPoints = async (userId, amount, reason, docId = null) => {
   try {
     // Kiểm tra user có tồn tại không
     const user = await User.findById(userId);
@@ -83,30 +83,8 @@ const earnPoints = async (userId, amount, reason) => {
       { new: true }
     );
 
-    // Kiểm tra và cập nhật trạng thái VIP dựa trên rank_point
-    const account = await Account.findOne({ user: userId });
-    if (account) {
-      const shouldBeVip = updatedUser.rank_point >= 50;
-      if (account.is_vip !== shouldBeVip) {
-        const oldVipStatus = account.is_vip;
-        account.is_vip = shouldBeVip;
-        await account.save();
-
-        // Gửi thông báo và ghi hoạt động nếu trạng thái VIP thay đổi
-        try {
-          await notifyVipStatusChanged(userId, shouldBeVip);
-          await logUserVipStatusChanged(userId, shouldBeVip);
-        } catch (notificationError) {
-          console.error(
-            "Error sending VIP status notification:",
-            notificationError
-          );
-        }
-      }
-    }
-
     // Tạo transaction record
-    await createPointTransaction(userId, "EARN", amount, reason, "BOTH");
+    await createPointTransaction(userId, "EARN", amount, reason, "BOTH", docId);
 
     // Cập nhật thống kê điểm
     try {
@@ -176,27 +154,6 @@ const penalizeUser = async (userId, amount, reason) => {
         { new: true }
       );
 
-      // Kiểm tra và cập nhật trạng thái VIP dựa trên rank_point
-      const account = await Account.findOne({ user: userId });
-      if (account) {
-        const shouldBeVip = updatedUser.rank_point >= 50;
-        if (account.is_vip !== shouldBeVip) {
-          account.is_vip = shouldBeVip;
-          await account.save();
-
-          // Gửi thông báo và ghi hoạt động nếu trạng thái VIP thay đổi
-          try {
-            await notifyVipStatusChanged(userId, shouldBeVip);
-            await logUserVipStatusChanged(userId, shouldBeVip);
-          } catch (notificationError) {
-            console.error(
-              "Error sending VIP status notification:",
-              notificationError
-            );
-          }
-        }
-      }
-
       // Tạo transaction record
       await createPointTransaction(
         userId,
@@ -259,6 +216,7 @@ const getPointHistoryByUserId = async (userId, page = 1, limit = 10) => {
       .skip(skip)
       .limit(limit)
       .populate("user", "first_name last_name")
+      .populate("doc", "title status is_deleted")
       .lean();
 
     const total = await PointTransaction.countDocuments({ user: userId });

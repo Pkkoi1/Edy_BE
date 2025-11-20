@@ -6,7 +6,7 @@ const OTP = require("../models/otp.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
-const { SMTPClient } = require('emailjs');
+const { SMTPClient } = require("emailjs");
 const { createPointTransaction } = require("./point_transaction.service");
 const { getUserPermissions } = require("./user.service");
 
@@ -238,10 +238,10 @@ const verifyToken = (token, secret) => {
 const createEmailTransporter = () => {
   return new SMTPClient({
     service: "gmail",
-    host: 'smtp.gmail.com',
+    host: "smtp.gmail.com",
     ssl: true,
-      user: process.env.EMAIL_USER,
-      password: process.env.EMAIL_PASS,
+    user: process.env.EMAIL_USER,
+    password: process.env.EMAIL_PASS,
   });
 };
 
@@ -256,10 +256,10 @@ const sendOTP = async (email, otp) => {
     const transporter = createEmailTransporter();
 
     await transporter.sendAsync({
-      text: '', // Để trống nếu gửi HTML
+      text: "", // Để trống nếu gửi HTML
       from: process.env.EMAIL_USER,
       to: email,
-      subject: 'Mã OTP xác thực tài khoản - Edy',
+      subject: "Mã OTP xác thực tài khoản - Edy",
       attachment: [
         {
           data: `

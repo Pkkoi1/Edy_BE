@@ -15,6 +15,7 @@ const pointTransactionSchema = new mongoose.Schema(
       enum: ["BOTH", "USAGE", "RANKPOINT"],
       required: true,
     },
+    doc: { type: mongoose.Schema.Types.ObjectId, ref: "Document" }, // Tham chiếu đến tài liệu liên quan
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
