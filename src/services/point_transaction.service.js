@@ -1,6 +1,9 @@
 const PointTransaction = require("../models/point_transaction.model");
 const User = require("../models/user.model");
+const Account = require("../models/account.model");
 const { updatePointHistory } = require("./user_statistics.service");
+const { logUserVipStatusChanged } = require("./activity_log.service");
+const { notifyVipStatusChanged } = require("./notification.service");
 
 const createPointTransaction = async (
   userId,
@@ -80,6 +83,28 @@ const earnPoints = async (userId, amount, reason) => {
       { new: true }
     );
 
+    // Kiểm tra và cập nhật trạng thái VIP dựa trên rank_point
+    const account = await Account.findOne({ user: userId });
+    if (account) {
+      const shouldBeVip = updatedUser.rank_point >= 50;
+      if (account.is_vip !== shouldBeVip) {
+        const oldVipStatus = account.is_vip;
+        account.is_vip = shouldBeVip;
+        await account.save();
+
+        // Gửi thông báo và ghi hoạt động nếu trạng thái VIP thay đổi
+        try {
+          await notifyVipStatusChanged(userId, shouldBeVip);
+          await logUserVipStatusChanged(userId, shouldBeVip);
+        } catch (notificationError) {
+          console.error(
+            "Error sending VIP status notification:",
+            notificationError
+          );
+        }
+      }
+    }
+
     // Tạo transaction record
     await createPointTransaction(userId, "EARN", amount, reason, "BOTH");
 
@@ -150,6 +175,27 @@ const penalizeUser = async (userId, amount, reason) => {
         { $inc: { rank_point: -amount }, strike: newStrike, status },
         { new: true }
       );
+
+      // Kiểm tra và cập nhật trạng thái VIP dựa trên rank_point
+      const account = await Account.findOne({ user: userId });
+      if (account) {
+        const shouldBeVip = updatedUser.rank_point >= 50;
+        if (account.is_vip !== shouldBeVip) {
+          account.is_vip = shouldBeVip;
+          await account.save();
+
+          // Gửi thông báo và ghi hoạt động nếu trạng thái VIP thay đổi
+          try {
+            await notifyVipStatusChanged(userId, shouldBeVip);
+            await logUserVipStatusChanged(userId, shouldBeVip);
+          } catch (notificationError) {
+            console.error(
+              "Error sending VIP status notification:",
+              notificationError
+            );
+          }
+        }
+      }
 
       // Tạo transaction record
       await createPointTransaction(
