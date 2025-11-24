@@ -1724,17 +1724,42 @@ const getMyPendingDocuments = async (
     Document.countDocuments(query),
   ]);
 
+  // Ghép ai_violation_level từ ApprovalRequest (PENDING, assigned_to: userId) cho các doc trong trang hiện tại
+  const pageDocIds = documents.map((d) => d._id);
+  const approvalsForPageDocs = await ApprovalRequest.find({
+    doc: { $in: pageDocIds },
+    status: "PENDING",
+    assigned_to: userId,
+  })
+    .select("doc ai_violation_level createdAt")
+    .sort({ createdAt: -1 });
+
+  const violationMap = {};
+  approvalsForPageDocs.forEach((ap) => {
+    const id = ap.doc.toString();
+    if (!violationMap[id]) {
+      violationMap[id] = ap.ai_violation_level;
+    }
+  });
+
+  const documentsWithViolation = documents.map((d) => {
+    const obj = d.toObject ? d.toObject() : { ...d };
+    obj.ai_violation_level = violationMap[d._id.toString()] || "NONE";
+    return obj;
+  });
+
   const totalPages = Math.ceil(total / limit);
   const have_next = page < totalPages;
 
   return {
-    documents,
+    documents: documentsWithViolation,
     total,
     page,
     totalPages,
     have_next,
   };
 };
+
 const createDownloadLink = async (userId, documentId) => {
   const currentTime = new Date();
   // Kiểm tra quyền xem tài liệu
