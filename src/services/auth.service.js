@@ -253,10 +253,10 @@ const sendOTP = async (email, otp) => {
     const msg = {
       to: email,
       from: process.env.SENDGRID_FROM_EMAIL,
-      subject: "Mã OTP xác thực tài khoản - Edy",
+      subject: "Mã OTP xác thực tài khoản - Study Share",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Xác thực tài khoản Edy</h2>
+          <h2 style="color: #333;">Xác thực tài khoản Study Share</h2>
           <p>Xin chào,</p>
           <p>Mã OTP của bạn là:</p>
           <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
@@ -265,7 +265,7 @@ const sendOTP = async (email, otp) => {
           <p>Mã này sẽ hết hạn sau 10 phút.</p>
           <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
           <br>
-          <p>Trân trọng,<br>Đội ngũ Edy</p>
+          <p>Trân trọng,<br>Đội ngũ Study Share</p>
         </div>
       `,
     };
@@ -379,13 +379,13 @@ const sendNewPassword = async (email, newPassword) => {
   try {
     const transporter = createEmailTransporter();
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    const msg = {
       to: email,
-      subject: "Mật khẩu mới - Edy",
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: "Mật khẩu mới - Study Share",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Mật khẩu mới cho tài khoản Edy</h2>
+          <h2 style="color: #333;">Mật khẩu mới cho tài khoản Study Share</h2>
           <p>Xin chào,</p>
           <p>Chúng tôi đã tạo mật khẩu mới cho tài khoản của bạn:</p>
           <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
@@ -394,12 +394,12 @@ const sendNewPassword = async (email, newPassword) => {
           <p><strong>Lưu ý:</strong> Vui lòng đổi mật khẩu ngay sau khi đăng nhập để bảo mật tài khoản.</p>
           <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng liên hệ với chúng tôi ngay lập tức.</p>
           <br>
-          <p>Trân trọng,<br>Đội ngũ Edy</p>
+          <p>Trân trọng,<br>Đội ngũ Study Share</p>
         </div>
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await transporter.send(msg);
     return { success: true };
   } catch (error) {
     console.error("Error sending new password email:", error);
