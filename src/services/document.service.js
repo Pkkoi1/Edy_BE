@@ -9,6 +9,7 @@ const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
 const EditApproval = require("../models/edit_approval.model");
 const Assignment = require("../models/assignment.model");
+const AccessRequest = require("../models/access_request.model");
 const Role = require("../models/role.model");
 const PointTransaction = require("../models/point_transaction.model");
 const {
@@ -1124,7 +1125,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt"
+        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt is_deleted is_deleted_by_admin delete_by_admin_reason delete_by_admin_at expiredAt"
       )
       .populate({
         path: "user",
@@ -1295,6 +1296,16 @@ const deleteDocument = async (documentId, userId, reason) => {
     { "read_history.document": documentId },
     { $pull: { read_history: { document: documentId } } }
   );
+
+  // xóa hết private_share liên quan đến document này
+  await PrivateShare.deleteMany({
+    doc: documentId
+  });
+
+  // xóa hết access request liên quan đến document này
+  await AccessRequest.deleteMany({
+    doc: documentId
+  });
 
   return doc;
 };

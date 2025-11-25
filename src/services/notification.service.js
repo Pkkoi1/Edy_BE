@@ -313,6 +313,24 @@ const notifyNewComment = async (documentOwnerId, commentId, commenterName) => {
   });
 };
 
+const notifyNewAccessRequest = async (documentOwnerId, documentId, requesterName, privateShareName = null) => {
+  const document = await Document.findById(documentId);
+  if (!document) return;
+
+  const name = (requesterName || "Người dùng").trim();
+  const message = privateShareName
+    ? `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}" qua link "${privateShareName}"`
+    : `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}"`;
+
+  return await createNotification({
+    userId: documentOwnerId,
+    docId: documentId,
+    type: "ACCESS_REQUEST",
+    message,
+    redirectTo: "DOCUMENT",
+  });
+};
+
 // Thông báo trả lời bình luận
 const notifyCommentReply = async (
   originalCommenterId,
@@ -378,4 +396,5 @@ module.exports = {
   notifyCommentReply,
   notifySystem,
   notifyVipStatusChanged,
+  notifyNewAccessRequest
 };

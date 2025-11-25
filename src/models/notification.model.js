@@ -23,6 +23,7 @@ const notificationSchema = new mongoose.Schema(
         "SYSTEM",
         "COMMENT",
         "REPLY",
+        "ACCESS_REQUEST"
       ],
       required: true,
     },
