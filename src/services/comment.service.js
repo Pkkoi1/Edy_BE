@@ -90,10 +90,11 @@ const createComment = async (userId, documentId, content, parentId = null) => {
         );
 
         // Tạo notification cho điểm bonus
-        const { notifySystem } = require("./notification.service");
-        await notifySystem(
+        const { notifyPointsEarned } = require("./notification.service");
+        await notifyPointsEarned(
           userId,
-          `🎯 Bạn đã nhận được 1 điểm thưởng thêm cho việc vừa bình luận vừa đánh giá tài liệu "${document.title}"!`
+          1,
+          `Thưởng comment và đánh giá tài liệu ${document.title}`
         );
       }
     }
