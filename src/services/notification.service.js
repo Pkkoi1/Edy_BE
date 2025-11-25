@@ -313,7 +313,12 @@ const notifyNewComment = async (documentOwnerId, commentId, commenterName) => {
   });
 };
 
-const notifyNewAccessRequest = async (documentOwnerId, documentId, requesterName, privateShareName = null) => {
+const notifyNewAccessRequest = async (
+  documentOwnerId,
+  documentId,
+  requesterName,
+  privateShareName = null
+) => {
   const document = await Document.findById(documentId);
   if (!document) return;
 
@@ -410,6 +415,43 @@ const notifyAccessRequestDenied = async (requesterId, documentId) => {
   });
 };
 
+// Thông báo cộng điểm
+const notifyPointsEarned = async (userId, points, reason) => {
+  const message = `🎯 Bạn đã nhận được ${points} điểm thưởng! Lý do: ${reason}`;
+
+  return await createNotification({
+    userId,
+    type: "POINTS_EARNED",
+    message,
+    redirectTo: "POINT",
+  });
+};
+
+// Thông báo trừ điểm
+const notifyPointsDeducted = async (userId, points, reason) => {
+  const message = `⚠️ Bạn đã bị trừ ${points} điểm. Lý do: ${reason}`;
+
+  return await createNotification({
+    userId,
+    type: "POINTS_DEDUCTED",
+    message,
+    redirectTo: "POINT",
+  });
+};
+
+// Thông báo bị ban tài khoản
+const notifyUserBanned = async (userId, reason, isPermanent = false) => {
+  const duration = isPermanent ? "vĩnh viễn" : "tạm thời";
+  const message = `🚫 Tài khoản của bạn đã bị khóa ${duration}. Lý do: ${reason}`;
+
+  return await createNotification({
+    userId,
+    type: "USER_BANNED",
+    message,
+    redirectTo: "USER",
+  });
+};
+
 module.exports = {
   createNotification,
   getNotifications,
@@ -430,5 +472,8 @@ module.exports = {
   notifyVipStatusChanged,
   notifyNewAccessRequest,
   notifyAccessRequestApproved,
-  notifyAccessRequestDenied
+  notifyAccessRequestDenied,
+  notifyPointsEarned,
+  notifyPointsDeducted,
+  notifyUserBanned,
 };

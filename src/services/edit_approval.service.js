@@ -10,6 +10,7 @@ const { earnPoints } = require("./point_transaction.service");
 const { updateDocument: updateESDocument } = require("./elasticsearch.service");
 const { updateDocumentTypeCount } = require("./user_statistics.service");
 const { updateDocumentApproved } = require("./document_statistics.service");
+const { notifyPointsEarned } = require("./notification.service");
 
 const createEditApproval = async (editApprovalData) => {
   const existingApproval = await EditApproval.findOne({
@@ -248,6 +249,17 @@ const applyDataToDocument = async (editDocId) => {
       })) === 0;
     const base = isFirstApproval ? 20 : 15;
     await earnPoints(user._id, base, `Đăng tài liệu ${document.title}`);
+
+    // Gửi thông báo cộng điểm
+    try {
+      await notifyPointsEarned(
+        user._id,
+        base,
+        `Đăng tài liệu "${document.title}"`
+      );
+    } catch (notificationError) {
+      console.error("Lỗi gửi thông báo cộng điểm:", notificationError);
+    }
 
     document.last_approved_at = new Date();
   }
