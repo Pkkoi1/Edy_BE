@@ -1125,7 +1125,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt is_deleted is_deleted_by_admin delete_by_admin_reason delete_by_admin_at expiredAt"
+        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt is_deleted is_delete_by_admin delete_by_admin_reason delete_by_admin_at expiredAt"
       )
       .populate({
         path: "user",
@@ -1796,7 +1796,7 @@ const createDownloadLink = async (userId, documentId) => {
   //   );
   // }
 
-  const type = user.daily_download_limit > 0 ? "FREE" : "POINT";
+  const type = user.free_download_count > 0 ? "FREE" : "POINT";
   const cost = type === "FREE" ? 0 : await getDownloadPrice(documentId, user);
 
   //Tạo download link
@@ -1814,7 +1814,7 @@ const createDownloadLink = async (userId, documentId) => {
   await downloadLink.save();
 
   let remaining_free_downloads =
-    type === "FREE" ? user.daily_download_limit - 1 : user.daily_download_limit;
+    type === "FREE" ? user.free_download_count - 1 : user.free_download_count;
   return {
     downloadId: downloadLink._id,
     url: `/download/${downloadLink._id}`,
@@ -1857,7 +1857,7 @@ const processDownload = async (downloadId, userId) => {
 
   // Tính điểm
   if (downloadLink.type === "FREE") {
-    user.daily_download_limit = Math.max(0, user.daily_download_limit - 1);
+    user.free_download_count = Math.max(0, user.free_download_count - 1);
   } else {
     user.point = Math.max(0, user.point - downloadLink.cost);
     await createPointTransaction(
@@ -1891,7 +1891,7 @@ const processDownload = async (downloadId, userId) => {
       title: document.title,
       author: document.author,
     },
-    remaining_free_downloads: user.daily_download_limit,
+    remaining_free_downloads: user.free_download_count,
   };
 };
 

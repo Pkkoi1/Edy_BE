@@ -15,7 +15,6 @@ const userSchema = new mongoose.Schema(
     rank_point: { type: Number, default: 0 },
     strike: { type: Number, default: 0 },
     free_download_count: { type: Number, default: 3 },
-    daily_download_limit: { type: Number, default: 3 }, // Giới hạn tải về hàng ngày, VIP sẽ được +2
     doc_count: { type: Number, default: 0 },
     search_history: [
       {

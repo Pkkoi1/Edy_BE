@@ -23,7 +23,9 @@ const notificationSchema = new mongoose.Schema(
         "SYSTEM",
         "COMMENT",
         "REPLY",
-        "ACCESS_REQUEST"
+        "ACCESS_REQUEST",
+        "ACCESS_GRANTED",
+        "ACCESS_DENIED"
       ],
       required: true,
     },

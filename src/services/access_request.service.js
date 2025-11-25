@@ -3,7 +3,7 @@ const PrivateShare = require("../models/private_share.model");
 const Document = require("../models/document.model");
 const User = require("../models/user.model");
 const mongoose = require("mongoose");
-const { notifyNewAccessRequest } = require("./notification.service");
+const { notifyNewAccessRequest, notifyAccessRequestApproved, notifyAccessRequestDenied } = require("./notification.service");
 
 /**
  * Tạo yêu cầu truy cập tài liệu qua private share
@@ -253,6 +253,12 @@ const approveAccessRequest = async (requestId, ownerId) => {
     await updatedPrivateShare.save();
   }
 
+  // Gửi thông báo cho người gửi yêu cầu khi được duyệt
+  await notifyAccessRequestApproved(
+    accessRequest.user._id.toString(),
+    accessRequest.doc._id.toString()
+  );
+
   return accessRequest;
 };
 
@@ -284,6 +290,12 @@ const denyAccessRequest = async (requestId, ownerId) => {
   accessRequest.status = "DENIED";
   accessRequest.expiredAt = new Date() + 7 * 24 * 60 * 60 * 1000;
   await accessRequest.save();
+
+  // Gửi thông báo cho người gửi yêu cầu
+  await notifyAccessRequestDenied(
+    accessRequest.user._id.toString(),
+    accessRequest.doc._id.toString()
+  );
 
   return accessRequest;
 };

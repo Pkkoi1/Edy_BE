@@ -378,6 +378,38 @@ const notifyVipStatusChanged = async (userId, isVip) => {
   });
 };
 
+// Thông báo yêu cầu truy cập đã được phê duyệt (gửi cho người yêu cầu)
+const notifyAccessRequestApproved = async (requesterId, documentId) => {
+  const document = await Document.findById(documentId);
+  if (!document) return;
+
+  const message = `Yêu cầu truy cập của bạn đối với tài liệu "${document.title}" qua đã được phê duyệt.`;
+
+  return await createNotification({
+    userId: requesterId,
+    docId: documentId,
+    type: "ACCESS_GRANTED",
+    message,
+    redirectTo: "DOCUMENT",
+  });
+};
+
+// Thông báo yêu cầu truy cập bị từ chối (gửi cho người yêu cầu)
+const notifyAccessRequestDenied = async (requesterId, documentId) => {
+  const document = await Document.findById(documentId);
+  if (!document) return;
+
+  const message = `Yêu cầu truy cập của bạn đối với tài liệu "${document.title}" đã bị từ chối.`;
+
+  return await createNotification({
+    userId: requesterId,
+    docId: documentId,
+    type: "ACCESS_DENIED",
+    message,
+    redirectTo: "NONE",
+  });
+};
+
 module.exports = {
   createNotification,
   getNotifications,
@@ -396,5 +428,7 @@ module.exports = {
   notifyCommentReply,
   notifySystem,
   notifyVipStatusChanged,
-  notifyNewAccessRequest
+  notifyNewAccessRequest,
+  notifyAccessRequestApproved,
+  notifyAccessRequestDenied
 };
