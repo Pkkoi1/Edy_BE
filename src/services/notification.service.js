@@ -239,7 +239,7 @@ const notifyDocumentApproved = async (userId, documentId) => {
     userId,
     docId: documentId,
     type: "APPROVED",
-    message: `Tài liệu "${document.title}" của bạn đã được phê duyệt và xuất bản thành công! 🎉`,
+    message: `Chúc mừng! Tài liệu "${document.title}" của bạn đã được phê duyệt và xuất bản thành công.`,
     redirectTo: "DOCUMENT",
   });
 };
@@ -250,8 +250,8 @@ const notifyDocumentRejected = async (userId, documentId, reason = "") => {
   if (!document) return;
 
   const message = reason
-    ? `Tài liệu "${document.title}" của bạn bị từ chối. Lý do: ${reason}`
-    : `Tài liệu "${document.title}" của bạn bị từ chối. Vui lòng kiểm tra lại nội dung.`;
+    ? `Tài liệu "${document.title}" của bạn đã bị từ chối phê duyệt. Lý do: ${reason}. Vui lòng chỉnh sửa và gửi lại.`
+    : `Tài liệu "${document.title}" của bạn đã bị từ chối phê duyệt. Vui lòng kiểm tra lại nội dung và gửi lại.`;
 
   return await createNotification({
     userId,
@@ -268,7 +268,7 @@ const notifyDocumentRemoved = async (userId, documentId, reason = "") => {
   if (!document) return;
 
   const message = reason
-    ? `Tài liệu "${document.title}" của bạn đã bị xóa. Lý do: ${reason}`
+    ? `Tài liệu "${document.title}" của bạn đã bị xóa khỏi hệ thống. Lý do: ${reason}.`
     : `Tài liệu "${document.title}" của bạn đã bị xóa khỏi hệ thống.`;
 
   return await createNotification({
@@ -286,8 +286,8 @@ const notifyDocumentHidden = async (userId, documentId, reason = "") => {
   if (!document) return;
 
   const message = reason
-    ? `Tài liệu "${document.title}" đã được đặt về chế độ riêng tư. Lý do: ${reason}`
-    : `Tài liệu "${document.title}" đã được đặt về chế độ riêng tư và cần chỉnh sửa.`;
+    ? `Tài liệu "${document.title}" đã được chuyển sang chế độ riêng tư. Lý do: ${reason}. Vui lòng chỉnh sửa để công khai lại.`
+    : `Tài liệu "${document.title}" đã được chuyển sang chế độ riêng tư. Vui lòng kiểm tra và chỉnh sửa nếu cần.`;
 
   return await createNotification({
     userId,
@@ -308,7 +308,7 @@ const notifyNewComment = async (documentOwnerId, commentId, commenterName) => {
     docId: comment.doc._id,
     cmtId: commentId,
     type: "COMMENT",
-    message: `${commenterName} đã bình luận về tài liệu "${comment.doc.title}" của bạn 💬`,
+    message: `${commenterName} đã bình luận về tài liệu "${comment.doc.title}" của bạn.`,
     redirectTo: "COMMENT",
   });
 };
@@ -324,8 +324,8 @@ const notifyNewAccessRequest = async (
 
   const name = (requesterName || "Người dùng").trim();
   const message = privateShareName
-    ? `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}" qua link "${privateShareName}"`
-    : `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}"`;
+    ? `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}" thông qua liên kết chia sẻ "${privateShareName}".`
+    : `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}".`;
 
   return await createNotification({
     userId: documentOwnerId,
@@ -354,7 +354,7 @@ const notifyCommentReply = async (
     docId: reply.doc._id,
     cmtId: replyId,
     type: "REPLY",
-    message: `${replierName} đã trả lời bình luận của bạn trong tài liệu "${reply.doc.title}" 💭`,
+    message: `${replierName} đã trả lời bình luận của bạn trong tài liệu "${reply.doc.title}".`,
     redirectTo: "COMMENT",
   });
 };
@@ -372,8 +372,8 @@ const notifySystem = async (userId, message) => {
 // Thông báo thay đổi trạng thái VIP
 const notifyVipStatusChanged = async (userId, isVip) => {
   const message = isVip
-    ? "🎉 Chúc mừng! Bạn đã trở thành thành viên VIP với nhiều đặc quyền hấp dẫn!"
-    : "😔 Bạn đã mất trạng thái VIP. Tiếp tục tích lũy điểm để trở lại VIP nhé!";
+    ? "Chúc mừng! Bạn đã trở thành thành viên VIP với nhiều đặc quyền hấp dẫn."
+    : "Bạn đã mất trạng thái VIP. Tiếp tục tích lũy điểm để trở lại VIP.";
 
   return await createNotification({
     userId,
@@ -388,7 +388,7 @@ const notifyAccessRequestApproved = async (requesterId, documentId) => {
   const document = await Document.findById(documentId);
   if (!document) return;
 
-  const message = `Yêu cầu truy cập của bạn đối với tài liệu "${document.title}" qua đã được phê duyệt.`;
+  const message = `Yêu cầu truy cập của bạn đối với tài liệu "${document.title}" đã được phê duyệt.`;
 
   return await createNotification({
     userId: requesterId,
@@ -417,7 +417,7 @@ const notifyAccessRequestDenied = async (requesterId, documentId) => {
 
 // Thông báo cộng điểm
 const notifyPointsEarned = async (userId, points, reason) => {
-  const message = `🎯 Bạn đã nhận được ${points} điểm thưởng! Lý do: ${reason}`;
+  const message = `Bạn đã nhận được ${points} điểm thưởng. Lý do: ${reason}`;
 
   return await createNotification({
     userId,
@@ -429,7 +429,7 @@ const notifyPointsEarned = async (userId, points, reason) => {
 
 // Thông báo trừ điểm
 const notifyPointsDeducted = async (userId, points, reason) => {
-  const message = `⚠️ Bạn đã bị trừ ${points} điểm. Lý do: ${reason}`;
+  const message = `Bạn đã bị trừ ${points} điểm. Lý do: ${reason}`;
 
   return await createNotification({
     userId,
@@ -442,7 +442,7 @@ const notifyPointsDeducted = async (userId, points, reason) => {
 // Thông báo bị ban tài khoản
 const notifyUserBanned = async (userId, reason, isPermanent = false) => {
   const duration = isPermanent ? "vĩnh viễn" : "tạm thời";
-  const message = `🚫 Tài khoản của bạn đã bị khóa ${duration}. Lý do: ${reason}`;
+  const message = `Tài khoản của bạn đã bị khóa ${duration}. Lý do: ${reason}`;
 
   return await createNotification({
     userId,
