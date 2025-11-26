@@ -914,6 +914,7 @@ const getDocumentsBySubject = async ({
   order = -1,
   page = 1,
   limit = 5,
+  is_admin = false,
   ...filters
 }) => {
   const isValidSubject = await validateSubjects(subject);
@@ -923,7 +924,7 @@ const getDocumentsBySubject = async ({
 
   let user = null;
   let sharedDocIds = [];
-  if (payload && payload.userId) {
+  if (!is_admin && payload && payload.userId) {
     user = await User.findById(payload.userId).select(
       "organization shared_documents"
     );
@@ -934,47 +935,59 @@ const getDocumentsBySubject = async ({
 
   const skip = (page - 1) * limit;
 
-  // Điều kiện quyền truy cập
-  let accessOr = [];
-  if (user && user.organization) {
-    accessOr = [
-      { public_mode: "PUBLIC" },
-      { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
-      { user: user._id },
-    ];
-    if (sharedDocIds.length > 0) {
-      accessOr.push({ _id: { $in: sharedDocIds } });
-    }
-  } else {
-    accessOr = [{ public_mode: "PUBLIC" }];
-  }
-
-  // Điều kiện tìm kiếm
-  let searchOr = [];
-  if (search) {
-    searchOr = [
-      { title: { $regex: search, $options: "i" } },
-      { author: { $elemMatch: { $regex: search, $options: "i" } } },
-      { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
-    ];
-  }
-
-  // Kết hợp quyền truy cập, tìm kiếm và lọc subject
   let query = {
     status: "APPROVED",
     is_deleted: false,
     subject,
   };
-  if (searchOr.length > 0) {
-    query.$and = [
-      { $or: accessOr },
-      { $or: searchOr },
-      { subject },
-      { is_deleted: false },
-    ];
+
+  if (!is_admin) {
+    // Điều kiện quyền truy cập
+    let accessOr = [];
+    if (user && user.organization) {
+      accessOr = [
+        { public_mode: "PUBLIC" },
+        { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
+        { user: user._id },
+      ];
+      if (sharedDocIds.length > 0) {
+        accessOr.push({ _id: { $in: sharedDocIds } });
+      }
+    } else {
+      accessOr = [{ public_mode: "PUBLIC" }];
+    }
+
+    // Điều kiện tìm kiếm
+    let searchOr = [];
+    if (search) {
+      searchOr = [
+        { title: { $regex: search, $options: "i" } },
+        { author: { $elemMatch: { $regex: search, $options: "i" } } },
+        { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+      ];
+    }
+
+    // Kết hợp quyền truy cập, tìm kiếm và lọc subject
+    if (searchOr.length > 0) {
+      query.$and = [
+        { $or: accessOr },
+        { $or: searchOr },
+        { subject },
+        { is_deleted: false },
+      ];
+    } else {
+      query.$or = accessOr;
+      query.subject = subject;
+    }
   } else {
-    query.$or = accessOr;
-    query.subject = subject;
+    // Admin: chỉ tìm kiếm nếu có
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { author: { $elemMatch: { $regex: search, $options: "i" } } },
+        { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+      ];
+    }
   }
 
   // Filter các trường khác

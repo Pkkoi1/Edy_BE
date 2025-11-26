@@ -127,6 +127,12 @@ router.get("/:id", requireUserRole, subjectController.getSubjectById);
  *         schema:
  *           type: string
  *         description: ID của môn học
+ *       - in: query
+ *         name: is_admin
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Nếu true, lấy tất cả tài liệu bỏ qua điều kiện truy cập (chỉ dành cho admin)
  *     responses:
  *       200:
  *         description: Lấy danh sách tài liệu thành công
