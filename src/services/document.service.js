@@ -914,6 +914,7 @@ const getDocumentsBySubject = async ({
   order = -1,
   page = 1,
   limit = 5,
+  is_admin = false,
   ...filters
 }) => {
   const isValidSubject = await validateSubjects(subject);
@@ -923,7 +924,7 @@ const getDocumentsBySubject = async ({
 
   let user = null;
   let sharedDocIds = [];
-  if (payload && payload.userId) {
+  if (!is_admin && payload && payload.userId) {
     user = await User.findById(payload.userId).select(
       "organization shared_documents"
     );
@@ -934,47 +935,59 @@ const getDocumentsBySubject = async ({
 
   const skip = (page - 1) * limit;
 
-  // Điều kiện quyền truy cập
-  let accessOr = [];
-  if (user && user.organization) {
-    accessOr = [
-      { public_mode: "PUBLIC" },
-      { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
-      { user: user._id },
-    ];
-    if (sharedDocIds.length > 0) {
-      accessOr.push({ _id: { $in: sharedDocIds } });
-    }
-  } else {
-    accessOr = [{ public_mode: "PUBLIC" }];
-  }
-
-  // Điều kiện tìm kiếm
-  let searchOr = [];
-  if (search) {
-    searchOr = [
-      { title: { $regex: search, $options: "i" } },
-      { author: { $elemMatch: { $regex: search, $options: "i" } } },
-      { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
-    ];
-  }
-
-  // Kết hợp quyền truy cập, tìm kiếm và lọc subject
   let query = {
     status: "APPROVED",
     is_deleted: false,
     subject,
   };
-  if (searchOr.length > 0) {
-    query.$and = [
-      { $or: accessOr },
-      { $or: searchOr },
-      { subject },
-      { is_deleted: false },
-    ];
+
+  if (!is_admin) {
+    // Điều kiện quyền truy cập
+    let accessOr = [];
+    if (user && user.organization) {
+      accessOr = [
+        { public_mode: "PUBLIC" },
+        { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
+        { user: user._id },
+      ];
+      if (sharedDocIds.length > 0) {
+        accessOr.push({ _id: { $in: sharedDocIds } });
+      }
+    } else {
+      accessOr = [{ public_mode: "PUBLIC" }];
+    }
+
+    // Điều kiện tìm kiếm
+    let searchOr = [];
+    if (search) {
+      searchOr = [
+        { title: { $regex: search, $options: "i" } },
+        { author: { $elemMatch: { $regex: search, $options: "i" } } },
+        { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+      ];
+    }
+
+    // Kết hợp quyền truy cập, tìm kiếm và lọc subject
+    if (searchOr.length > 0) {
+      query.$and = [
+        { $or: accessOr },
+        { $or: searchOr },
+        { subject },
+        { is_deleted: false },
+      ];
+    } else {
+      query.$or = accessOr;
+      query.subject = subject;
+    }
   } else {
-    query.$or = accessOr;
-    query.subject = subject;
+    // Admin: chỉ tìm kiếm nếu có
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { author: { $elemMatch: { $regex: search, $options: "i" } } },
+        { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+      ];
+    }
   }
 
   // Filter các trường khác
@@ -1299,12 +1312,12 @@ const deleteDocument = async (documentId, userId, reason) => {
 
   // xóa hết private_share liên quan đến document này
   await PrivateShare.deleteMany({
-    doc: documentId
+    doc: documentId,
   });
 
   // xóa hết access request liên quan đến document này
   await AccessRequest.deleteMany({
-    doc: documentId
+    doc: documentId,
   });
 
   return doc;
@@ -2249,67 +2262,44 @@ const reactionDocument = async (documentId, userId, reactionType) => {
     }
     await newReaction.save();
 
-    // Kiểm tra xem user đã từng được cộng điểm cho việc đánh giá document này chưa
-    const existingEarnTransaction = await PointTransaction.findOne({
-      user: userId,
-      type: "EARN",
-      reason: { $regex: `Đánh giá tài liệu ${doc.title}`, $options: "i" },
-    });
+    // Chỉ cộng điểm khi vừa đánh giá vừa bình luận
+    try {
+      const Comment = require("../models/comment.model");
+      const existingComment = await Comment.findOne({
+        doc: documentId,
+        user: userId,
+      });
 
-    if (!existingEarnTransaction) {
-      // Cộng 1 điểm cho việc đánh giá tài liệu
-      try {
-        await earnPoints(
-          userId,
-          1,
-          `Đánh giá tài liệu ${doc.title}`,
-          documentId
-        );
-
-        // Tạo notification cho việc cộng điểm
-        const { notifySystem } = require("./notification.service");
-        await notifySystem(
-          userId,
-          `🎯 Bạn đã nhận được 1 điểm thưởng cho việc đánh giá tài liệu "${doc.title}"!`
-        );
-
-        // Kiểm tra xem user đã comment trên document này chưa
-        // Nếu có thì cộng thêm 1 điểm bonus cho việc reaction + comment
-        const Comment = require("../models/comment.model");
-        const existingComment = await Comment.findOne({
-          doc: documentId,
+      if (existingComment) {
+        // Kiểm tra xem user đã nhận điểm cho việc vừa comment vừa đánh giá document này chưa
+        const existingBonusTransaction = await PointTransaction.findOne({
           user: userId,
+          type: "EARN",
+          reason: { $regex: "Thưởng comment và đánh giá tài liệu" },
+          doc: documentId,
         });
 
-        if (existingComment) {
-          // Kiểm tra xem user đã nhận bonus points cho document này chưa
-          const existingBonusTransaction = await PointTransaction.findOne({
-            user: userId,
-            type: "EARN",
-            reason: { $regex: "Thưởng comment và đánh giá tài liệu" },
-            doc: documentId,
-          });
+        if (!existingBonusTransaction) {
+          // User đã comment và vừa reaction → cộng 1 điểm
+          await earnPoints(
+            userId,
+            1,
+            `Thưởng comment và đánh giá tài liệu ${doc.title}`,
+            documentId
+          );
 
-          if (!existingBonusTransaction) {
-            // User đã comment và vừa reaction → cộng 1 điểm bonus
-            await earnPoints(
-              userId,
-              1,
-              `Thưởng comment và đánh giá tài liệu ${doc.title}`,
-              documentId
-            );
-
-            // Tạo notification cho điểm bonus
-            await notifySystem(
-              userId,
-              `🎯 Bạn đã nhận được 1 điểm thưởng thêm cho việc vừa bình luận vừa đánh giá tài liệu "${doc.title}"!`
-            );
-          }
+          // Tạo notification cho điểm thưởng
+          const { notifyPointsEarned } = require("./notification.service");
+          await notifyPointsEarned(
+            userId,
+            1,
+            `Thưởng comment và đánh giá tài liệu ${doc.title}`
+          );
         }
-      } catch (pointError) {
-        console.error("Error creating reaction points:", pointError);
-        // Không làm fail việc reaction nếu cộng điểm thất bại
       }
+    } catch (pointError) {
+      console.error("Error creating reaction points:", pointError);
+      // Không làm fail việc reaction nếu cộng điểm thất bại
     }
   }
   await doc.save();

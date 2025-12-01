@@ -142,6 +142,7 @@ exports.getDocumentsBySubject = async (req, res) => {
       order = -1,
       page = 1,
       limit = 5,
+      is_admin = false,
       ...filters
     } = req.query;
 
@@ -167,6 +168,7 @@ exports.getDocumentsBySubject = async (req, res) => {
       order,
       page: parseInt(page),
       limit: parseInt(limit),
+      is_admin: is_admin === "true" || is_admin === true,
       ...filters,
     });
     res.json(result);

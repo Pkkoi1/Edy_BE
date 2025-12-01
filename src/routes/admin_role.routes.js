@@ -16,6 +16,29 @@ const {
  *   get:
  *     summary: Lấy tất cả các vai trò
  *     tags: [Role]
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên hoặc mã vai trò (regex, case insensitive)
+ *       - in: query
+ *         name: description
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo mô tả vai trò (regex, case insensitive)
+ *       - in: query
+ *         name: permissions
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         description: Lọc theo quyền (array)
+ *       - in: query
+ *         name: is_active
+ *         schema:
+ *           type: boolean
+ *         description: Lọc theo trạng thái hoạt động
  *     responses:
  *       200:
  *         description: Thành công

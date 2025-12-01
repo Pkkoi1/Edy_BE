@@ -25,7 +25,10 @@ const notificationSchema = new mongoose.Schema(
         "REPLY",
         "ACCESS_REQUEST",
         "ACCESS_GRANTED",
-        "ACCESS_DENIED"
+        "ACCESS_DENIED",
+        "POINTS_EARNED",
+        "POINTS_DEDUCTED",
+        "USER_BANNED",
       ],
       required: true,
     },
@@ -34,7 +37,7 @@ const notificationSchema = new mongoose.Schema(
     // Trường điều hướng
     redirectTo: {
       type: String,
-      enum: ["DOCUMENT", "COMMENT", "USER", "SYSTEM", "NONE"],
+      enum: ["DOCUMENT", "COMMENT", "USER", "SYSTEM", "POINT", "NONE"],
       default: "NONE",
     },
   },

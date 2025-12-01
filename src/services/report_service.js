@@ -12,6 +12,10 @@ const {
   updateDocument,
 } = require("./elasticsearch.service");
 const { addViolation } = require("./user_statistics.service");
+const {
+  notifyPointsDeducted,
+  notifyUserBanned,
+} = require("./notification.service");
 const createReport = async (reportData, reporterId) => {
   try {
     const { docId, cmtId, type, reason } = reportData;
@@ -291,6 +295,17 @@ const handleReportAction = async (report, action) => {
             "RANKPOINT"
           );
 
+          // Gửi thông báo trừ điểm
+          try {
+            await notifyPointsDeducted(
+              violator._id,
+              point_reduced,
+              `Vi phạm quy định bình luận`
+            );
+          } catch (notificationError) {
+            console.error("Lỗi gửi thông báo trừ điểm:", notificationError);
+          }
+
           if (violator.strike == 5 || violator.strike == 10) {
             await applyRestrictions(violator._id, report.resolveBy, "LOGIN");
           }
@@ -301,7 +316,8 @@ const handleReportAction = async (report, action) => {
             expiredAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
             is_delete_by_admin: true,
             delete_by_admin: report.resolveBy,
-            delete_by_admin_reason: report.resolveReason || "Tài liệu vi phạm quy định",
+            delete_by_admin_reason:
+              report.resolveReason || "Tài liệu vi phạm quy định",
             delete_by_admin_at: new Date(),
           });
 
@@ -341,6 +357,17 @@ const handleReportAction = async (report, action) => {
             `Bị trừ điểm do vi phạm quy định đăng tài liệu`,
             "RANKPOINT"
           );
+
+          // Gửi thông báo trừ điểm
+          try {
+            await notifyPointsDeducted(
+              violator._id,
+              point_reduced,
+              `Vi phạm quy định đăng tài liệu`
+            );
+          } catch (notificationError) {
+            console.error("Lỗi gửi thông báo trừ điểm:", notificationError);
+          }
 
           if (violator.strike == 5 || violator.strike == 10) {
             await applyRestrictions(violator._id, report.resolveBy, "LOGIN");
@@ -483,6 +510,13 @@ const applyRestrictions = async (userId, adminId, type) => {
         startAt: new Date(),
         endAt: null, // Vĩnh viễn
       });
+
+      // Gửi thông báo bị ban vĩnh viễn
+      try {
+        await notifyUserBanned(userId, "Vi phạm quá 10 lần", true);
+      } catch (notificationError) {
+        console.error("Lỗi gửi thông báo ban user:", notificationError);
+      }
     } else if (user.strike >= 5) {
       // 5 strikes: Khóa tài khoản tạm thời (30 ngày)
       const endDate = new Date();
@@ -498,6 +532,17 @@ const applyRestrictions = async (userId, adminId, type) => {
         startAt: new Date(),
         endAt: endDate,
       });
+
+      // Gửi thông báo bị ban tạm thời
+      try {
+        await notifyUserBanned(
+          userId,
+          "Vi phạm 5 lần - khóa tạm thời 30 ngày",
+          false
+        );
+      } catch (notificationError) {
+        console.error("Lỗi gửi thông báo ban user:", notificationError);
+      }
     }
   } catch (error) {
     throw new Error(`Lỗi áp dụng hạn chế: ${error.message}`);
