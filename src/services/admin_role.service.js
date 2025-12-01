@@ -62,12 +62,15 @@ const getAllRole = async (accountId, query) => {
   // Filter by permissions (string separated by comma, using $in)
   if (query.permissions) {
     let permissionsArray;
-    if (typeof query.permissions === 'string') {
-      permissionsArray = query.permissions.split(',').map(p => p.trim()).filter(p => p);
+    if (typeof query.permissions === "string") {
+      permissionsArray = query.permissions
+        .split(",")
+        .map((p) => p.trim())
+        .filter((p) => p);
     } else if (Array.isArray(query.permissions)) {
-      permissionsArray = query.permissions.filter(p => p);
+      permissionsArray = query.permissions.filter((p) => p);
     } else {
-      permissionsArray = [query.permissions].filter(p => p);
+      permissionsArray = [query.permissions].filter((p) => p);
     }
     // Remove duplicates
     permissionsArray = [...new Set(permissionsArray)];
