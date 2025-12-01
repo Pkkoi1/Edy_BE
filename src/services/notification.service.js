@@ -239,7 +239,7 @@ const notifyDocumentApproved = async (userId, documentId) => {
     userId,
     docId: documentId,
     type: "APPROVED",
-    message: `Chúc mừng! Tài liệu "${document.title}" của bạn đã được phê duyệt và xuất bản thành công.`,
+    message: `Chúc mừng! Tài liệu "${document.title}" của bạn đã được phê duyệt  thành công.`,
     redirectTo: "DOCUMENT",
   });
 };

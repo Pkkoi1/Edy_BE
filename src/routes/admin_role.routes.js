@@ -30,10 +30,8 @@ const {
  *       - in: query
  *         name: permissions
  *         schema:
- *           type: array
- *           items:
- *             type: string
- *         description: Lọc theo quyền (array)
+ *           type: string
+ *         description: Lọc theo quyền (string separated by comma)
  *       - in: query
  *         name: is_active
  *         schema:
