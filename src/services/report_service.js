@@ -187,7 +187,6 @@ const resolveReport = async (reportId, adminId, resolution) => {
     report.validTypes = validTypes || [];
     report.resolveBy = adminId;
     report.resolvedAt = new Date();
-    report.expiredAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
     await report.save();
 
     // Xử lý action tương ứng
