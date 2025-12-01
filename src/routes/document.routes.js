@@ -218,6 +218,81 @@ router.get(
 
 /**
  * @swagger
+ * /documents/featured:
+ *   get:
+ *     summary: Lấy danh sách tài liệu nổi bật gần đây trong khoảng thời gian
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *         description: Thời điểm bắt đầu (ISO hoặc yyyy-MM-dd)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *         description: Thời điểm kết thúc (mặc định là hiện tại)
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *         description: Số ngày gần đây (fallback nếu không truyền from/to)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu nổi bật thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ */
+router.get(
+  "/featured",
+  userOrUnauthenticated,
+  documentController.getFeaturedDocuments
+);
+
+/**
+ * @swagger
+ * /documents/recommended:
+ *   get:
+ *     summary: Lấy danh sách tài liệu có thể bạn quan tâm
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách gợi ý tài liệu thành công
+ *       401:
+ *         description: Yêu cầu đăng nhập
+ */
+router.get(
+  "/recommended",
+  userOrUnauthenticated,
+  documentController.getRecommendedDocuments
+);
+
+/**
+ * @swagger
  * /documents:
  *   post:
  *     summary: Tải lên tài liệu mới
@@ -411,6 +486,49 @@ router.get(
 
 /**
  * @swagger
+ * /documents/my-pending:
+ *   get:
+ *     summary: Lấy danh sách tài liệu đang chờ phê duyệt
+ *     tags:
+ *       - Approval
+ *     parameters:
+ *       - in: query
+ *         name: ordering
+ *         schema:
+ *           type: string
+ *         description: "Trường sắp xếp (vd: title, createdAt, published_year)"
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: integer
+ *           enum: [1, -1]
+ *         description: 1 là tăng dần, -1 là giảm dần
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu thành công
+ *       403:
+ *         description: Không có quyền
+ *       500:
+ *         description: Lỗi server
+ */
+router.get(
+  "/my-pending",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.getMyPendingDocuments
+);
+
+/**
+ * @swagger
  * /documents/pending-requests/{id}:
  *   get:
  *     summary: Lấy danh sách yêu cầu phê duyệt tài liệu
@@ -512,6 +630,84 @@ router.put(
   requireAdminPermission(["MANAGE_DOCUMENT"]),
   documentController.rejectDocument
 );
+
+/**
+ * @swagger
+ * /documents/request-edit/{id}:
+ *   put:
+ *     summary: Yêu cầu chỉnh sửa tài liệu
+ *     tags:
+ *       - Approval
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID request
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: "Thông tin tài liệu không phù hợp."
+ *                 description: Tin nhắn yêu cầu chỉnh sửa (nếu có)
+ *     responses:
+ *       200:
+ *         description: Yêu cầu chỉnh sửa tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền
+ */
+router.put(
+  "/request-edit/:requestId",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.requestEdit
+)
+
+/**
+ * @swagger
+ * /documents/request-edit-direct/{id}:
+ *   put:
+ *     summary: Yêu cầu chỉnh sửa tài liệu (chỉnh sửa trực tiếp)
+ *     tags:
+ *       - Approval
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID tài liệu
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: "Thông tin tài liệu không phù hợp."
+ *                 description: Tin nhắn yêu cầu chỉnh sửa (nếu có)
+ *     responses:
+ *       200:
+ *         description: Yêu cầu chỉnh sửa tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       403:
+ *         description: Không có quyền
+ */
+router.put(
+  "/request-edit-direct/:documentId",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.requestEditDirect
+)
 
 /**
  * @swagger
@@ -1661,5 +1857,28 @@ router.post(
   userOrUnauthenticated,
   documentController.incrementView
 );
+
+/**
+ * @swagger
+ * /documents/{documentId}:
+ *   delete:
+ *     summary: Xóa tài liệu (soft delete)
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: documentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Xóa thành công
+ *       403:
+ *         description: Không có quyền xóa
+ *       404:
+ *         description: Tài liệu không tồn tại
+ */
+router.delete("/:documentId", requireUserRole, documentController.deleteDocument);
 
 module.exports = router;

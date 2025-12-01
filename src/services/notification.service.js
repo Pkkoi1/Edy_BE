@@ -11,6 +11,7 @@ const createNotification = async ({
   cmtId = null,
   type,
   message,
+  redirectTo = null,
 }) => {
   try {
     // Kiểm tra user tồn tại
@@ -43,6 +44,7 @@ const createNotification = async ({
       type,
       message: message.trim(),
       isRead: false,
+      redirectTo,
     });
 
     await notification.save();
@@ -237,7 +239,8 @@ const notifyDocumentApproved = async (userId, documentId) => {
     userId,
     docId: documentId,
     type: "APPROVED",
-    message: `Tài liệu "${document.title}" của bạn đã được phê duyệt và xuất bản thành công! 🎉`,
+    message: `Chúc mừng! Tài liệu "${document.title}" của bạn đã được phê duyệt  thành công.`,
+    redirectTo: "DOCUMENT",
   });
 };
 
@@ -247,14 +250,15 @@ const notifyDocumentRejected = async (userId, documentId, reason = "") => {
   if (!document) return;
 
   const message = reason
-    ? `Tài liệu "${document.title}" của bạn bị từ chối. Lý do: ${reason}`
-    : `Tài liệu "${document.title}" của bạn bị từ chối. Vui lòng kiểm tra lại nội dung.`;
+    ? `Tài liệu "${document.title}" của bạn đã bị từ chối phê duyệt. Lý do: ${reason}. Vui lòng chỉnh sửa và gửi lại.`
+    : `Tài liệu "${document.title}" của bạn đã bị từ chối phê duyệt. Vui lòng kiểm tra lại nội dung và gửi lại.`;
 
   return await createNotification({
     userId,
     docId: documentId,
     type: "REJECTED",
     message,
+    redirectTo: "DOCUMENT",
   });
 };
 
@@ -264,7 +268,7 @@ const notifyDocumentRemoved = async (userId, documentId, reason = "") => {
   if (!document) return;
 
   const message = reason
-    ? `Tài liệu "${document.title}" của bạn đã bị xóa. Lý do: ${reason}`
+    ? `Tài liệu "${document.title}" của bạn đã bị xóa khỏi hệ thống. Lý do: ${reason}.`
     : `Tài liệu "${document.title}" của bạn đã bị xóa khỏi hệ thống.`;
 
   return await createNotification({
@@ -272,6 +276,7 @@ const notifyDocumentRemoved = async (userId, documentId, reason = "") => {
     docId: documentId,
     type: "REMOVED",
     message,
+    redirectTo: "NONE", // Tài liệu đã bị xóa, không thể điều hướng
   });
 };
 
@@ -281,14 +286,15 @@ const notifyDocumentHidden = async (userId, documentId, reason = "") => {
   if (!document) return;
 
   const message = reason
-    ? `Tài liệu "${document.title}" đã được đặt về chế độ riêng tư. Lý do: ${reason}`
-    : `Tài liệu "${document.title}" đã được đặt về chế độ riêng tư và cần chỉnh sửa.`;
+    ? `Tài liệu "${document.title}" đã được chuyển sang chế độ riêng tư. Lý do: ${reason}. Vui lòng chỉnh sửa để công khai lại.`
+    : `Tài liệu "${document.title}" đã được chuyển sang chế độ riêng tư. Vui lòng kiểm tra và chỉnh sửa nếu cần.`;
 
   return await createNotification({
     userId,
     docId: documentId,
     type: "HIDDEN",
     message,
+    redirectTo: "DOCUMENT",
   });
 };
 
@@ -302,7 +308,31 @@ const notifyNewComment = async (documentOwnerId, commentId, commenterName) => {
     docId: comment.doc._id,
     cmtId: commentId,
     type: "COMMENT",
-    message: `${commenterName} đã bình luận về tài liệu "${comment.doc.title}" của bạn 💬`,
+    message: `${commenterName} đã bình luận về tài liệu "${comment.doc.title}" của bạn.`,
+    redirectTo: "COMMENT",
+  });
+};
+
+const notifyNewAccessRequest = async (
+  documentOwnerId,
+  documentId,
+  requesterName,
+  privateShareName = null
+) => {
+  const document = await Document.findById(documentId);
+  if (!document) return;
+
+  const name = (requesterName || "Người dùng").trim();
+  const message = privateShareName
+    ? `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}" thông qua liên kết chia sẻ "${privateShareName}".`
+    : `${name} đã gửi yêu cầu truy cập tài liệu "${document.title}".`;
+
+  return await createNotification({
+    userId: documentOwnerId,
+    docId: documentId,
+    type: "ACCESS_REQUEST",
+    message,
+    redirectTo: "DOCUMENT",
   });
 };
 
@@ -324,7 +354,8 @@ const notifyCommentReply = async (
     docId: reply.doc._id,
     cmtId: replyId,
     type: "REPLY",
-    message: `${replierName} đã trả lời bình luận của bạn trong tài liệu "${reply.doc.title}" 💭`,
+    message: `${replierName} đã trả lời bình luận của bạn trong tài liệu "${reply.doc.title}".`,
+    redirectTo: "COMMENT",
   });
 };
 
@@ -334,6 +365,90 @@ const notifySystem = async (userId, message) => {
     userId,
     type: "SYSTEM",
     message,
+    redirectTo: "NONE", // Thông báo hệ thống thường không cần điều hướng
+  });
+};
+
+// Thông báo thay đổi trạng thái VIP
+const notifyVipStatusChanged = async (userId, isVip) => {
+  const message = isVip
+    ? "Chúc mừng! Bạn đã trở thành thành viên VIP với nhiều đặc quyền hấp dẫn."
+    : "Bạn đã mất trạng thái VIP. Tiếp tục tích lũy điểm để trở lại VIP.";
+
+  return await createNotification({
+    userId,
+    type: "SYSTEM",
+    message,
+    redirectTo: "USER", // Điều hướng đến trang profile của user
+  });
+};
+
+// Thông báo yêu cầu truy cập đã được phê duyệt (gửi cho người yêu cầu)
+const notifyAccessRequestApproved = async (requesterId, documentId) => {
+  const document = await Document.findById(documentId);
+  if (!document) return;
+
+  const message = `Yêu cầu truy cập của bạn đối với tài liệu "${document.title}" đã được phê duyệt.`;
+
+  return await createNotification({
+    userId: requesterId,
+    docId: documentId,
+    type: "ACCESS_GRANTED",
+    message,
+    redirectTo: "DOCUMENT",
+  });
+};
+
+// Thông báo yêu cầu truy cập bị từ chối (gửi cho người yêu cầu)
+const notifyAccessRequestDenied = async (requesterId, documentId) => {
+  const document = await Document.findById(documentId);
+  if (!document) return;
+
+  const message = `Yêu cầu truy cập của bạn đối với tài liệu "${document.title}" đã bị từ chối.`;
+
+  return await createNotification({
+    userId: requesterId,
+    docId: documentId,
+    type: "ACCESS_DENIED",
+    message,
+    redirectTo: "NONE",
+  });
+};
+
+// Thông báo cộng điểm
+const notifyPointsEarned = async (userId, points, reason) => {
+  const message = `Bạn đã nhận được ${points} điểm thưởng. Lý do: ${reason}`;
+
+  return await createNotification({
+    userId,
+    type: "POINTS_EARNED",
+    message,
+    redirectTo: "POINT",
+  });
+};
+
+// Thông báo trừ điểm
+const notifyPointsDeducted = async (userId, points, reason) => {
+  const message = `Bạn đã bị trừ ${points} điểm. Lý do: ${reason}`;
+
+  return await createNotification({
+    userId,
+    type: "POINTS_DEDUCTED",
+    message,
+    redirectTo: "POINT",
+  });
+};
+
+// Thông báo bị ban tài khoản
+const notifyUserBanned = async (userId, reason, isPermanent = false) => {
+  const duration = isPermanent ? "vĩnh viễn" : "tạm thời";
+  const message = `Tài khoản của bạn đã bị khóa ${duration}. Lý do: ${reason}`;
+
+  return await createNotification({
+    userId,
+    type: "USER_BANNED",
+    message,
+    redirectTo: "USER",
   });
 };
 
@@ -354,4 +469,11 @@ module.exports = {
   notifyNewComment,
   notifyCommentReply,
   notifySystem,
+  notifyVipStatusChanged,
+  notifyNewAccessRequest,
+  notifyAccessRequestApproved,
+  notifyAccessRequestDenied,
+  notifyPointsEarned,
+  notifyPointsDeducted,
+  notifyUserBanned,
 };

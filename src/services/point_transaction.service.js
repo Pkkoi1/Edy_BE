@@ -1,5 +1,6 @@
 const PointTransaction = require("../models/point_transaction.model");
 const User = require("../models/user.model");
+const Account = require("../models/account.model");
 const { updatePointHistory } = require("./user_statistics.service");
 
 const createPointTransaction = async (
@@ -7,7 +8,8 @@ const createPointTransaction = async (
   type,
   amount,
   reason,
-  pointType
+  pointType,
+  docId = null
 ) => {
   const transaction = new PointTransaction({
     user: userId,
@@ -15,6 +17,7 @@ const createPointTransaction = async (
     point: amount,
     reason,
     pointType,
+    doc: docId,
   });
   await transaction.save();
 };
@@ -65,7 +68,7 @@ const spendUserPoints = async (userId, amount, reason) => {
   }
 };
 
-const earnPoints = async (userId, amount, reason) => {
+const earnPoints = async (userId, amount, reason, docId = null) => {
   try {
     // Kiểm tra user có tồn tại không
     const user = await User.findById(userId);
@@ -81,7 +84,7 @@ const earnPoints = async (userId, amount, reason) => {
     );
 
     // Tạo transaction record
-    await createPointTransaction(userId, "EARN", amount, reason, "BOTH");
+    await createPointTransaction(userId, "EARN", amount, reason, "BOTH", docId);
 
     // Cập nhật thống kê điểm
     try {
@@ -213,6 +216,7 @@ const getPointHistoryByUserId = async (userId, page = 1, limit = 10) => {
       .skip(skip)
       .limit(limit)
       .populate("user", "first_name last_name")
+      .populate("doc", "title status is_deleted")
       .lean();
 
     const total = await PointTransaction.countDocuments({ user: userId });

@@ -13,23 +13,159 @@ const {
  * @swagger
  * /users:
  *   get:
- *     summary: Lấy danh sách người dùng yêu cầu quyền quản lý người dùng
+ *     summary: Lấy danh sách người dùng với phân trang, tìm kiếm và lọc (yêu cầu quyền quản lý người dùng)
  *     tags: [Users]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Số trang (bắt đầu từ 1)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *         description: Số lượng user mỗi trang (1-100)
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Từ khóa tìm kiếm (tên, email, hoặc ObjectId)
+ *       - in: query
+ *         name: field_of_study
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         style: form
+ *         explode: true
+ *         description: Lọc theo lĩnh vực học (có thể truyền nhiều giá trị)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *             enum: [ACTIVE, INACTIVE, BANNED]
+ *         style: form
+ *         explode: true
+ *         description: Lọc theo trạng thái tài khoản (có thể truyền nhiều giá trị)
+ *       - in: query
+ *         name: rank_point_min
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc điểm hạng tối thiểu
+ *       - in: query
+ *         name: rank_point_max
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc điểm hạng tối đa
+ *       - in: query
+ *         name: strike_min
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc số strike tối thiểu
+ *       - in: query
+ *         name: strike_max
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Lọc số strike tối đa
  *     responses:
  *       200:
  *         description: Thành công
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 type: object
- *       500:
- *         description: Lỗi server
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         description: ID của user
+ *                       first_name:
+ *                         type: string
+ *                         description: Họ
+ *                       last_name:
+ *                         type: string
+ *                         description: Tên
+ *                       email:
+ *                         type: string
+ *                         description: Email
+ *                       avatar:
+ *                         type: string
+ *                         description: URL avatar
+ *                       organization:
+ *                         type: object
+ *                         description: Thông tin tổ chức
+ *                       field_of_study:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                         description: Lĩnh vực học
+ *                       rank_point:
+ *                         type: number
+ *                         description: Điểm hạng
+ *                       strike:
+ *                         type: number
+ *                         description: Số lần vi phạm
+ *                       status:
+ *                         type: string
+ *                         enum: [ACTIVE, INACTIVE, BANNED]
+ *                         description: Trạng thái tài khoản
+ *                       account:
+ *                         type: object
+ *                         description: Thông tin tài khoản
+ *                       roles:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                         description: Danh sách vai trò
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Ngày tạo
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     currentPage:
+ *                       type: integer
+ *                       example: 1
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 5
+ *                     totalUsers:
+ *                       type: integer
+ *                       example: 250
+ *                     hasNextPage:
+ *                       type: boolean
+ *                       example: true
+ *                     hasPrevPage:
+ *                       type: boolean
+ *                       example: false
+ *       400:
+ *         description: Tham số không hợp lệ
  *       401:
  *         description: Chưa xác thực
  *       403:
  *         description: Không có quyền
+ *       500:
+ *         description: Lỗi server
  */
 router.get(
   "/",
@@ -244,6 +380,73 @@ router.delete(
 
 /**
  * @swagger
+ * /users/contributions:
+ *   get:
+ *     summary: Lấy thành tích đóng góp của người dùng hiện tại
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         schema:
+ *           type: integer
+ *           minimum: 2000
+ *           maximum: 2100
+ *         description: "Năm để lọc dữ liệu (tùy chọn). Nếu không cung cấp sẽ lấy tất cả thời gian"
+ *         example: 2024
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 year:
+ *                   type: integer
+ *                   nullable: true
+ *                   description: Năm được lọc (null nếu không lọc)
+ *                   example: 2024
+ *                 contributions:
+ *                   type: object
+ *                   properties:
+ *                     total_documents:
+ *                       type: integer
+ *                       description: Tổng số bài đăng (documents)
+ *                       example: 15
+ *                     total_reactions:
+ *                       type: integer
+ *                       description: Tổng số lần tương tác tài liệu (like/dislike)
+ *                       example: 45
+ *                     total_downloads:
+ *                       type: integer
+ *                       description: Tổng số lần tải tài liệu thành công
+ *                       example: 23
+ *                     total_comments:
+ *                       type: integer
+ *                       description: Tổng số bình luận
+ *                       example: 67
+ *       400:
+ *         description: Năm không hợp lệ hoặc lỗi khác
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.get(
+  "/contributions",
+  requireLoggedIn,
+  userController.getUserContributions
+);
+
+/**
+ * @swagger
  * /users/{userId}:
  *   get:
  *     summary: Lấy thông tin chi tiết của một người dùng theo ID
@@ -375,6 +578,87 @@ router.get(
   "/:userId/roles",
   requireLoggedIn,
   userController.getUserPermissions
+);
+
+/**
+ * @swagger
+ * /users/{userId}/status:
+ *   put:
+ *     summary: Cập nhật trạng thái tài khoản của người dùng (yêu cầu quyền quản lý người dùng)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [ACTIVE, INACTIVE, BANNED]
+ *                 example: "ACTIVE"
+ *                 description: "Trạng thái mới của tài khoản"
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Cập nhật trạng thái người dùng thành công"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       description: ID của người dùng
+ *                     oldStatus:
+ *                       type: string
+ *                       enum: [ACTIVE, INACTIVE, BANNED]
+ *                       description: Trạng thái cũ
+ *                     newStatus:
+ *                       type: string
+ *                       enum: [ACTIVE, INACTIVE, BANNED]
+ *                       description: Trạng thái mới
+ *                     updatedBy:
+ *                       type: string
+ *                       description: ID của người thực hiện cập nhật
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Thời gian cập nhật
+ *       400:
+ *         description: Dữ liệu không hợp lệ hoặc trạng thái không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ *       403:
+ *         description: Không có quyền quản lý người dùng
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.put(
+  "/:userId/status",
+  requireAdminPermission(["MANAGE_USER"]),
+  userController.updateUserStatus
 );
 
 module.exports = router;

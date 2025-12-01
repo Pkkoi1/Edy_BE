@@ -3,83 +3,96 @@ const PrivateShare = require("../models/private_share.model");
 const Document = require("../models/document.model");
 const User = require("../models/user.model");
 const mongoose = require("mongoose");
+const { notifyNewAccessRequest, notifyAccessRequestApproved, notifyAccessRequestDenied } = require("./notification.service");
 
 /**
  * Tạo yêu cầu truy cập tài liệu qua private share
  */
 const createAccessRequest = async (privateShareId, userId, content = null) => {
-  // Kiểm tra private share tồn tại và đang hoạt động
-  const privateShare = await PrivateShare.findOne({
-    _id: privateShareId,
-    status: "ACTIVE",
-  }).populate("doc");
+  try {
+    // Kiểm tra private share tồn tại và đang hoạt động
+    const privateShare = await PrivateShare.findOne({
+      _id: privateShareId,
+      status: "ACTIVE",
+    }).populate("doc");
 
-  if (!privateShare) {
-    throw new Error("Link chia sẻ không tồn tại hoặc đã bị vô hiệu hóa");
-  }
-
-  // Kiểm tra thời gian hết hạn
-  if (privateShare.time_limited) {
-    const now = new Date();
-    if (now < privateShare.start_date || now > privateShare.end_date) {
-      throw new Error("Link chia sẻ đã hết thời gian truy cập");
+    if (!privateShare) {
+      throw new Error("Link chia sẻ không tồn tại hoặc đã bị vô hiệu hóa");
     }
-  }
 
-  // Kiểm tra giới hạn số lượng truy cập
-  if (privateShare.limited_access !== null) {
-    const currentAccessCount = await AccessRequest.countDocuments({
+    // Kiểm tra thời gian hết hạn
+    if (privateShare.time_limited) {
+      const now = new Date();
+      if (now < privateShare.start_date || now > privateShare.end_date) {
+        throw new Error("Link chia sẻ đã hết thời gian truy cập");
+      }
+    }
+
+    // Kiểm tra giới hạn số lượng truy cập
+    if (privateShare.limited_access !== null) {
+      const currentAccessCount = await AccessRequest.countDocuments({
+        private_share: privateShareId,
+        status: "APPROVED",
+      });
+
+      if (currentAccessCount >= privateShare.limited_access) {
+        throw new Error("Link chia sẻ đã đạt giới hạn số lượng truy cập");
+      }
+    }
+
+    // Kiểm tra user đã gửi yêu cầu chưa
+    const existingRequest = await AccessRequest.findOne({
       private_share: privateShareId,
-      status: "APPROVED",
+      user: userId,
+      status: { $in: ["PENDING", "APPROVED"] },
     });
 
-    if (currentAccessCount >= privateShare.limited_access) {
-      throw new Error("Link chia sẻ đã đạt giới hạn số lượng truy cập");
+    if (existingRequest) {
+      if (existingRequest.status === "APPROVED") {
+        throw new Error("Bạn đã có quyền truy cập tài liệu này");
+      }
+      if (existingRequest.status === "PENDING") {
+        throw new Error("Bạn đã gửi yêu cầu truy cập, vui lòng chờ phê duyệt");
+      }
     }
-  }
 
-  // Kiểm tra user đã gửi yêu cầu chưa
-  const existingRequest = await AccessRequest.findOne({
-    private_share: privateShareId,
-    user: userId,
-    status: { $in: ["PENDING", "APPROVED"] },
-  });
-
-  if (existingRequest) {
-    if (existingRequest.status === "APPROVED") {
-      throw new Error("Bạn đã có quyền truy cập tài liệu này");
+    // Kiểm tra user không phải là chủ sở hữu tài liệu
+    if (privateShare.doc.user.toString() === userId) {
+      throw new Error(
+        "Bạn không thể gửi yêu cầu truy cập tài liệu của chính mình"
+      );
     }
-    if (existingRequest.status === "PENDING") {
-      throw new Error("Bạn đã gửi yêu cầu truy cập, vui lòng chờ phê duyệt");
-    }
+
+    // Tạo access request mới
+    const accessRequest = new AccessRequest({
+      doc: privateShare.doc._id,
+      user: userId,
+      private_share: privateShareId,
+      content,
+      expiredAt: privateShare.time_limited ? privateShare.end_date : null,
+    });
+
+    await accessRequest.save();
+
+    // Populate thông tin để trả về
+    await accessRequest.populate([
+      { path: "user", select: "first_name last_name email avatar" },
+      { path: "doc", select: "title doc_type" },
+      { path: "private_share", select: "name" },
+    ]);
+
+
+    const ownerId = privateShare.doc.user.toString();
+    const docId = privateShare.doc._id.toString();
+    const requesterName = `${accessRequest.user.first_name} ${accessRequest.user.last_name}`.trim();
+    const privateShareName = privateShare.name || null;
+    await notifyNewAccessRequest(ownerId, docId, requesterName, privateShareName);
+
+    return accessRequest;
+
+  } catch (err) {
+    throw new Error("Lỗi tạo yêu cầu truy cập: " + err.message);
   }
-
-  // Kiểm tra user không phải là chủ sở hữu tài liệu
-  if (privateShare.doc.user.toString() === userId) {
-    throw new Error(
-      "Bạn không thể gửi yêu cầu truy cập tài liệu của chính mình"
-    );
-  }
-
-  // Tạo access request mới
-  const accessRequest = new AccessRequest({
-    doc: privateShare.doc._id,
-    user: userId,
-    private_share: privateShareId,
-    content,
-    expiredAt: privateShare.time_limited ? privateShare.end_date : null,
-  });
-
-  await accessRequest.save();
-
-  // Populate thông tin để trả về
-  await accessRequest.populate([
-    { path: "user", select: "first_name last_name email avatar" },
-    { path: "doc", select: "title doc_type" },
-    { path: "private_share", select: "name" },
-  ]);
-
-  return accessRequest;
 };
 
 /**
@@ -108,9 +121,10 @@ const getAccessRequestsByPrivateShare = async (
   const skip = (page - 1) * limit;
 
   // Tạo query
-  const query = { private_share: privateShareId,
+  const query = {
+    private_share: privateShareId,
     status: { $ne: 'IGNORED' }
-   };
+  };
   if (status) {
     query.status = status;
   }
@@ -204,9 +218,10 @@ const approveAccessRequest = async (requestId, ownerId) => {
       doc: accessRequest.doc._id,
       status: "PENDING",
     },
-    { status: "IGNORED",
-      expiredAt: new Date()+3*24*60*60*1000
-     }
+    {
+      status: "IGNORED",
+      expiredAt: new Date() + 3 * 24 * 60 * 60 * 1000
+    }
   );
 
   // Thêm tài liệu vào danh sách shared_documents của user
@@ -238,6 +253,12 @@ const approveAccessRequest = async (requestId, ownerId) => {
     await updatedPrivateShare.save();
   }
 
+  // Gửi thông báo cho người gửi yêu cầu khi được duyệt
+  await notifyAccessRequestApproved(
+    accessRequest.user._id.toString(),
+    accessRequest.doc._id.toString()
+  );
+
   return accessRequest;
 };
 
@@ -267,8 +288,14 @@ const denyAccessRequest = async (requestId, ownerId) => {
 
   // Cập nhật trạng thái
   accessRequest.status = "DENIED";
-  accessRequest.expiredAt = new Date()+7*24*60*60*1000;
+  accessRequest.expiredAt = new Date() + 7 * 24 * 60 * 60 * 1000;
   await accessRequest.save();
+
+  // Gửi thông báo cho người gửi yêu cầu
+  await notifyAccessRequestDenied(
+    accessRequest.user._id.toString(),
+    accessRequest.doc._id.toString()
+  );
 
   return accessRequest;
 };

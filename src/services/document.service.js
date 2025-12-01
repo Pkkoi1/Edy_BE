@@ -7,8 +7,15 @@ const DownloadLink = require("../models/download_link.model");
 const PrivateShare = require("../models/private_share.model");
 const Reaction = require("../models/reaction.model");
 const ApprovalRequest = require("../models/approval_request.model");
+const EditApproval = require("../models/edit_approval.model");
 const Assignment = require("../models/assignment.model");
-const { createPointTransaction } = require("./point_transaction.service");
+const AccessRequest = require("../models/access_request.model");
+const Role = require("../models/role.model");
+const PointTransaction = require("../models/point_transaction.model");
+const {
+  createPointTransaction,
+  earnPoints,
+} = require("./point_transaction.service");
 const {
   processDocumentAndCreateEmbedding,
   processDocumentAndCreateSummary,
@@ -30,6 +37,7 @@ const {
   updateViewCount,
   updateDownloadCount,
 } = require("./document_statistics.service");
+const { logActivity } = require("./activity_log.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 const e = require("express");
@@ -296,6 +304,513 @@ const getNewestDocuments = async ({
   };
 };
 
+// Lấy tài liệu nổi bật gần đây trong một khoảng thời gian
+// Dựa trên lượt tải xuống và lượt reaction trong khoảng thời gian chỉ định
+const getFeaturedDocuments = async ({
+  payload,
+  from,
+  to,
+  days = 60,
+  page = 1,
+  limit = 5,
+  ...filters
+}) => {
+  // Đảm bảo trả về tối thiểu 5 tài liệu
+  const MIN_COUNT = 5;
+  // Xác định khoảng thời gian
+  const end = to ? new Date(to) : new Date();
+  const start = from
+    ? new Date(from)
+    : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+  // Build quyền truy cập tương tự getNewestDocuments
+  let user = null;
+  let sharedDocIds = [];
+  if (payload && payload.userId) {
+    user = await User.findById(payload.userId).select(
+      "organization shared_documents"
+    );
+    if (user && user.shared_documents && user.shared_documents.length > 0) {
+      sharedDocIds = user.shared_documents.map((item) => item.document);
+    }
+  }
+
+  let accessOr = [];
+  if (user && user.organization) {
+    accessOr = [
+      { public_mode: "PUBLIC" },
+      { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
+      { user: user._id },
+    ];
+    if (sharedDocIds.length > 0) {
+      accessOr.push({ _id: { $in: sharedDocIds } });
+    }
+  } else {
+    accessOr = [{ public_mode: "PUBLIC" }];
+  }
+
+  // Lấy thống kê trong khoảng thời gian: downloads và reactions
+  const [downloadsAgg, reactionsAgg] = await Promise.all([
+    DownloadLink.aggregate([
+      { $match: { status: "SUCCESS", accessedAt: { $gte: start, $lte: end } } },
+      { $group: { _id: "$doc", downloads: { $sum: 1 } } },
+    ]),
+    Reaction.aggregate([
+      { $match: { createdAt: { $gte: start, $lte: end } } },
+      { $group: { _id: { doc: "$doc", type: "$type" }, count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const likesByDoc = {};
+  const dislikesByDoc = {};
+  reactionsAgg.forEach((r) => {
+    const docId = r._id.doc.toString();
+    if (r._id.type === "LIKE")
+      likesByDoc[docId] = (likesByDoc[docId] || 0) + r.count;
+    if (r._id.type === "DISLIKE")
+      dislikesByDoc[docId] = (dislikesByDoc[docId] || 0) + r.count;
+  });
+
+  const downloadByDoc = {};
+  downloadsAgg.forEach((d) => {
+    const docId = d._id.toString();
+    downloadByDoc[docId] = d.downloads;
+  });
+
+  // Tập doc có tương tác trong khoảng thời gian
+  const candidateIds = Array.from(
+    new Set([
+      ...Object.keys(downloadByDoc),
+      ...Object.keys(likesByDoc),
+      ...Object.keys(dislikesByDoc),
+    ])
+  ).map((id) => new mongoose.Types.ObjectId(id));
+
+  // Query filter cơ bản
+  const baseQuery = {
+    status: "APPROVED",
+    is_deleted: false,
+    last_approved_at: { $ne: null, $gte: start, $lte: end },
+  };
+
+  // Áp dụng các filter bổ sung (nếu có)
+  const filterFields = [
+    "organization",
+    "publisher",
+    "published_year",
+    "intensive",
+    "author",
+    "user",
+    "keyword",
+    "doc_type",
+    "level",
+    "subject",
+  ];
+  filterFields.forEach((field) => {
+    if (filters[field] !== undefined) {
+      if (Array.isArray(filters[field])) {
+        baseQuery[field] = { $in: filters[field] };
+      } else {
+        baseQuery[field] = filters[field];
+      }
+    }
+  });
+
+  const skip = (page - 1) * limit;
+
+  // Nếu không có doc tương tác, fallback: lấy theo thời gian duyệt mới nhất trong khoảng
+  if (candidateIds.length === 0) {
+    const query = { ...baseQuery, $or: accessOr };
+    // Luôn cố gắng trả về tối thiểu MIN_COUNT tài liệu
+    const desired = Math.max(limit, MIN_COUNT);
+    const [documents, totalRaw] = await Promise.all([
+      Document.find(query)
+        .sort({ last_approved_at: -1 })
+        .skip(skip)
+        .limit(desired)
+        .select(
+          "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+        )
+        .populate({
+          path: "user",
+          select: "_id first_name last_name avatar doc_count",
+          populate: { path: "organization", select: "_id name" },
+        })
+        .populate({ path: "organization", select: "_id name" })
+        .populate({ path: "subject", select: "_id name" }),
+      Document.countDocuments(query),
+    ]);
+    const total = Math.min(totalRaw, 50);
+    // Nếu vẫn chưa đủ, bổ sung thêm từ tất cả thời gian (bỏ qua giới hạn khoảng thời gian)
+    let filledDocs = documents;
+    if (filledDocs.length < desired) {
+      const excludeIds = new Set(filledDocs.map((d) => d._id.toString()));
+      const allTimeQuery = {
+        status: "APPROVED",
+        is_deleted: false,
+        $or: accessOr,
+        _id: {
+          $nin: Array.from(excludeIds).map(
+            (id) => new mongoose.Types.ObjectId(id)
+          ),
+        },
+      };
+      const moreAllTime = await Document.find(allTimeQuery)
+        .sort({ last_approved_at: -1 })
+        .limit(desired - filledDocs.length)
+        .select(
+          "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+        )
+        .populate({
+          path: "user",
+          select: "_id first_name last_name avatar doc_count",
+          populate: { path: "organization", select: "_id name" },
+        })
+        .populate({ path: "organization", select: "_id name" })
+        .populate({ path: "subject", select: "_id name" });
+      filledDocs = [...filledDocs, ...moreAllTime];
+    }
+    // Nếu vẫn chưa đủ, bổ sung thêm bằng newest (APPROVED mới duyệt)
+    if (filledDocs.length < desired) {
+      const excludeSet = new Set(filledDocs.map((d) => d._id.toString()));
+      const newestRes = await getNewestDocuments({
+        payload,
+        page: 1,
+        limit: desired - filledDocs.length,
+        ordering: "last_approved_at",
+        order: -1,
+        ...filters,
+      });
+      const extraNewest = (newestRes.documents || []).filter(
+        (d) => !excludeSet.has(d._id.toString())
+      );
+      filledDocs = [...filledDocs, ...extraNewest];
+    }
+    return {
+      documents: filledDocs,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      have_next: page < Math.ceil(total / limit),
+      period: { from: start, to: end },
+    };
+  }
+
+  // Lấy đầy đủ thông tin các candidate, có áp dụng quyền truy cập
+  const query = { ...baseQuery, $or: accessOr, _id: { $in: candidateIds } };
+  const candidates = await Document.find(query)
+    .select(
+      "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at like dislike"
+    )
+    .populate({
+      path: "user",
+      select: "_id first_name last_name avatar doc_count",
+      populate: { path: "organization", select: "_id name" },
+    })
+    .populate({ path: "organization", select: "_id name" })
+    .populate({ path: "subject", select: "_id name" });
+
+  // Tính điểm nổi bật: downloads*3 + likes*2 - dislikes + bonus theo độ mới
+  const now = end.getTime();
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const scored = candidates.map((doc) => {
+    const id = doc._id.toString();
+    const dl = downloadByDoc[id] || 0;
+    const lk = likesByDoc[id] || 0;
+    const dk = dislikesByDoc[id] || 0;
+    const daysSince = doc.last_approved_at
+      ? Math.max(0, (now - new Date(doc.last_approved_at).getTime()) / msPerDay)
+      : days;
+    const recencyBoost = 1 / (1 + daysSince); // càng mới càng cao
+    const score = dl * 3 + lk * 2 - dk + recencyBoost;
+    return { score, doc };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const total = Math.min(scored.length, 50);
+  const totalPages = Math.ceil(total / limit);
+  let slice = scored
+    .slice(0, 50)
+    .slice(skip, skip + limit)
+    .map((s) => s.doc);
+
+  // Bổ sung fallback để đảm bảo ít nhất MIN_COUNT tài liệu
+  const desired = Math.max(limit, MIN_COUNT);
+  if (slice.length < desired) {
+    const excludeIds = new Set(slice.map((d) => d._id.toString()));
+    const excludedAll = new Set([
+      ...excludeIds,
+      ...candidateIds.map((id) => id.toString()),
+    ]);
+
+    // Ưu tiên bổ sung trong cùng khoảng thời gian nhưng không thuộc candidate
+    const timeframeFallbackQuery = {
+      ...baseQuery,
+      $or: accessOr,
+      _id: {
+        $nin: Array.from(excludedAll).map(
+          (id) => new mongoose.Types.ObjectId(id)
+        ),
+      },
+    };
+    const extraInTimeframe = await Document.find(timeframeFallbackQuery)
+      .sort({ last_approved_at: -1 })
+      .limit(desired - slice.length)
+      .select(
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: { path: "organization", select: "_id name" },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" });
+
+    slice = [...slice, ...extraInTimeframe];
+
+    // Nếu vẫn chưa đủ, bổ sung thêm từ tất cả thời gian
+    if (slice.length < desired) {
+      const excludeIds2 = new Set(slice.map((d) => d._id.toString()));
+      const allTimeQuery = {
+        status: "APPROVED",
+        is_deleted: false,
+        $or: accessOr,
+        _id: {
+          $nin: Array.from(excludeIds2).map(
+            (id) => new mongoose.Types.ObjectId(id)
+          ),
+        },
+      };
+      const extraAllTime = await Document.find(allTimeQuery)
+        .sort({ last_approved_at: -1 })
+        .limit(desired - slice.length)
+        .select(
+          "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count status comment_count createdAt last_approved_at"
+        )
+        .populate({
+          path: "user",
+          select: "_id first_name last_name avatar doc_count",
+          populate: { path: "organization", select: "_id name" },
+        })
+        .populate({ path: "organization", select: "_id name" })
+        .populate({ path: "subject", select: "_id name" });
+      slice = [...slice, ...extraAllTime];
+    }
+    // Nếu vẫn chưa đủ, bổ sung thêm bằng newest (APPROVED mới duyệt)
+    if (slice.length < desired) {
+      const excludeSet = new Set(slice.map((d) => d._id.toString()));
+      const newestRes = await getNewestDocuments({
+        payload,
+        page: 1,
+        limit: desired - slice.length,
+        ordering: "last_approved_at",
+        order: -1,
+        ...filters,
+      });
+      const extraNewest = (newestRes.documents || []).filter(
+        (d) => !excludeSet.has(d._id.toString())
+      );
+      slice = [...slice, ...extraNewest];
+    }
+  }
+
+  return {
+    documents: slice,
+    total,
+    page,
+    totalPages,
+    have_next: page < totalPages,
+    period: { from: start, to: end },
+  };
+};
+
+// Gợi ý tài liệu có thể bạn quan tâm dựa theo thông tin user
+const getRecommendedDocuments = async ({ payload, page = 1, limit = 10 }) => {
+  if (!payload || !payload.userId) {
+    // Khách: fallback dùng newest
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
+  }
+
+  const userId = payload.userId;
+  const user = await User.findById(userId).select(
+    "organization shared_documents search_history read_history favorites field_of_study"
+  );
+
+  // Access filter cho ES
+  let sharedDocIds = [];
+  if (user && user.shared_documents && user.shared_documents.length > 0) {
+    sharedDocIds = user.shared_documents.map((item) =>
+      item.document.toString()
+    );
+  }
+
+  let accessFilter;
+  if (user && user.organization) {
+    accessFilter = {
+      bool: {
+        should: [
+          { term: { public_mode: "PUBLIC" } },
+          {
+            bool: {
+              must: [
+                { term: { public_mode: "SHARE_ORGANIZATION" } },
+                { term: { organization: user.organization.toString() } },
+              ],
+            },
+          },
+          { term: { user: user._id.toString() } },
+        ],
+      },
+    };
+    if (sharedDocIds.length > 0) {
+      accessFilter.bool.should.push({ terms: { id: sharedDocIds } });
+    }
+  } else {
+    accessFilter = { term: { public_mode: "PUBLIC" } };
+  }
+
+  // Gom seed: từ khoá tìm kiếm, field_of_study, tác giả/keyword/subject từ favorites & read_history
+  const keywordSeeds = (user.search_history || [])
+    .sort((a, b) => new Date(b.searched_at) - new Date(a.searched_at))
+    .slice(0, 10)
+    .map((x) => x.keyword)
+    .filter(Boolean);
+
+  const studyFields = (user.field_of_study || []).slice(0, 5);
+
+  const favoriteDocIds = (user.favorites || [])
+    .sort((a, b) => new Date(b.added_at) - new Date(a.added_at))
+    .slice(0, 5)
+    .map((x) => x.document.toString());
+
+  const readDocIds = (user.read_history || [])
+    .sort((a, b) => new Date(b.read_at) - new Date(a.read_at))
+    .slice(0, 10)
+    .map((x) => x.document.toString());
+
+  const excludeIds = new Set([...favoriteDocIds, ...readDocIds]);
+
+  const seedIds = [...favoriteDocIds, ...readDocIds];
+  let authorSeeds = [];
+  let keywordDocSeeds = [];
+  let subjectSeeds = [];
+  if (seedIds.length > 0) {
+    const seedDocs = await Document.find({
+      _id: { $in: seedIds.map((id) => new mongoose.Types.ObjectId(id)) },
+    })
+      .select("author keyword subject")
+      .populate({ path: "subject", select: "name" });
+    for (const d of seedDocs) {
+      if (Array.isArray(d.author)) authorSeeds.push(...d.author);
+      if (Array.isArray(d.keyword)) keywordDocSeeds.push(...d.keyword);
+      if (d.subject && d.subject.name) subjectSeeds.push(d.subject.name);
+    }
+  }
+
+  // Hợp nhất và giới hạn số token
+  const tokensSet = new Set(
+    [
+      ...keywordSeeds,
+      ...studyFields,
+      ...authorSeeds,
+      ...keywordDocSeeds,
+      ...subjectSeeds,
+    ].filter((t) => !!t && String(t).trim().length >= 2)
+  );
+
+  const tokens = Array.from(tokensSet).slice(0, 20);
+  if (tokens.length === 0) {
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
+  }
+
+  const combinedQuery = tokens.join(" ");
+
+  // Gọi ES một lần với query tổng hợp
+  let esResult;
+  try {
+    esResult = await searchDocuments(combinedQuery, accessFilter, {
+      page: 1,
+      limit: Math.max(limit * 5, 30),
+      ordering: "last_approved_at",
+      order: -1,
+    });
+  } catch (e) {
+    // lỗi ES -> fallback newest
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
+  }
+
+  const { documents, highlights } = esResult || {
+    documents: [],
+    highlights: {},
+  };
+  if (!documents || documents.length === 0) {
+    return await getNewestDocuments({
+      payload,
+      page,
+      limit,
+      ordering: "last_approved_at",
+      order: -1,
+    });
+  }
+
+  // Chấm điểm theo highlight + độ mới, loại trừ đã yêu thích/đã đọc
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const scored = documents
+    .filter((doc) => !excludeIds.has(doc._id.toString()))
+    .map((doc) => {
+      const id = doc._id.toString();
+      const hl = highlights?.[id] || {};
+      const matchScore =
+        (Array.isArray(hl.title) ? hl.title.length : 0) * 2 +
+        (Array.isArray(hl.author) ? hl.author.length : 0) * 1.5 +
+        (Array.isArray(hl.keyword) ? hl.keyword.length : 0) * 1.5;
+      const daysSince = doc.last_approved_at
+        ? Math.max(
+            0,
+            (now - new Date(doc.last_approved_at).getTime()) / msPerDay
+          )
+        : 365;
+      const recencyBoost = 0.5 / (1 + daysSince);
+      return { score: matchScore + recencyBoost, doc };
+    });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const total = scored.length;
+  const totalPages = Math.ceil(total / limit);
+  const skip = (page - 1) * limit;
+  const slice = scored.slice(skip, skip + limit).map((s) => s.doc);
+
+  return {
+    documents: slice,
+    total,
+    page,
+    totalPages,
+    have_next: page < totalPages,
+  };
+};
+
 const searchWithElasticsearch = async ({
   payload,
   search,
@@ -399,6 +914,7 @@ const getDocumentsBySubject = async ({
   order = -1,
   page = 1,
   limit = 5,
+  is_admin = false,
   ...filters
 }) => {
   const isValidSubject = await validateSubjects(subject);
@@ -408,7 +924,7 @@ const getDocumentsBySubject = async ({
 
   let user = null;
   let sharedDocIds = [];
-  if (payload && payload.userId) {
+  if (!is_admin && payload && payload.userId) {
     user = await User.findById(payload.userId).select(
       "organization shared_documents"
     );
@@ -419,47 +935,59 @@ const getDocumentsBySubject = async ({
 
   const skip = (page - 1) * limit;
 
-  // Điều kiện quyền truy cập
-  let accessOr = [];
-  if (user && user.organization) {
-    accessOr = [
-      { public_mode: "PUBLIC" },
-      { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
-      { user: user._id },
-    ];
-    if (sharedDocIds.length > 0) {
-      accessOr.push({ _id: { $in: sharedDocIds } });
-    }
-  } else {
-    accessOr = [{ public_mode: "PUBLIC" }];
-  }
-
-  // Điều kiện tìm kiếm
-  let searchOr = [];
-  if (search) {
-    searchOr = [
-      { title: { $regex: search, $options: "i" } },
-      { author: { $elemMatch: { $regex: search, $options: "i" } } },
-      { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
-    ];
-  }
-
-  // Kết hợp quyền truy cập, tìm kiếm và lọc subject
   let query = {
     status: "APPROVED",
     is_deleted: false,
     subject,
   };
-  if (searchOr.length > 0) {
-    query.$and = [
-      { $or: accessOr },
-      { $or: searchOr },
-      { subject },
-      { is_deleted: false },
-    ];
+
+  if (!is_admin) {
+    // Điều kiện quyền truy cập
+    let accessOr = [];
+    if (user && user.organization) {
+      accessOr = [
+        { public_mode: "PUBLIC" },
+        { public_mode: "SHARE_ORGANIZATION", organization: user.organization },
+        { user: user._id },
+      ];
+      if (sharedDocIds.length > 0) {
+        accessOr.push({ _id: { $in: sharedDocIds } });
+      }
+    } else {
+      accessOr = [{ public_mode: "PUBLIC" }];
+    }
+
+    // Điều kiện tìm kiếm
+    let searchOr = [];
+    if (search) {
+      searchOr = [
+        { title: { $regex: search, $options: "i" } },
+        { author: { $elemMatch: { $regex: search, $options: "i" } } },
+        { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+      ];
+    }
+
+    // Kết hợp quyền truy cập, tìm kiếm và lọc subject
+    if (searchOr.length > 0) {
+      query.$and = [
+        { $or: accessOr },
+        { $or: searchOr },
+        { subject },
+        { is_deleted: false },
+      ];
+    } else {
+      query.$or = accessOr;
+      query.subject = subject;
+    }
   } else {
-    query.$or = accessOr;
-    query.subject = subject;
+    // Admin: chỉ tìm kiếm nếu có
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { author: { $elemMatch: { $regex: search, $options: "i" } } },
+        { keyword: { $elemMatch: { $regex: search, $options: "i" } } },
+      ];
+    }
   }
 
   // Filter các trường khác
@@ -610,7 +1138,7 @@ const getMyDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt"
+        "_id user title author published_year publisher page file_type doc_type intensive url organization subject level view download_count comment_count status public_mode like dislike createdAt is_deleted is_delete_by_admin delete_by_admin_reason delete_by_admin_at expiredAt"
       )
       .populate({
         path: "user",
@@ -719,47 +1247,78 @@ const createDocument = async (data) => {
 
   await updateUserDocCount(data.user);
 
-  // Tạo embedding cho document chỉ khi file có thể tạo embedding được
-  if (canCreateEmbedding(data.file_type, data.url)) {
-    embeddinngDocument(doc);
-  }
-
   return doc;
 };
 
 const embeddinngDocument = async (document) => {
-  const result = await processDocumentAndCreateEmbedding(
-    document.url,
-    document.file_type
-  );
-  document.content_vector = result.embedding;
   try {
-    indexDocument(document);
+    const result = await processDocumentAndCreateEmbedding(
+      document.url,
+      document.file_type
+    );
+    document.content_vector = result.embedding;
+    try {
+      await indexDocument(document);
+    } catch (error) {
+      console.error("Lỗi khi đánh index document:", error);
+    }
+    return document;
   } catch (error) {
-    console.error("Lỗi khi đánh index document:", error);
+    console.error("Lỗi khi tạo embedding cho document:", error);
+    throw new Error("Không thể tạo embedding cho tài liệu");
   }
-  return document;
 };
 
-const deleteDocument = async (id) => {
-  const doc = await Document.findByIdAndUpdate(
-    id,
-    {
-      is_deleted: true,
-      expiredAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-    },
-    { new: true }
-  );
+const deleteDocument = async (documentId, userId, reason) => {
+  const doc = await Document.findById(documentId);
+  if (!doc) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+  const isOwner = doc.user._id.toString() === userId;
+  const isAdmin = await Account.findOne({ user: userId, is_admin: true });
+  // Kiểm tra quyền: owner hoặc admin
+  if (!isOwner && !isAdmin) {
+    throw new Error("Bạn không có quyền xóa tài liệu này");
+  }
+
+  if (!isOwner) {
+    if (isAdmin) {
+      doc.is_delete_by_admin = true;
+      doc.delete_by_admin = userId;
+      doc.delete_by_admin_reason = reason;
+      doc.delete_by_admin_at = new Date();
+    }
+  }
+
+  doc.is_deleted = true;
+  doc.expiredAt = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
+  await doc.save();
 
   // Cập nhật số lượng tài liệu của user
   if (doc && doc.user) {
     await updateUserDocCount(doc.user);
   }
   try {
-    await deleteESDocument(id);
+    await deleteESDocument(documentId);
   } catch (error) {
     console.error("Lỗi khi xóa document trong Elasticsearch:", error);
   }
+
+  // xoas lioch su neu can thiet
+  await User.updateMany(
+    { "read_history.document": documentId },
+    { $pull: { read_history: { document: documentId } } }
+  );
+
+  // xóa hết private_share liên quan đến document này
+  await PrivateShare.deleteMany({
+    doc: documentId,
+  });
+
+  // xóa hết access request liên quan đến document này
+  await AccessRequest.deleteMany({
+    doc: documentId,
+  });
 
   return doc;
 };
@@ -777,7 +1336,7 @@ const updateDocument = async (id, data) => {
 };
 
 const getDocumentById = async (id, userId) => {
-  const doc = await Document.findOne({ _id: id })
+  let doc = await Document.findOne({ _id: id })
     .populate({
       path: "user",
       select:
@@ -809,6 +1368,22 @@ const getDocumentById = async (id, userId) => {
     }
   }
 
+  // VIP users get access to AI-generated summary; non-VIP users should not see it
+  if (userId && doc) {
+    const account = await Account.findOne({ user: userId }).select("is_vip");
+    if (account?.is_vip) {
+      // keep summary as-is (already on doc)
+    } else {
+      // remove summary for non-VIP users
+      if (doc.summary_by_ai) {
+        // convert to plain object and null out summary
+        const obj = doc.toObject ? doc.toObject() : { ...doc };
+        obj.summary_by_ai = null;
+        doc = obj;
+      }
+    }
+  }
+
   return doc;
 };
 
@@ -819,9 +1394,62 @@ const getPendingDocuments = async ({
   order = -1,
   page = 1,
   limit = 5,
+  show_all = false,
   ...filters
 }) => {
   const skip = (page - 1) * limit;
+
+  // Kiểm tra quyền admin và filter theo organization + assigned_to
+  let hasAllPermission = false;
+  let hasManageDocumentPermission = false;
+  let allowedOrgIds = [];
+  let canReviewAllOrg = false;
+
+  if (payload && payload.accountId) {
+    const account = await Account.findById(payload.accountId);
+    if (account && account.is_admin) {
+      // Lấy tất cả assignment active của admin
+      const assignments = await Assignment.find({
+        account: payload.accountId,
+        is_active: true,
+      }).populate({
+        path: "role",
+        select: "_id code permissions",
+      });
+
+      // Kiểm tra xem admin có quyền ALL không
+      hasAllPermission = assignments.some(
+        (assignment) =>
+          assignment.role && assignment.role.permissions.includes("ALL")
+      );
+
+      if (!hasAllPermission) {
+        // Kiểm tra admin có quyền MANAGE_DOCUMENT không
+        const documentAssignments = assignments.filter(
+          (assignment) =>
+            assignment.role &&
+            assignment.role.permissions.includes("MANAGE_DOCUMENT")
+        );
+
+        if (documentAssignments.length > 0) {
+          hasManageDocumentPermission = true;
+
+          // Lấy danh sách organization IDs mà admin có thể duyệt
+          for (const assignment of documentAssignments) {
+            const assignmentOrgId = assignment.organization;
+
+            // Nếu assignment không có organization cụ thể, admin có thể duyệt tất cả
+            if (!assignmentOrgId) {
+              canReviewAllOrg = true;
+              break;
+            } else {
+              allowedOrgIds.push(assignmentOrgId);
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Điều kiện tìm kiếm
   let searchOr = [];
@@ -838,6 +1466,148 @@ const getPendingDocuments = async ({
     $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
     is_deleted: false,
   };
+
+  // Kiểm tra quyền và filter theo organization + assigned_to
+  let currentAdminUserId = null;
+  if (payload && payload.accountId) {
+    const account = await Account.findById(payload.accountId);
+    if (account && account.is_admin) {
+      currentAdminUserId = account.user;
+
+      // Nếu show_all = true và admin có quyền (ALL hoặc MANAGE_DOCUMENT), xem tất cả không filter
+      if (show_all) {
+        // Chỉ cho phép xem tất cả nếu admin có quyền ALL hoặc MANAGE_DOCUMENT
+        if (hasAllPermission || hasManageDocumentPermission) {
+          // Không thêm filter nào, admin sẽ thấy tất cả pending documents
+          // Bỏ qua phần filter bên dưới
+        } else {
+          // Admin không có quyền, không thấy document nào
+          return {
+            documents: [],
+            total: 0,
+            page,
+            totalPages: 0,
+            have_next: false,
+          };
+        }
+      } else if (!hasAllPermission) {
+        // Nếu không có option show_all, áp dụng filter theo quyền như bình thường
+        // Lấy danh sách documents có approval request với assigned_to = null
+        const documentsWithNullAssignment = await ApprovalRequest.aggregate([
+          {
+            $match: {
+              status: "PENDING",
+              assigned_to: null,
+            },
+          },
+          {
+            $lookup: {
+              from: "documents",
+              localField: "doc",
+              foreignField: "_id",
+              as: "document",
+            },
+          },
+          {
+            $unwind: "$document",
+          },
+          {
+            $match: {
+              "document.status": { $in: ["PENDING", "PENDING_EDIT"] },
+              "document.is_deleted": false,
+            },
+          },
+          {
+            $project: {
+              docId: "$doc",
+            },
+          },
+        ]);
+
+        const docIdsWithNullAssignment = documentsWithNullAssignment.map(
+          (item) => item.docId
+        );
+
+        // Nếu admin có quyền MANAGE_DOCUMENT
+        if (hasManageDocumentPermission) {
+          // Tạo điều kiện OR:
+          // 1. Documents có assigned_to = null (tất cả admin MANAGE_DOCUMENT thấy được)
+          // 2. Documents được gán cho admin hiện tại
+          // 3. Documents thuộc organization mà admin được gán
+          const orConditions = [];
+
+          // Điều kiện 1: Documents có assigned_to = null
+          if (docIdsWithNullAssignment.length > 0) {
+            orConditions.push({ _id: { $in: docIdsWithNullAssignment } });
+          }
+
+          // Điều kiện 2: Documents được gán cho admin hiện tại
+          const documentsAssignedToMe = await ApprovalRequest.find({
+            status: "PENDING",
+            assigned_to: currentAdminUserId,
+          }).select("doc");
+          const docIdsAssignedToMe = documentsAssignedToMe.map(
+            (req) => req.doc
+          );
+          if (docIdsAssignedToMe.length > 0) {
+            orConditions.push({ _id: { $in: docIdsAssignedToMe } });
+          }
+
+          // Điều kiện 3: Documents thuộc organization mà admin được gán
+          if (canReviewAllOrg) {
+            // Admin có thể duyệt tất cả document có organization
+            orConditions.push({ organization: { $ne: null } });
+          } else if (allowedOrgIds.length > 0) {
+            // Admin chỉ có thể duyệt document của các organization được gán
+            orConditions.push({ organization: { $in: allowedOrgIds } });
+          }
+
+          // Nếu không có điều kiện nào, admin không thấy document nào
+          if (orConditions.length === 0) {
+            return {
+              documents: [],
+              total: 0,
+              page,
+              totalPages: 0,
+              have_next: false,
+            };
+          }
+
+          // Thêm điều kiện OR vào query
+          query.$and = query.$and || [];
+          query.$and.push({ $or: orConditions });
+        } else {
+          // Admin không có quyền MANAGE_DOCUMENT, không thấy document nào
+          return {
+            documents: [],
+            total: 0,
+            page,
+            totalPages: 0,
+            have_next: false,
+          };
+        }
+      }
+      // Nếu admin có quyền ALL, không cần thêm filter
+    } else {
+      // Không phải admin, không thấy pending documents
+      return {
+        documents: [],
+        total: 0,
+        page,
+        totalPages: 0,
+        have_next: false,
+      };
+    }
+  } else {
+    // Không có payload hoặc không phải admin, không thấy pending documents
+    return {
+      documents: [],
+      total: 0,
+      page,
+      totalPages: 0,
+      have_next: false,
+    };
+  }
 
   // Thêm điều kiện search nếu có
   if (searchOr.length > 0) {
@@ -910,6 +1680,110 @@ const getPendingDocuments = async ({
   };
 };
 
+const getMyPendingDocuments = async (
+  userId,
+  { ordering = "createdAt", order = -1, page = 1, limit = 5 } = {}
+) => {
+  // Thu thập docIds từ ApprovalRequest được gán cho tôi
+  const approvals = await ApprovalRequest.find({
+    assigned_to: userId,
+    status: "PENDING",
+  }).select("doc");
+  const docIdsFromApprovals = approvals.map((a) => a.doc);
+
+  // Thu thập docIds từ EditApproval được gán cho tôi
+  const editApprovals = await EditApproval.find({
+    assigned_to: userId,
+    status: "PENDING",
+  }).select("doc");
+  const docIdsFromEditApprovals = editApprovals.map((ea) => ea.doc);
+
+  const docIdSet = new Set([
+    ...docIdsFromApprovals.map((id) => id.toString()),
+    ...docIdsFromEditApprovals.map((id) => id.toString()),
+  ]);
+  const docIds = Array.from(docIdSet).map(
+    (id) => new mongoose.Types.ObjectId(id)
+  );
+
+  // Không có tài liệu được gán -> trả về rỗng cùng format
+  if (docIds.length === 0) {
+    return {
+      documents: [],
+      total: 0,
+      page,
+      totalPages: 0,
+      have_next: false,
+    };
+  }
+
+  const query = {
+    _id: { $in: docIds },
+    is_deleted: false,
+    $or: [{ status: "PENDING" }, { status: "PENDING_EDIT" }],
+  };
+
+  const skip = (page - 1) * limit;
+  const sort = {};
+  sort[ordering] = parseInt(order);
+
+  const [documents, total] = await Promise.all([
+    Document.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "_id user title author published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status createdAt"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar organization doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" }),
+    Document.countDocuments(query),
+  ]);
+
+  // Ghép ai_violation_level từ ApprovalRequest (PENDING, assigned_to: userId) cho các doc trong trang hiện tại
+  const pageDocIds = documents.map((d) => d._id);
+  const approvalsForPageDocs = await ApprovalRequest.find({
+    doc: { $in: pageDocIds },
+    status: "PENDING",
+    assigned_to: userId,
+  })
+    .select("doc ai_violation_level createdAt")
+    .sort({ createdAt: -1 });
+
+  const violationMap = {};
+  approvalsForPageDocs.forEach((ap) => {
+    const id = ap.doc.toString();
+    if (!violationMap[id]) {
+      violationMap[id] = ap.ai_violation_level;
+    }
+  });
+
+  const documentsWithViolation = documents.map((d) => {
+    const obj = d.toObject ? d.toObject() : { ...d };
+    obj.ai_violation_level = violationMap[d._id.toString()] || "NONE";
+    return obj;
+  });
+
+  const totalPages = Math.ceil(total / limit);
+  const have_next = page < totalPages;
+
+  return {
+    documents: documentsWithViolation,
+    total,
+    page,
+    totalPages,
+    have_next,
+  };
+};
+
 const createDownloadLink = async (userId, documentId) => {
   const currentTime = new Date();
   // Kiểm tra quyền xem tài liệu
@@ -937,11 +1811,6 @@ const createDownloadLink = async (userId, documentId) => {
 
   const type = user.free_download_count > 0 ? "FREE" : "POINT";
   const cost = type === "FREE" ? 0 : await getDownloadPrice(documentId, user);
-  if (type === "POINT" && user.point < cost) {
-    throw new Error(
-      `Không đủ điểm để tải tài liệu. Tài liệu cần ${cost} điểm, bạn hiện có ${user.point} điểm.`
-    );
-  }
 
   //Tạo download link
 
@@ -1009,7 +1878,8 @@ const processDownload = async (downloadId, userId) => {
       "SPEND",
       downloadLink.cost,
       `Tải tài liệu ${document.title}`,
-      "USAGE"
+      "USAGE",
+      document._id
     );
   }
 
@@ -1021,7 +1891,7 @@ const processDownload = async (downloadId, userId) => {
   // Cập nhật thống kê download
   try {
     await incrementDownloadCount(userId);
-    await updateDocumentStats(documentId, document.user.toString(), "download");
+    await updateDocumentStats(document, document.user.toString(), "download");
   } catch (statsError) {
     console.error("Lỗi cập nhật thống kê download:", statsError);
   }
@@ -1361,8 +2231,10 @@ const reactionDocument = async (documentId, userId, reactionType) => {
     return { documentId, userId, reactionType };
   }
 
-  if (!["LIKE", "DISLIKE"].includes(reactionType)) {
-    throw new Error("Loại reaction không hợp lệ");
+  if (!["LIKE", "DISLIKE", "UNREACT"].includes(reactionType)) {
+    throw new Error(
+      "Loại reaction không hợp lệ. Chỉ chấp nhận: LIKE, DISLIKE, UNREACT"
+    );
   }
 
   if (existingReaction) {
@@ -1390,15 +2262,41 @@ const reactionDocument = async (documentId, userId, reactionType) => {
     }
     await newReaction.save();
 
-    // Cộng 1 điểm cho việc đánh giá tài liệu
+    // Chỉ cộng điểm khi vừa đánh giá vừa bình luận
     try {
-      await createPointTransaction(
-        userId,
-        "EARN",
-        1,
-        `Đánh giá tài liệu ${doc.title}`,
-        "BOTH"
-      );
+      const Comment = require("../models/comment.model");
+      const existingComment = await Comment.findOne({
+        doc: documentId,
+        user: userId,
+      });
+
+      if (existingComment) {
+        // Kiểm tra xem user đã nhận điểm cho việc vừa comment vừa đánh giá document này chưa
+        const existingBonusTransaction = await PointTransaction.findOne({
+          user: userId,
+          type: "EARN",
+          reason: { $regex: "Thưởng comment và đánh giá tài liệu" },
+          doc: documentId,
+        });
+
+        if (!existingBonusTransaction) {
+          // User đã comment và vừa reaction → cộng 1 điểm
+          await earnPoints(
+            userId,
+            1,
+            `Thưởng comment và đánh giá tài liệu ${doc.title}`,
+            documentId
+          );
+
+          // Tạo notification cho điểm thưởng
+          const { notifyPointsEarned } = require("./notification.service");
+          await notifyPointsEarned(
+            userId,
+            1,
+            `Thưởng comment và đánh giá tài liệu ${doc.title}`
+          );
+        }
+      }
     } catch (pointError) {
       console.error("Error creating reaction points:", pointError);
       // Không làm fail việc reaction nếu cộng điểm thất bại
@@ -1713,6 +2611,23 @@ const getDocumentsByUserId = async ({
   };
 };
 
+const requestEditDocument = async (documentId, reason) => {
+  // Kiểm tra tài liệu tồn tại
+  const document = await Document.findById(documentId);
+  if (!document) {
+    throw new Error("Tài liệu không tồn tại");
+  }
+
+  // Kiểm tra trạng thái hiện tại
+  if (document.status !== "APPROVED") {
+    throw new Error("Tài liệu không thể yêu cầu chỉnh sửa");
+  }
+
+  // Tạo yêu cầu chỉnh sửa
+  document.status = "REQUESTED_EDIT";
+  await document.save();
+};
+
 const incrementViewCount = async (documentId, userId) => {
   // Chỉ kiểm tra tài liệu tồn tại và đã được duyệt
   const document = await Document.findById(documentId);
@@ -1755,12 +2670,15 @@ const incrementViewCount = async (documentId, userId) => {
 module.exports = {
   getAllDocuments,
   getNewestDocuments,
+  getFeaturedDocuments,
+  getRecommendedDocuments,
   createDocument,
   deleteDocument,
   updateDocument,
   getDocumentById,
   getDocumentsBySubject,
   getPendingDocuments,
+  getMyPendingDocuments,
   getMyDocuments,
   createDownloadLink,
   processDownload,
@@ -1775,6 +2693,9 @@ module.exports = {
   getReadHistory,
   getDocumentsByUserId,
   incrementViewCount,
+  canCreateEmbedding,
+  embeddinngDocument,
+  requestEditDocument,
 };
 
 const hasDocumentManageRole = async (accountId, documentId) => {

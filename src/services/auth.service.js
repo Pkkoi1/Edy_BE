@@ -5,8 +5,10 @@ const Restriction = require("../models/restriction.model");
 const OTP = require("../models/otp.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
+const { SMTPClient } = require("emailjs");
 const { createPointTransaction } = require("./point_transaction.service");
+const { getUserPermissions } = require("./user.service");
 
 const generateTokens = (payload) => {
   // Chỉ lấy những trường cần thiết, tránh các trường JWT tự động thêm
@@ -99,7 +101,7 @@ const registerService = async ({ first_name, last_name, email, password }) => {
     // Không trả về lỗi nếu việc cộng điểm thất bại
   }
 
-  return { success: true };
+  return { success: true, userId: user._id };
 };
 
 const getMeService = async (payload, accessToken, refreshToken) => {
@@ -175,7 +177,14 @@ const getMeService = async (payload, accessToken, refreshToken) => {
   if (roles.length > 0) responseRoles = roles.map((a) => a.role.code);
   if (!account.is_verified) responseRoles = ["NOT_VERIFIED"];
 
-  return { account, user, roles: responseRoles, newTokens };
+  // Get user permissions
+  const permissions = await getUserPermissions(user._id);
+
+  // Convert to plain object and add permissions
+  const userObj = user.toObject();
+  userObj.permissions = permissions.permissions;
+
+  return { account, user: userObj, roles: responseRoles, newTokens };
 };
 
 const refreshTokenService = async (payload) => {
@@ -227,13 +236,8 @@ const verifyToken = (token, secret) => {
 
 // Tạo transporter email
 const createEmailTransporter = () => {
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  return sgMail;
 };
 
 // Tạo OTP ngẫu nhiên 6 chữ số
@@ -246,13 +250,13 @@ const sendOTP = async (email, otp) => {
   try {
     const transporter = createEmailTransporter();
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    const msg = {
       to: email,
-      subject: "Mã OTP xác thực tài khoản - Edy",
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: "Mã OTP xác thực tài khoản - Study Share",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Xác thực tài khoản Edy</h2>
+          <h2 style="color: #333;">Xác thực tài khoản Study Share</h2>
           <p>Xin chào,</p>
           <p>Mã OTP của bạn là:</p>
           <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
@@ -261,12 +265,12 @@ const sendOTP = async (email, otp) => {
           <p>Mã này sẽ hết hạn sau 10 phút.</p>
           <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
           <br>
-          <p>Trân trọng,<br>Đội ngũ Edy</p>
+          <p>Trân trọng,<br>Đội ngũ Study Share</p>
         </div>
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await transporter.send(msg);
     return { success: true };
   } catch (error) {
     console.error("Error sending OTP email:", error);
@@ -343,6 +347,99 @@ const verifyOTPService = async (email, otp, type = "REGISTER") => {
   }
 };
 
+// Tạo mật khẩu ngẫu nhiên theo yêu cầu validation
+const generateRandomPassword = () => {
+  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lowercase = "abcdefghijklmnopqrstuvwxyz";
+  const numbers = "0123456789";
+  const specialChars = "!@#"; // Chỉ sử dụng 3 ký tự đặc biệt: ! @ #
+
+  // Đảm bảo có ít nhất 1 ký tự mỗi loại
+  let password = "";
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += specialChars[Math.floor(Math.random() * specialChars.length)]; // Chỉ 1 ký tự đặc biệt
+
+  // Thêm các ký tự ngẫu nhiên còn lại để đạt độ dài tối thiểu 8
+  const allChars = uppercase + lowercase + numbers + specialChars;
+  for (let i = password.length; i < 8; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  // Shuffle password để không có pattern cố định
+  return password
+    .split("")
+    .sort(() => Math.random() - 0.5)
+    .join("");
+};
+
+// Gửi email mật khẩu mới
+const sendNewPassword = async (email, newPassword) => {
+  try {
+    const transporter = createEmailTransporter();
+
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: "Mật khẩu mới - Study Share",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Mật khẩu mới cho tài khoản Study Share</h2>
+          <p>Xin chào,</p>
+          <p>Chúng tôi đã tạo mật khẩu mới cho tài khoản của bạn:</p>
+          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #dc3545; font-size: 24px; margin: 0; word-break: break-all;">${newPassword}</h1>
+          </div>
+          <p><strong>Lưu ý:</strong> Vui lòng đổi mật khẩu ngay sau khi đăng nhập để bảo mật tài khoản.</p>
+          <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng liên hệ với chúng tôi ngay lập tức.</p>
+          <br>
+          <p>Trân trọng,<br>Đội ngũ Study Share</p>
+        </div>
+      `,
+    };
+
+    await transporter.send(msg);
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending new password email:", error);
+    return { error: "Không thể gửi email mật khẩu mới" };
+  }
+};
+
+// Quên mật khẩu - tạo mật khẩu mới và gửi email
+const forgotPasswordService = async (email) => {
+  try {
+    // Kiểm tra email có tồn tại không
+    const account = await Account.findOne({ email });
+    if (!account) {
+      return { error: "Email không tồn tại trong hệ thống", status: 404 };
+    }
+
+    // Tạo mật khẩu mới
+    const newPassword = generateRandomPassword();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Cập nhật mật khẩu trong database
+    account.password = hashedPassword;
+    await account.save();
+
+    // Gửi email mật khẩu mới
+    const emailResult = await sendNewPassword(email, newPassword);
+    if (emailResult.error) {
+      return { error: emailResult.error, status: 500 };
+    }
+
+    return {
+      success: true,
+      message: "Mật khẩu mới đã được gửi đến email của bạn",
+    };
+  } catch (error) {
+    console.error("Error in forgot password service:", error);
+    return { error: "Không thể đặt lại mật khẩu", status: 500 };
+  }
+};
+
 module.exports = {
   generateTokens,
   loginService,
@@ -352,4 +449,5 @@ module.exports = {
   verifyToken,
   createOTPService,
   verifyOTPService,
+  forgotPasswordService,
 };

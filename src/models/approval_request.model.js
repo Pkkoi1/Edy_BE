@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const approvalRequestSchema = new mongoose.Schema({
   doc: { type: mongoose.Schema.Types.ObjectId, ref: 'Document', required: true },
+  assigned_to: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   requester: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   reviewed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   reviewed_at: { type: Date, default: null },
@@ -18,5 +19,7 @@ const approvalRequestSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+
 
 module.exports = mongoose.model('ApprovalRequest', approvalRequestSchema);

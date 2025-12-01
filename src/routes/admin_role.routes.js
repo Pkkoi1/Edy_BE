@@ -16,6 +16,27 @@ const {
  *   get:
  *     summary: Lấy tất cả các vai trò
  *     tags: [Role]
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên hoặc mã vai trò (regex, case insensitive)
+ *       - in: query
+ *         name: description
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo mô tả vai trò (regex, case insensitive)
+ *       - in: query
+ *         name: permissions
+ *         schema:
+ *           type: string
+ *         description: Lọc theo quyền (string separated by comma)
+ *       - in: query
+ *         name: is_active
+ *         schema:
+ *           type: boolean
+ *         description: Lọc theo trạng thái hoạt động
  *     responses:
  *       200:
  *         description: Thành công
@@ -248,6 +269,52 @@ router.get(
   "/assignments",
   requireAdminPermission(["MANAGE_ROLE"]),
   adminRoleController.getAllAssignments
+);
+
+/**
+ * @swagger
+ * /admin/roles/user/{accountId}:
+ *   delete:
+ *     summary: Gỡ toàn bộ vai trò của một người dùng (tước quyền admin)
+ *     tags: [Role]
+ *     parameters:
+ *       - in: path
+ *         name: accountId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của tài khoản cần gỡ vai trò
+ *         example: "60d0fe4f5311236168a109ca"
+ *     responses:
+ *       200:
+ *         description: Gỡ vai trò thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     deletedCount:
+ *                       type: integer
+ *                       description: Số lượng vai trò đã gỡ
+ *                       example: 3
+ *                 message:
+ *                   type: string
+ *                   example: "Revoked all roles for the account"
+ *       400:
+ *         description: Lỗi yêu cầu hoặc không có quyền
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.delete(
+  "/roles/user/:accountId",
+  requireAdminPermission(["MANAGE_ROLE"]),
+  adminRoleController.revokeAllRoles
 );
 
 module.exports = router;

@@ -1,36 +1,43 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const roleSchema = new mongoose.Schema({
-  code: {
-    type: String,
-    enum: [
-      'SUPER_ADMIN',
-      'DOCUMENT_ADMIN',
-      'USER_ADMIN',
-      'SYSTEM_ADMIN',
-      'ENTITY_ADMIN',
-      'CUSTOM_ROLE'
+const roleSchema = new mongoose.Schema(
+  {
+    code: {
+      type: String,
+      enum: [
+        "SUPER_ADMIN",
+        "DOCUMENT_ADMIN",
+        "USER_ADMIN",
+        "SYSTEM_ADMIN",
+        "ENTITY_ADMIN",
+        "CUSTOM_ROLE",
+      ],
+      required: true,
+    },
+    name: { type: String, required: true },
+    description: String,
+    permissions: [
+      {
+        type: String,
+        enum: [
+          "MANAGE_DOCUMENT",
+          "HANDLE_REPORT",
+          "MANAGE_USER",
+          "MANAGE_COMMENT",
+          "MANAGE_SERVER",
+          "MANAGE_ENTITY", // quản lý thực thể trong hệ thống, ví dụ như subject, organization
+          "MANAGE_ROLE",
+          "VIEW_STATISTICS", // xem thống kê
+          "MANAGE_STATISTICS", // quản lý thống kê (refresh, etc.)
+          "ALL",
+        ],
+      },
     ],
-    required: true,
+    is_active: { type: Boolean, default: true },
   },
-  name: { type: String, required: true },
-  description: String,
-  permissions: [{
-    type: String,
-    enum: [
-      'MANAGE_DOCUMENT',
-      'HANDLE_REPORT',
-      'MANAGE_USER',
-      'MANAGE_COMMENT',
-      'MANAGE_SERVER',
-      'MANAGE_ENTITY', // quản lý thực thể trong hệ thống, ví dụ như subject, organization
-      'MANAGE_ROLE',
-      'ALL'
-    ]
-  }],
-  is_active: { type: Boolean, default: true }
-}, {
-  timestamps: true
-});
+  {
+    timestamps: true,
+  }
+);
 
-module.exports = mongoose.model('Role', roleSchema);
+module.exports = mongoose.model("Role", roleSchema);

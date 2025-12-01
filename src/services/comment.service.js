@@ -7,6 +7,9 @@ const {
   notifyCommentReply,
 } = require("./notification.service");
 const { incrementCommentCount } = require("./user_statistics.service");
+const { earnPoints } = require("./point_transaction.service");
+const Reaction = require("../models/reaction.model");
+const PointTransaction = require("../models/point_transaction.model");
 const mongoose = require("mongoose");
 
 // Tạo bình luận mới
@@ -60,35 +63,78 @@ const createComment = async (userId, documentId, content, parentId = null) => {
     select: "_id first_name last_name avatar",
   });
 
-  // Gửi thông báo cho chủ sở hữu tài liệu hoặc người được reply
+  // Kiểm tra xem user đã reaction trên document này chưa
+  // Nếu có thì cộng thêm 1 điểm bonus cho việc comment + reaction
   try {
-    const user = await User.findById(userId);
-    const commenterName = `${user.first_name} ${user.last_name}`;
+    const existingReaction = await Reaction.findOne({
+      doc: documentId,
+      user: userId,
+    });
 
-    if (parentId) {
-      // Đây là reply - thông báo cho người được reply
-      const parentComment = await Comment.findById(parentId);
-      if (parentComment && parentComment.user.toString() !== userId) {
-        await notifyCommentReply(
-          parentComment.user.toString(),
-          comment._id,
-          commenterName
+    if (existingReaction) {
+      // Kiểm tra xem user đã nhận bonus points cho document này chưa
+      const existingBonusTransaction = await PointTransaction.findOne({
+        user: userId,
+        type: "EARN",
+        reason: { $regex: "Thưởng comment và đánh giá tài liệu" },
+        doc: documentId,
+      });
+
+      if (!existingBonusTransaction) {
+        // User đã reaction và vừa comment → cộng 1 điểm bonus
+        await earnPoints(
+          userId,
+          1,
+          `Thưởng comment và đánh giá tài liệu ${document.title}`,
+          documentId
         );
-      }
-    } else {
-      // Đây là comment chính - thông báo cho chủ sở hữu tài liệu
-      if (document.user.toString() !== userId) {
-        await notifyNewComment(
-          document.user.toString(),
-          comment._id,
-          commenterName
+
+        // Tạo notification cho điểm bonus
+        const { notifyPointsEarned } = require("./notification.service");
+        await notifyPointsEarned(
+          userId,
+          1,
+          `Thưởng comment và đánh giá tài liệu ${document.title}`
         );
       }
     }
-  } catch (notificationError) {
-    // Log lỗi nhưng không làm fail việc tạo comment
-    console.error("Lỗi gửi thông báo comment:", notificationError);
+  } catch (bonusError) {
+    console.error(
+      "Error creating bonus points for comment + reaction:",
+      bonusError
+    );
+    // Không làm fail việc tạo comment nếu cộng điểm bonus thất bại
   }
+
+  // Gửi thông báo cho chủ sở hữu tài liệu hoặc người được reply
+  // try {
+  //   const user = await User.findById(userId);
+  //   const commenterName = `${user.first_name} ${user.last_name}`;
+
+  //   if (parentId) {
+  //     // Đây là reply - thông báo cho người được reply
+  //     const parentComment = await Comment.findById(parentId);
+  //     if (parentComment && parentComment.user.toString() !== userId) {
+  //       await notifyCommentReply(
+  //         parentComment.user.toString(),
+  //         comment._id,
+  //         commenterName
+  //       );
+  //     }
+  //   } else {
+  //     // Đây là comment chính - thông báo cho chủ sở hữu tài liệu
+  //     if (document.user.toString() !== userId) {
+  //       await notifyNewComment(
+  //         document.user.toString(),
+  //         comment._id,
+  //         commenterName
+  //       );
+  //     }
+  //   }
+  // } catch (notificationError) {
+  //   // Log lỗi nhưng không làm fail việc tạo comment
+  //   console.error("Lỗi gửi thông báo comment:", notificationError);
+  // }
 
   return comment;
 };

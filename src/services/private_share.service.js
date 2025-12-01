@@ -21,6 +21,11 @@ const createShareLink = async (documentId, userId, shareOptions = {}) => {
         if (document.public_mode === 'PUBLIC' || document.public_mode === 'SHARE_ORGANIZATION') {
             throw new Error('Tài liệu đang ở chế độ công khai, không thể tạo link chia sẻ riêng tư');
         }
+
+        if (document.is_deleted) {
+            throw new Error('Tài liệu đã bị xóa, không thể tạo link chia sẻ');
+        }
+
         const shareLink = new PrivateShare({
             name: shareOptions.name || `Link chia sẻ ${document.title}`,
             doc: documentId,
@@ -129,7 +134,7 @@ const accessShareLink = async (linkId, userId) => {
 
         // Kiểm tra status
         if (shareLink.status !== 'ACTIVE') {
-            throw new Error('Link chia sẻ đã bị vô hiệu hóa');
+            throw new Error('Link chia sẻ không hoạt động');
         }
         // Kiểm tra time limit
         if (shareLink.time_limited) {
@@ -137,6 +142,10 @@ const accessShareLink = async (linkId, userId) => {
                 throw new Error('Link chia sẻ không có hiệu lực');
             }
             if (shareLink.end_date && current > shareLink.end_date) {
+                if(shareLink.status == 'ACTIVE'){
+                    shareLink.status = 'INACTIVE';
+                    await shareLink.save();
+                }
                 throw new Error('Link chia sẻ không có hiệu lực');
             }
         }
@@ -217,6 +226,9 @@ const updateShareLinkStatus = async (linkId, userId, newStatus) => {
         }
 
         shareLink.status = newStatus;
+        if (newStatus === 'DISABLED') {
+            shareLink.expiredAt = new Date(current + 24 * 60 * 60 * 1000);
+        }
         await shareLink.save();
 
         if (newStatus == 'DISABLED') {
@@ -242,6 +254,10 @@ const updateShareLinkStatus = async (linkId, userId, newStatus) => {
                     await document.save();
                 }
             }
+            // xóa hết access request liên quan đến private_share này
+            await AccessRequest.deleteMany({
+                private_share: shareLink._id
+            });
         }
         return shareLink;
     } catch (error) {

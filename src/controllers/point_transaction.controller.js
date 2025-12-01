@@ -4,6 +4,9 @@ const {
   earnPoints,
   penalizeUser,
 } = require("../services/point_transaction.service");
+const Account = require("../models/account.model");
+const { notifyVipStatusChanged } = require("../services/notification.service");
+const { logUserVipStatusChanged } = require("../services/activity_log.service");
 
 exports.spendPoints = async (req, res) => {
   try {
@@ -95,6 +98,38 @@ exports.earnPoints = async (req, res) => {
 
     const result = await earnPoints(userId, amount, reason.trim());
 
+    // Check and update VIP status after earning points
+    try {
+      const account = await Account.findOne({ user_id: userId }).populate(
+        "user_id"
+      );
+      if (account && account.user_id) {
+        const user = account.user_id;
+        const shouldBeVip = user.rank_point >= 500;
+        const isCurrentlyVip = account.is_vip;
+
+        if (shouldBeVip !== isCurrentlyVip) {
+          account.is_vip = shouldBeVip;
+
+          // Handle VIP benefits - only increase free download count for first time VIP
+          if (shouldBeVip && !account.has_been_vip) {
+            user.free_download_count += 10; // Increase by 10 for first time VIP
+            account.has_been_vip = true;
+            await user.save();
+          }
+
+          await account.save();
+
+          // Send notification and log activity
+          await notifyVipStatusChanged(userId, shouldBeVip);
+          await logUserVipStatusChanged(userId, shouldBeVip);
+        }
+      }
+    } catch (vipError) {
+      console.error("Error updating VIP status in earnPoints:", vipError);
+      // Don't fail the main operation if VIP update fails
+    }
+
     res.json({
       message: "Cộng điểm thành công",
       data: result,
@@ -135,6 +170,38 @@ exports.penalizeUser = async (req, res) => {
     }
 
     const result = await penalizeUser(userId, amount, reason.trim());
+
+    // Check and update VIP status after penalizing user
+    try {
+      const account = await Account.findOne({ user_id: userId }).populate(
+        "user_id"
+      );
+      if (account && account.user_id) {
+        const user = account.user_id;
+        const shouldBeVip = user.rank_point >= 500;
+        const isCurrentlyVip = account.is_vip;
+
+        if (shouldBeVip !== isCurrentlyVip) {
+          account.is_vip = shouldBeVip;
+
+          // Handle VIP benefits - only increase free download count for first time VIP
+          if (shouldBeVip && !account.has_been_vip) {
+            user.free_download_count += 10; // Increase by 10 for first time VIP
+            account.has_been_vip = true;
+            await user.save();
+          }
+
+          await account.save();
+
+          // Send notification and log activity
+          await notifyVipStatusChanged(userId, shouldBeVip);
+          await logUserVipStatusChanged(userId, shouldBeVip);
+        }
+      }
+    } catch (vipError) {
+      console.error("Error updating VIP status in penalizeUser:", vipError);
+      // Don't fail the main operation if VIP update fails
+    }
 
     res.json({
       message: "Phạt điểm thành công",

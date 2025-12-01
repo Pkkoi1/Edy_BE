@@ -19,4 +19,6 @@ const privateShareSchema = new mongoose.Schema({
   timestamps: true
 });
 
+privateShareSchema.index({ expiredAt: 1 }, { expireAfterSeconds: 0 });
+
 module.exports = mongoose.model('PrivateShare', privateShareSchema);

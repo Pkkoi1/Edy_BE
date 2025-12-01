@@ -160,7 +160,7 @@ exports.getNotificationStats = async (req, res) => {
 // Tạo thông báo thủ công (Admin only)
 exports.createNotification = async (req, res) => {
   try {
-    const { userId, docId, cmtId, type, message } = req.body;
+    const { userId, docId, cmtId, type, message, redirectTo } = req.body;
 
     // Validation
     if (!userId || !type || !message) {
@@ -196,6 +196,7 @@ exports.createNotification = async (req, res) => {
       cmtId,
       type,
       message: message.trim(),
+      redirectTo,
     });
 
     res.status(201).json({

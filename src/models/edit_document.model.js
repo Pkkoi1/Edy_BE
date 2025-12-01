@@ -69,5 +69,7 @@ const editDocumentSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+editDocumentSchema.index({expiredAt: 1}, {expireAfterSeconds: 0})
+
 
 module.exports = mongoose.model('EditDocument', editDocumentSchema);

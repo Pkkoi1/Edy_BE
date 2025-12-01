@@ -11,13 +11,104 @@ const {
   followUser,
   unfollowUser,
   getUserPermissions,
+  getUserContributions,
+  updateUserStatus,
 } = require("../services/user.service");
 
 exports.getUsers = async (req, res) => {
   try {
-    const users = await getUsers();
-    res.json(users);
+    const {
+      page = 1,
+      limit = 50,
+      search = "",
+      field_of_study,
+      status,
+      rank_point_min,
+      rank_point_max,
+      strike_min,
+      strike_max,
+    } = req.query;
+
+    // Validate parameters
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+
+    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({
+        message: "Tham số không hợp lệ. Page >= 1, 1 <= limit <= 100",
+      });
+    }
+
+    // Build filters object
+    const filters = {};
+
+    if (field_of_study) {
+      filters.field_of_study = Array.isArray(field_of_study)
+        ? field_of_study
+        : [field_of_study];
+    }
+
+    if (status) {
+      const statusArray = Array.isArray(status) ? status : [status];
+      // Validate status values
+      const validStatuses = ["ACTIVE", "INACTIVE", "BANNED"];
+      const invalidStatuses = statusArray.filter(
+        (s) => !validStatuses.includes(s)
+      );
+      if (invalidStatuses.length > 0) {
+        return res.status(400).json({
+          message: `Trạng thái không hợp lệ: ${invalidStatuses.join(
+            ", "
+          )}. Các giá trị hợp lệ: ACTIVE, INACTIVE, BANNED`,
+        });
+      }
+      filters.status = statusArray;
+    }
+
+    if (rank_point_min !== undefined) {
+      const min = parseInt(rank_point_min);
+      if (isNaN(min) || min < 0) {
+        return res.status(400).json({
+          message: "rank_point_min phải là số nguyên không âm",
+        });
+      }
+      filters.rank_point_min = min;
+    }
+
+    if (rank_point_max !== undefined) {
+      const max = parseInt(rank_point_max);
+      if (isNaN(max) || max < 0) {
+        return res.status(400).json({
+          message: "rank_point_max phải là số nguyên không âm",
+        });
+      }
+      filters.rank_point_max = max;
+    }
+
+    if (strike_min !== undefined) {
+      const min = parseInt(strike_min);
+      if (isNaN(min) || min < 0) {
+        return res.status(400).json({
+          message: "strike_min phải là số nguyên không âm",
+        });
+      }
+      filters.strike_min = min;
+    }
+
+    if (strike_max !== undefined) {
+      const max = parseInt(strike_max);
+      if (isNaN(max) || max < 0) {
+        return res.status(400).json({
+          message: "strike_max phải là số nguyên không âm",
+        });
+      }
+      filters.strike_max = max;
+    }
+
+    const result = await getUsers(pageNum, limitNum, search.trim(), filters);
+    res.json(result);
   } catch (error) {
+    console.error("Error in getUsers controller:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -216,6 +307,25 @@ exports.unfollowUser = async (req, res) => {
   }
 };
 
+exports.getUserContributions = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { year } = req.query;
+
+    const result = await getUserContributions(userId, year);
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in getUserContributions controller:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy thành tích đóng góp của người dùng",
+    });
+  }
+};
+
 exports.getUserPermissions = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -234,5 +344,33 @@ exports.getUserPermissions = async (req, res) => {
     res
       .status(500)
       .json({ message: "Đã xảy ra lỗi khi lấy quyền của người dùng" });
+  }
+};
+
+exports.updateUserStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    if (!status) {
+      return res.status(400).json({ message: "Vui lòng cung cấp status" });
+    }
+
+    const result = await updateUserStatus(userId, status, req.user.userId);
+
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in updateUserStatus controller:", error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi cập nhật trạng thái người dùng" });
   }
 };

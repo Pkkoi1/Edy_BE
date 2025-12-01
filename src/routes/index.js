@@ -16,6 +16,9 @@ const pointTransactionRouter = require("./point_transaction.routes");
 const cloudinaryRouter = require("./cloudinary.routes");
 const userStatisticsRouter = require("./user_statistics.routes");
 const documentStatisticsRouter = require("./document_statistics.routes");
+const adminUserStatisticsRouter = require("./admin_user_statistics.routes");
+const adminStatisticsRouter = require("./admin_statistics.routes");
+const activityLogRouter = require("./activity_log.routes");
 
 // Main routes configuration
 router.use("/auth", authRouter);
@@ -33,5 +36,8 @@ router.use("/point-transactions", pointTransactionRouter);
 router.use("/cloudinary", cloudinaryRouter);
 router.use("/user-statistics", userStatisticsRouter);
 router.use("/document-statistics", documentStatisticsRouter);
+router.use("/admin-user-statistics", adminUserStatisticsRouter);
+router.use("/admin/statistics", adminStatisticsRouter);
+router.use("/admin/recent-activities", activityLogRouter);
 
 module.exports = router;

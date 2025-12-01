@@ -86,7 +86,11 @@ router.post("/logout", requireLoggedIn, authController.logout);
  *       401:
  *         description: Refresh token không hợp lệ
  */
-router.post("/refresh-token", requireLoggedInRefresh, authController.refreshToken);
+router.post(
+  "/refresh-token",
+  requireLoggedInRefresh,
+  authController.refreshToken
+);
 
 /**
  * @swagger
@@ -204,5 +208,31 @@ router.post("/verify-otp", authController.verifyOTP);
  *         description: Lỗi server
  */
 router.post("/register-with-otp", authController.registerWithOTP);
+
+/**
+ * @swagger
+ * /auth/forgot-password:
+ *   post:
+ *     summary: Quên mật khẩu - tạo mật khẩu mới và gửi về email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: "user@example.com"
+ *     responses:
+ *       200:
+ *         description: Mật khẩu mới đã được gửi về email
+ *       404:
+ *         description: Email không tồn tại trong hệ thống
+ *       500:
+ *         description: Lỗi server
+ */
+router.post("/forgot-password", authController.forgotPassword);
 
 module.exports = router;

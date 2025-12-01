@@ -2,10 +2,13 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const {
   getNewestDocuments,
+  getFeaturedDocuments,
+  getRecommendedDocuments,
   createDocument,
   getDocumentById,
   getMyDocuments,
   getPendingDocuments,
+  getMyPendingDocuments,
   getDocumentsBySubject,
   processDownload,
   createDownloadLink,
@@ -21,6 +24,8 @@ const {
   getReadHistory,
   getDocumentsByUserId,
   incrementViewCount,
+  requestEditDocument,
+  deleteDocument,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -28,9 +33,15 @@ const {
   getPendingRequestsByDocument,
   approveRequest,
   rejectRequest,
+  requestEdit,
 } = require("../services/approval_request.service");
 
 const { checkIsFavorite } = require("../services/user.service");
+const {
+  logDocumentApproved,
+  logDocumentEditRequested,
+  logDocumentUploaded,
+} = require("../services/activity_log.service");
 
 exports.getAllDocuments = async (req, res) => {
   try {
@@ -84,6 +95,45 @@ exports.getNewestDocuments = async (req, res) => {
   }
 };
 
+exports.getFeaturedDocuments = async (req, res) => {
+  try {
+    const { from, to, days = 60, page = 1, limit = 5, ...filters } = req.query;
+
+    const result = await getFeaturedDocuments({
+      payload: req.user,
+      from,
+      to,
+      days: parseInt(days),
+      page: parseInt(page),
+      limit: parseInt(limit),
+      ...filters,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy tài liệu nổi bật: " + error.message,
+    });
+  }
+};
+
+exports.getRecommendedDocuments = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const result = await getRecommendedDocuments({
+      payload: req.user,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy gợi ý tài liệu: " + error.message,
+    });
+  }
+};
+
 exports.getDocumentsBySubject = async (req, res) => {
   try {
     const {
@@ -92,6 +142,7 @@ exports.getDocumentsBySubject = async (req, res) => {
       order = -1,
       page = 1,
       limit = 5,
+      is_admin = false,
       ...filters
     } = req.query;
 
@@ -117,6 +168,7 @@ exports.getDocumentsBySubject = async (req, res) => {
       order,
       page: parseInt(page),
       limit: parseInt(limit),
+      is_admin: is_admin === "true" || is_admin === true,
       ...filters,
     });
     res.json(result);
@@ -194,7 +246,7 @@ exports.uploadDocument = async (req, res) => {
       summary_by_user: null,
       summary_by_ai: null,
     };
-    if (description && description.length > 10) {
+    if (description && description.length > 0) {
       descriptionObj.summary_by_user = description;
     }
 
@@ -221,6 +273,9 @@ exports.uploadDocument = async (req, res) => {
 
     //Tạo approval request (tạo trc vì nó cũng quan trọng và nhanh)
     await createApprovalRequest(document._id, req.user.userId);
+
+    // Log activity for document upload
+    await logDocumentUploaded(document._id, req.user.userId);
 
     res.status(201).json({
       message: "Tải lên tài liệu thành công",
@@ -339,6 +394,7 @@ exports.getPendingDocuments = async (req, res) => {
       order = -1,
       page = 1,
       limit = 5,
+      show_all = false,
       ...filters
     } = req.query;
 
@@ -349,7 +405,32 @@ exports.getPendingDocuments = async (req, res) => {
       order,
       page: parseInt(page),
       limit: parseInt(limit),
+      show_all: show_all === "true" || show_all === true,
       ...filters,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi lấy tài liệu chờ duyệt" });
+  }
+};
+
+exports.getMyPendingDocuments = async (req, res) => {
+  try {
+    const {
+      ordering = "createdAt",
+      order = -1,
+      page = 1,
+      limit = 5,
+    } = req.query;
+
+    const result = await getMyPendingDocuments(req.user.userId, {
+      ordering,
+      order,
+      page: parseInt(page),
+      limit: parseInt(limit),
     });
     res.json(result);
   } catch (error) {
@@ -389,6 +470,10 @@ exports.approveDocument = async (req, res) => {
         .status(404)
         .json({ message: "Yêu cầu phê duyệt không tồn tại" });
     }
+
+    // Log activity for document approval
+    await logDocumentApproved(approvalRequest.document, reviewerId);
+
     res.json({ message: "Phê duyệt tài liệu thành công" });
   } catch (error) {
     console.error(error);
@@ -412,6 +497,46 @@ exports.rejectDocument = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Đã xảy ra lỗi khi từ chối tài liệu" });
+  }
+};
+
+exports.requestEdit = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { message = "" } = req.body;
+    const reviewerId = req.user.userId;
+
+    const editApproval = await requestEdit(requestId, reviewerId, message);
+    if (!editApproval) {
+      return res
+        .status(404)
+        .json({ message: "Yêu cầu chỉnh sửa tài liệu không tồn tại" });
+    }
+
+    res.json({
+      message: "Yêu cầu chỉnh sửa tài liệu thành công",
+      editApproval,
+    });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
+  }
+};
+
+exports.requestEditDirect = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { reason = "" } = req.body;
+
+    await requestEditDocument(documentId, reason);
+    res.json({ message: "Yêu cầu chỉnh sửa tài liệu thành công" });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
   }
 };
 
@@ -506,6 +631,11 @@ exports.updateDocumentStatus = async (req, res) => {
     }
 
     const updatedDocument = await updateDocument(id, updateData);
+
+    // Log activity for document edit request if status is REQUESTED_EDIT
+    if (status === "REQUESTED_EDIT") {
+      await logDocumentEditRequested(id, req.user.userId);
+    }
 
     res.json({
       message: "Cập nhật trạng thái tài liệu thành công",
@@ -713,7 +843,10 @@ exports.reactionDocument = async (req, res) => {
     const { reaction } = req.body;
     const userId = req.user?.userId;
     if (!["LIKE", "DISLIKE", "UNREACT"].includes(reaction)) {
-      return res.status(400).json({ message: "Loại tương tác không hợp lệ" });
+      return res.status(400).json({
+        message:
+          "Loại reaction không hợp lệ. Chỉ chấp nhận: LIKE, DISLIKE, UNREACT",
+      });
     }
 
     if (!mongoose.Types.ObjectId.isValid(documentId)) {
@@ -829,6 +962,36 @@ exports.incrementView = async (req, res) => {
     console.error(error);
     res.status(500).json({
       message: "Đã xảy ra lỗi khi tăng số lượt xem: " + error.message,
+    });
+  }
+};
+
+exports.deleteDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const reason = req.body.reason || "";
+    const userId = req.user.userId;
+
+    await deleteDocument(documentId, userId, reason);
+    res.json({ message: "Xóa tài liệu thành công (soft delete)" });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi khi xóa tài liệu: " + error.message });
+  }
+};
+
+// Get document reactions
+exports.getDocumentReactions = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const userId = req.user?.userId;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ message: "ID tài liệu không hợp lệ" });
+    }
+    const result = await getDocumentReactions(documentId, userId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || "Lỗi server khi lấy thông tin tương tác",
     });
   }
 };

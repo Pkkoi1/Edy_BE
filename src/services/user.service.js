@@ -2,36 +2,145 @@ const User = require("../models/user.model");
 const Account = require("../models/account.model");
 const Organization = require("../models/organization.model");
 const Document = require("../models/document.model");
+const Reaction = require("../models/reaction.model");
+const DownloadLink = require("../models/download_link.model");
+const Comment = require("../models/comment.model");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const Assignment = require("../models/assignment.model");
+const { logActivity } = require("./activity_log.service");
 
-const getUsers = async () => {
+const getUsers = async (page = 1, limit = 50, search = "", filters = {}) => {
   try {
-    const users = await User.find().populate("organization", "name").lean();
+    const skip = (page - 1) * limit;
 
-    const usersWithRoles = await Promise.all(
+    // Build query
+    let query = {};
+
+    // Search filter
+    if (search) {
+      // Kiểm tra xem search có phải là ObjectId không
+      if (mongoose.Types.ObjectId.isValid(search)) {
+        query._id = search;
+      } else {
+        // Tìm kiếm theo tên hoặc email
+        query = {
+          $or: [
+            { first_name: { $regex: search, $options: "i" } },
+            { last_name: { $regex: search, $options: "i" } },
+            { contact_email: { $regex: search, $options: "i" } },
+          ],
+        };
+      }
+    }
+
+    // Additional filters
+    if (filters.field_of_study && filters.field_of_study.length > 0) {
+      query.field_of_study = { $in: filters.field_of_study };
+    }
+
+    if (filters.status && filters.status.length > 0) {
+      query.status = { $in: filters.status };
+    }
+
+    if (
+      filters.rank_point_min !== undefined ||
+      filters.rank_point_max !== undefined
+    ) {
+      query.rank_point = {};
+      if (filters.rank_point_min !== undefined) {
+        query.rank_point.$gte = parseInt(filters.rank_point_min);
+      }
+      if (filters.rank_point_max !== undefined) {
+        query.rank_point.$lte = parseInt(filters.rank_point_max);
+      }
+    }
+
+    if (filters.strike_min !== undefined || filters.strike_max !== undefined) {
+      query.strike = {};
+      if (filters.strike_min !== undefined) {
+        query.strike.$gte = parseInt(filters.strike_min);
+      }
+      if (filters.strike_max !== undefined) {
+        query.strike.$lte = parseInt(filters.strike_max);
+      }
+    }
+
+    // Lấy tổng số users để tính pagination
+    const total = await User.countDocuments(query);
+
+    // Lấy users với pagination
+    const users = await User.find(query)
+      .populate("organization", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Thêm thông tin account và roles cho mỗi user
+    const usersWithDetails = await Promise.all(
       users.map(async (user) => {
         const account = await Account.findOne({ user: user._id }).lean();
 
-        if (!account) {
-          return { ...user, role_names: [] };
+        let roles = [];
+        let email = "";
+        let isVerified = false;
+        let isAdmin = false;
+
+        if (account) {
+          email = account.email;
+          isVerified = account.is_verified;
+          isAdmin = account.is_admin;
+
+          // Lấy roles từ assignments
+          const assignments = await Assignment.find({ account: account._id })
+            .populate("role", "name code")
+            .lean();
+
+          roles = assignments.map((assignment) => ({
+            name: assignment.role.name,
+            code: assignment.role.code,
+          }));
         }
 
-        const assignments = await Assignment.find({ account: account._id })
-          .populate("role", "name")
-          .lean();
-
-        const roleNames = assignments.map((assignment) => assignment.role.name);
-
         return {
-          ...user,
-          role_names: roleNames,
+          _id: user._id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          full_name: `${user.first_name} ${user.last_name}`,
+          email,
+          contact_email: user.contact_email,
+          avatar: user.avatar,
+          organization: user.organization,
+          field_of_study: user.field_of_study,
+          point: user.point,
+          rank_point: user.rank_point,
+          strike: user.strike,
+          follower: user.follower || [],
+          following: user.following || [],
+          doc_count: user.doc_count,
+          free_download_count: user.free_download_count,
+          status: user.status,
+          is_verified: isVerified,
+          is_admin: isAdmin,
+          roles,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
         };
       })
     );
 
-    return usersWithRoles;
+    return {
+      success: true,
+      data: usersWithDetails,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalUsers: total,
+        hasNextPage: page * limit < total,
+        hasPrevPage: page > 1,
+      },
+    };
   } catch (error) {
     console.error("Error getting users:", error);
     throw new Error("Lỗi khi lấy danh sách người dùng: " + error.message);
@@ -311,7 +420,7 @@ const getFavoriteDocuments = async (userId) => {
     const user = await User.findById(userId).populate({
       path: "favorites.document",
       select:
-        "_id title cover_page author published_year publisher organization subject level view download_count comment_count status public_mode is_deleted createdAt",
+        "_id title cover_page author published_year intensive page publisher organization subject level view download_count comment_count status public_mode file_type is_deleted createdAt",
       populate: [
         { path: "organization", select: "_id name" },
         { path: "subject", select: "_id name" },
@@ -576,6 +685,143 @@ const getUserPermissions = async (userId) => {
   }
 };
 
+const getUserContributions = async (userId, year = null) => {
+  try {
+    // Kiểm tra user tồn tại
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    // Tạo filter cho năm nếu được cung cấp
+    let dateFilter = {};
+    if (year) {
+      const yearNum = parseInt(year);
+      if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+        return { error: "Năm không hợp lệ" };
+      }
+      const startDate = new Date(yearNum, 0, 1); // 1/1/year
+      const endDate = new Date(yearNum + 1, 0, 1); // 1/1/(year+1)
+      dateFilter = {
+        createdAt: {
+          $gte: startDate,
+          $lt: endDate,
+        },
+      };
+    }
+
+    // Lấy các thống kê song song để tối ưu performance
+    const [totalDocuments, totalReactions, totalDownloads, totalComments] =
+      await Promise.all([
+        // Tổng bài đăng (documents chưa bị xóa)
+        Document.countDocuments({
+          user: userId,
+          is_deleted: false,
+          ...dateFilter,
+        }),
+
+        // Số lần tương tác tài liệu (reactions: like/dislike)
+        Reaction.countDocuments({
+          user: userId,
+          ...dateFilter,
+        }),
+
+        // Lần tải tài liệu (download links thành công)
+        DownloadLink.countDocuments({
+          user: userId,
+          status: "SUCCESS",
+          ...dateFilter,
+        }),
+
+        // Số bình luận (comments chưa bị xóa)
+        Comment.countDocuments({
+          user: userId,
+          is_deleted: false,
+          ...dateFilter,
+        }),
+      ]);
+
+    return {
+      success: true,
+      year: year ? parseInt(year) : null,
+      contributions: {
+        total_documents: totalDocuments,
+        total_reactions: totalReactions,
+        total_downloads: totalDownloads,
+        total_comments: totalComments,
+      },
+    };
+  } catch (error) {
+    console.error("Error getting user contributions:", error);
+    return {
+      error: "Lỗi khi lấy thành tích đóng góp của người dùng: " + error.message,
+    };
+  }
+};
+
+const updateUserStatus = async (userId, status, updatedBy) => {
+  try {
+    // Validate status
+    const validStatuses = ["ACTIVE", "INACTIVE", "BANNED"];
+    if (!validStatuses.includes(status)) {
+      return {
+        error: `Trạng thái không hợp lệ. Các giá trị hợp lệ: ${validStatuses.join(
+          ", "
+        )}`,
+      };
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    // Check if status is already the same
+    if (user.status === status) {
+      return { error: `Người dùng đã ở trạng thái ${status}` };
+    }
+
+    // Update status
+    const oldStatus = user.status;
+    user.status = status;
+    await user.save();
+
+    // Log activity for status change
+    await logActivity({
+      userId: updatedBy,
+      action: "USER_STATUS_CHANGED",
+      targetType: "User",
+      targetId: userId,
+      targetTitle: `${user.first_name} ${user.last_name}`,
+      description: `Trạng thái tài khoản của người dùng ${user.first_name} ${user.last_name} đã được thay đổi từ ${oldStatus} thành ${status}`,
+      metadata: {
+        oldStatus,
+        newStatus: status,
+        userId: user._id,
+        updatedBy,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Cập nhật trạng thái người dùng thành công`,
+      data: {
+        userId: user._id,
+        oldStatus,
+        newStatus: status,
+        updatedBy,
+        updatedAt: new Date(),
+      },
+    };
+  } catch (error) {
+    console.error("Error updating user status:", error);
+    return {
+      error: "Lỗi khi cập nhật trạng thái người dùng: " + error.message,
+    };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
@@ -591,4 +837,6 @@ module.exports = {
   followUser,
   unfollowUser,
   getUserPermissions,
+  getUserContributions,
+  updateUserStatus,
 };
