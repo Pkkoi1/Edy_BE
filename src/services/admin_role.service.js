@@ -42,11 +42,38 @@ const getAllRole = async (accountId, query) => {
   if (!(await hasManageRole(accountId))) {
     throw new Error("User does not have permission to manage roles");
   }
-  // neu co query active thi filter theo active
-  if (query.active !== undefined) {
-    return Role.find({ code: { $ne: "SUPER_ADMIN" }, is_active: query.active });
+
+  // Build query object
+  let searchQuery = { code: { $ne: "SUPER_ADMIN" } };
+
+  // Combined search for name and code (regex, case insensitive)
+  if (query.query) {
+    searchQuery.$or = [
+      { name: { $regex: query.query, $options: "i" } },
+      { code: { $regex: query.query, $options: "i" } },
+    ];
   }
-  return Role.find({ code: { $ne: "SUPER_ADMIN" } });
+
+  // Filter by description (regex, case insensitive)
+  if (query.description) {
+    searchQuery.description = { $regex: query.description, $options: "i" };
+  }
+
+  // Filter by permissions (array, using $in)
+  if (query.permissions) {
+    const permissionsArray = Array.isArray(query.permissions)
+      ? query.permissions
+      : [query.permissions];
+    searchQuery.permissions = { $in: permissionsArray };
+  }
+
+  // Filter by is_active
+  if (query.is_active !== undefined) {
+    searchQuery.is_active =
+      query.is_active === "true" || query.is_active === true;
+  }
+
+  return Role.find(searchQuery);
 };
 
 const getRoleById = async (roleId, accountId) => {
