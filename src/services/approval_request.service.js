@@ -357,7 +357,9 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
 
   const approvalRequest = await ApprovalRequest.findById(requestId);
   if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
-
+  if (approvalRequest.status !== "PENDING")
+    throw new Error("Yêu cầu phê duyệt đã được xử lý");
+  
   const user = await User.findById(approvalRequest.requester);
   if (!user) throw new Error("Người yêu cầu không tồn tại");
   const current = new Date();
@@ -576,7 +578,9 @@ const rejectRequest = async (requestId, reviewerId, message) => {
 
   const approvalRequest = await ApprovalRequest.findById(requestId);
   if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
-
+  if (approvalRequest.status !== "PENDING")
+    throw new Error("Yêu cầu phê duyệt đã được xử lý");
+  
   const current = new Date();
   approvalRequest.reviewed_by = reviewer._id;
   approvalRequest.reviewed_at = current;
@@ -632,6 +636,8 @@ const requestEdit = async (requestId, reviewerId, message) => {
 
   const approvalRequest = await ApprovalRequest.findById(requestId);
   if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
+  if (approvalRequest.status !== "PENDING")
+    throw new Error("Yêu cầu phê duyệt đã được xử lý");
 
   const current = new Date();
   approvalRequest.reviewed_by = reviewer._id;

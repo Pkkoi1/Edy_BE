@@ -477,7 +477,7 @@ exports.approveDocument = async (req, res) => {
     res.json({ message: "Phê duyệt tài liệu thành công" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi phê duyệt tài liệu" });
+    res.status(500).json({ message: "Đã xảy ra lỗi khi phê duyệt tài liệu: " + error.message });
   }
 };
 
@@ -496,7 +496,7 @@ exports.rejectDocument = async (req, res) => {
     res.json({ message: "Từ chối tài liệu thành công" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi từ chối tài liệu" });
+    res.status(500).json({ message: "Đã xảy ra lỗi khi từ chối tài liệu: " + error.message });
   }
 };
 
@@ -521,7 +521,7 @@ exports.requestEdit = async (req, res) => {
     console.error(error);
     res
       .status(500)
-      .json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu" });
+      .json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu: " + error.message });
   }
 };
 
