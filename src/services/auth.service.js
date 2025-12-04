@@ -44,7 +44,7 @@ const loginService = async ({ email, password }) => {
   
   if (activeRestriction) {
     return {
-      error: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}`,
+      error: `Tài khoản bị hạn chế đến ${activeRestriction.endAt}. Lý do: ${activeRestriction.reason}`,
       status: 403,
     };
   }
