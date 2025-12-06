@@ -661,4 +661,182 @@ router.put(
   userController.updateUserStatus
 );
 
+/**
+ * @swagger
+ * /users/{userId}/restrictions:
+ *   get:
+ *     summary: Lấy lịch sử bị phạt của người dùng
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 restrictions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: ID của penalty
+ *                       user_id:
+ *                         type: string
+ *                         description: ID của người dùng bị phạt
+ *                       type:
+ *                         type: string
+ *                         enum: [POST, COMMENT, DOWNLOAD, LOGIN]
+ *                         description: Loại phạt
+ *                       reason:
+ *                         type: string
+ *                         description: Lý do phạt
+ *                       startAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Thời gian bắt đầu
+ *                       endAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         description: Thời gian kết thúc (null = vĩnh viễn)
+ *                       status:
+ *                         type: string
+ *                         enum: [ACTIVE, DEACTIVATED, EXPIRED]
+ *                         description: Trạng thái
+ *                       restricted_by:
+ *                         type: string
+ *                         description: Người áp dụng phạt
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Thời gian tạo
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.get(
+  "/:userId/restrictions",
+  requireLoggedIn,
+  userController.getUserRestrictions
+);
+
+/**
+ * @swagger
+ * /users/{userId}/violations:
+ *   get:
+ *     summary: Lấy lịch sử vi phạm của người dùng
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 violations:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: ID của violation
+ *                       user_id:
+ *                         type: string
+ *                         description: ID của người dùng vi phạm
+ *                       document:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Thông tin tài liệu vi phạm
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             description: ID tài liệu
+ *                           title:
+ *                             type: string
+ *                             description: Tiêu đề tài liệu
+ *                       comment:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Thông tin bình luận vi phạm
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             description: ID bình luận
+ *                           content:
+ *                             type: string
+ *                             description: Nội dung bình luận
+ *                       type:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                           enum: [SPAM_OR_MISLEADING, DUPLICATE, COPYRIGHT, INCORRECT_CATEGORY, PERSONAL_INFORMATION, LOW_QUALITY, INAPPROPRIATE, OTHER]
+ *                         description: Loại vi phạm
+ *                       report:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Thông tin báo cáo
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             description: ID báo cáo
+ *                           reason:
+ *                             type: string
+ *                             description: Lý do báo cáo
+ *                       strike:
+ *                         type: integer
+ *                         description: Số strike
+ *                       point_reduced:
+ *                         type: integer
+ *                         description: Điểm bị trừ
+ *                       resolved_by:
+ *                         type: string
+ *                         description: Người xử lý
+ *                       reason:
+ *                         type: string
+ *                         description: Lý do xử lý
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Thời gian tạo
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.get(
+  "/:userId/violations",
+  requireLoggedIn,
+  userController.getUserViolations
+);
+
 module.exports = router;
