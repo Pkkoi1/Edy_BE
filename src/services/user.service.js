@@ -891,6 +891,104 @@ const getUserViolations = async (userId) => {
   }
 };
 
+const suspendUser = async (userId, reason, durationDays, suspendedBy) => {
+  try {
+    // Tìm account từ userId
+    const account = await Account.findOne({ user: userId });
+    if (!account) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    // Kiểm tra xem đã bị suspend chưa
+    const existingRestriction = await Restriction.findOne({
+      account_id: account._id,
+      type: "LOGIN",
+      status: "ACTIVE",
+    });
+
+    if (existingRestriction) {
+      return { error: "Tài khoản đã bị khóa" };
+    }
+
+    // Tính endAt
+    let endAt = null;
+    if (durationDays && durationDays > 0) {
+      endAt = new Date();
+      endAt.setDate(endAt.getDate() + durationDays);
+    }
+
+    // Tạo restriction
+    const restriction = new Restriction({
+      account_id: account._id,
+      restricted_by: suspendedBy,
+      type: "LOGIN",
+      reason: reason,
+      startAt: new Date(),
+      endAt: endAt,
+      status: "ACTIVE",
+    });
+
+    await restriction.save();
+
+    return {
+      success: true,
+      message: "Khóa tài khoản thành công",
+      restriction: {
+        id: restriction._id,
+        type: restriction.type,
+        reason: restriction.reason,
+        startAt: restriction.startAt,
+        endAt: restriction.endAt,
+        status: restriction.status,
+      },
+    };
+  } catch (error) {
+    console.error("Error in suspendUser:", error);
+    return { error: "Lỗi khi khóa tài khoản: " + error.message };
+  }
+};
+
+const unsuspendUser = async (userId) => {
+  try {
+    // Tìm account từ userId
+    const account = await Account.findOne({ user: userId });
+    if (!account) {
+      return { error: "Người dùng không tồn tại" };
+    }
+
+    // Tìm restriction LOGIN đang ACTIVE
+    const restriction = await Restriction.findOne({
+      account_id: account._id,
+      type: "LOGIN",
+      status: "ACTIVE",
+    });
+
+    if (!restriction) {
+      return { error: "Tài khoản không bị khóa" };
+    }
+
+    // Cập nhật status thành DEACTIVATED
+    restriction.status = "DEACTIVATED";
+    await restriction.save();
+
+    return {
+      success: true,
+      message: "Mở khóa tài khoản thành công",
+      restriction: {
+        id: restriction._id,
+        type: restriction.type,
+        reason: restriction.reason,
+        startAt: restriction.startAt,
+        endAt: restriction.endAt,
+        status: restriction.status,
+      },
+    };
+  } catch (error) {
+    console.error("Error in unsuspendUser:", error);
+    return { error: "Lỗi khi mở khóa tài khoản: " + error.message };
+  }
+};
+
 module.exports = {
   getUsers,
   verifyUser,
@@ -910,4 +1008,6 @@ module.exports = {
   updateUserStatus,
   getUserRestrictions,
   getUserViolations,
+  suspendUser,
+  unsuspendUser,
 };
