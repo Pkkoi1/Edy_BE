@@ -13,6 +13,8 @@ const {
   getUserPermissions,
   getUserContributions,
   updateUserStatus,
+  getUserViolations,
+  getUserRestrictions,
 } = require("../services/user.service");
 
 exports.getUsers = async (req, res) => {
@@ -322,6 +324,48 @@ exports.getUserContributions = async (req, res) => {
     console.error("Error in getUserContributions controller:", error);
     res.status(500).json({
       message: "Đã xảy ra lỗi khi lấy thành tích đóng góp của người dùng",
+    });
+  }
+};
+
+exports.getUserRestrictions = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    const result = await getUserRestrictions(userId);
+    if (result.error) {
+      return res.status(404).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in getUserRestrictions controller:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy lịch sử bị phạt của người dùng",
+    });
+  }
+};
+
+exports.getUserViolations = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    const result = await getUserViolations(userId);
+    if (result.error) {
+      return res.status(404).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in getUserViolations controller:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy lịch sử vi phạm của người dùng",
     });
   }
 };
