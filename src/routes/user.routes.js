@@ -839,4 +839,158 @@ router.get(
   userController.getUserViolations
 );
 
+/**
+ * @swagger
+ * /users/{userId}/suspend:
+ *   post:
+ *     summary: Khóa tài khoản người dùng (yêu cầu quyền quản lý người dùng)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng cần khóa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: "Vi phạm quy định cộng đồng"
+ *                 description: "Lý do khóa tài khoản"
+ *               duration_days:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 7
+ *                 description: "Thời hạn khóa (ngày). Nếu không cung cấp sẽ khóa vĩnh viễn"
+ *     responses:
+ *       200:
+ *         description: Khóa tài khoản thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Khóa tài khoản thành công"
+ *                 restriction:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: ID của restriction
+ *                     type:
+ *                       type: string
+ *                       example: "LOGIN"
+ *                     reason:
+ *                       type: string
+ *                       description: Lý do khóa
+ *                     startAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Thời gian bắt đầu khóa
+ *                     endAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       description: Thời gian kết thúc khóa
+ *                     status:
+ *                       type: string
+ *                       example: "ACTIVE"
+ *       400:
+ *         description: Dữ liệu không hợp lệ hoặc tài khoản đã bị khóa
+ *       401:
+ *         description: Chưa xác thực
+ *       403:
+ *         description: Không có quyền quản lý người dùng
+ *       500:
+ *         description: Lỗi server
+ */
+router.post(
+  "/:userId/suspend",
+  requireAdminPermission(["MANAGE_USER"]),
+  userController.suspendUser
+);
+
+/**
+ * @swagger
+ * /users/{userId}/unsuspend:
+ *   post:
+ *     summary: Mở khóa tài khoản người dùng (yêu cầu quyền quản lý người dùng)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng cần mở khóa
+ *     responses:
+ *       200:
+ *         description: Mở khóa tài khoản thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Mở khóa tài khoản thành công"
+ *                 restriction:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: ID của restriction
+ *                     type:
+ *                       type: string
+ *                       example: "LOGIN"
+ *                     reason:
+ *                       type: string
+ *                       description: Lý do khóa
+ *                     startAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Thời gian bắt đầu khóa
+ *                     endAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       description: Thời gian kết thúc khóa
+ *                     status:
+ *                       type: string
+ *                       example: "DEACTIVATED"
+ *       400:
+ *         description: Tài khoản không bị khóa
+ *       401:
+ *         description: Chưa xác thực
+ *       403:
+ *         description: Không có quyền quản lý người dùng
+ *       500:
+ *         description: Lỗi server
+ */
+router.post(
+  "/:userId/unsuspend",
+  requireAdminPermission(["MANAGE_USER"]),
+  userController.unsuspendUser
+);
+
 module.exports = router;
