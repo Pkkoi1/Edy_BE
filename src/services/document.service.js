@@ -1341,7 +1341,7 @@ const getDocumentById = async (id, userId) => {
     .populate({
       path: "user",
       select:
-        "_id first_name last_name avatar organization follower following doc_count",
+        "_id first_name last_name avatar organization follower following doc_count point rank_point strike",
       populate: {
         path: "organization",
         select: "_id name",
