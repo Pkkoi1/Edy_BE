@@ -119,7 +119,7 @@ const getAllDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike"
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike approved_by_ai"
       )
       .populate({
         path: "user",

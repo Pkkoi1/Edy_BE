@@ -82,28 +82,39 @@ const deleteEditApprovalByEditId = async (editId) => {
 };
 
 const handleEditApproval = async (editApprovalId, actionData, approver) => {
-  const { action, message } = actionData;
-  if (action !== "APPROVE" && action !== "REJECT")
-    throw new Error("Hành động không hợp lệ");
-  const editApproval = await getEditApprovalById(editApprovalId);
-  const editDoc = await EditDocument.findById(editApproval.edit_doc);
-  if (!editApproval) throw new Error("Phê duyệt chỉnh sửa không tồn tại");
-  if (editApproval.status !== "PENDING")
-    throw new Error("Phê duyệt chỉnh sửa không còn đang chờ duyệt");
+  try {
+    const { action, message } = actionData;
+    if (action !== "APPROVE" && action !== "REJECT")
+      throw new Error("Hành động không hợp lệ");
+    const editApproval = await getEditApprovalById(editApprovalId);
+    const editDoc = await EditDocument.findById(editApproval.edit_doc);
+    if (!editApproval) throw new Error("Phê duyệt chỉnh sửa không tồn tại");
+    if (editApproval.status !== "PENDING")
+      throw new Error("Phê duyệt chỉnh sửa không còn đang chờ duyệt");
 
-  if (action === "APPROVE") {
-    await approveEditApproval(editApprovalId, message, approver);
-    editDoc.status = "APPROVED";
-    editDoc.expiredAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    await editDoc.save();
-    await applyDataToDocument(editDoc._id);
-    return editApproval;
-  } else if (action === "REJECT") {
-    editDoc.status = "REJECTED";
-    editDoc.expiredAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    await editDoc.save();
-    await rejectEditApproval(editApprovalId, message, approver);
-    return editApproval;
+    if (action === "APPROVE") {
+      await approveEditApproval(editApprovalId, message, approver);
+      editDoc.status = "APPROVED";
+      editDoc.expiredAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+      await editDoc.save();
+      await applyDataToDocument(editDoc._id);
+      return editApproval;
+    } else if (action === "REJECT") {
+      editDoc.status = "REJECTED";
+      editDoc.expiredAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+      await editDoc.save();
+      const originalDocumentId = editDoc.original_document;
+      const document = await Document.findById(originalDocumentId);
+      if (!document) throw new Error("Không tìm thấy tài liệu");
+      document.status = "REQUESTED_EDIT";
+      document.approved_by_ai = false;
+      await document.save();
+      await rejectEditApproval(editApprovalId, message, approver);
+      return editApproval;
+    }
+  }
+  catch (error) {
+    throw new Error(error.message);
   }
 };
 
@@ -169,6 +180,7 @@ const applyDataToDocument = async (editDocId) => {
 
   // Update document status and data from edit
   document.status = "APPROVED";
+  document.approved_by_ai = false;
   if (editDoc.title) document.title = editDoc.title;
   if (editDoc.url) document.url = editDoc.url;
   if (editDoc.author && editDoc.author.length > 0)

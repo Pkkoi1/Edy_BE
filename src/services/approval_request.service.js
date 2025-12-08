@@ -254,6 +254,7 @@ const autoApproveByAI = async (approvalRequest, document, aiResult) => {
     await approvalRequest.save();
 
     document.status = "APPROVED";
+    document.approved_by_ai = true;
     document.last_approved_at = current;
 
     if (!document.description) {
@@ -375,6 +376,7 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
 
   // Cập nhật document status
   document.status = "APPROVED";
+  document.approved_by_ai = false;
   document.last_approved_at = current;
 
   // Tăng doc_count cho user
@@ -594,6 +596,7 @@ const rejectRequest = async (requestId, reviewerId, message) => {
 
   // Reject document
   document.status = "REJECTED";
+  document.approved_by_ai = false;
   document.is_deleted = true;
   document.expiredAt = new Date(current.getTime() + 7 * 24 * 60 * 60 * 1000);
   document.is_delete_by_admin = true;
@@ -650,6 +653,7 @@ const requestEdit = async (requestId, reviewerId, message) => {
   if (!document) throw new Error("Tài liệu không tồn tại");
 
   document.status = "REQUESTED_EDIT";
+  document.approved_by_ai = false;
   await document.save();
 
   return approvalRequest;
