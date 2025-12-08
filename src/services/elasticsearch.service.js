@@ -74,20 +74,65 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
         const { page = 1, limit = 5, ordering = 'last_approved_at', order = -1 } = options;
         const from = (page - 1) * limit;
 
+        // Tính min_score động dựa vào độ dài query
+        const queryWords = query.trim().split(/\s+/);
+        const queryLength = queryWords.length;
+        
+        // Query càng dài (nhiều từ) thì yêu cầu score càng cao
+        let dynamicMinScore;
+        if (queryLength === 1) {
+            dynamicMinScore = 10.0;  // 1 từ yêu cầu match tốt
+        } else if (queryLength === 2) {
+            dynamicMinScore = 30.0;  // 2 từ: yêu cầu cao hơn
+        } else {
+            dynamicMinScore = 50.0;  // 3+ từ: yêu cầu rất cao
+        }
+
         // Build Elasticsearch query
         const searchQuery = {
             bool: {
-                must: [
+                should: [
                     {
-                        bool: {
-                            should: [
-                                { match: { title: { query, boost: 3 } } },
-                                { match: { author: { query, boost: 2 } } },
-                                { match: { keyword: { query, boost: 2 } } }
-                            ]
+                        match: {
+                            title: {
+                                query,
+                                boost: 5,
+                                operator: 'or',
+                                fuzziness: 'AUTO'
+                            }
                         }
-                    }
+                    },
+                    {
+                        match: {
+                            'title.autocomplete': {
+                                query,
+                                boost: 4
+                            }
+                        }
+                    },
+                    {
+                        match: {
+                            'title.ngram': {
+                                query,
+                                boost: 3
+                            }
+                        }
+                    },
+                    {
+                        wildcard: {
+                            'title.keyword': {
+                                value: `*${query.toLowerCase()}*`,
+                                boost: 2
+                            }
+                        }
+                    },
+                    // Tương tự cho author và keyword
+                    { match: { author: { query, boost: 3, fuzziness: 'AUTO' } } },
+                    { match: { 'author.autocomplete': { query, boost: 2 } } },
+                    { match: { keyword: { query, boost: 3, fuzziness: 'AUTO'} } },
+                    { match: { 'keyword.autocomplete': { query, boost: 2 } } }
                 ],
+                minimum_should_match: 1,
                 filter: [
                     { term: { status: 'APPROVED' } },
                     { term: { is_deleted: false } },
@@ -96,14 +141,15 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
             }
         };
 
-
         const response = await client.search({
             index: 'documents',
             body: {
                 query: searchQuery,
                 from,
                 size: limit,
+                min_score: dynamicMinScore,
                 sort: [
+                    { _score: { order: 'desc' } },
                     { [ordering]: { order: order === -1 ? 'desc' : 'asc' } }
                 ],
                 highlight: {
@@ -115,6 +161,27 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
                 }
             }
         });
+
+        console.log(`📊 ES returned ${response.hits.hits.length} results out of ${response.hits.total.value} total`);
+        
+        // ✅ Log chi tiết top results
+        if (response.hits.hits.length > 0) {
+            console.log('📋 Top results:');
+            response.hits.hits.forEach((hit, index) => {
+                console.log(`  ${index + 1}. [Score: ${hit._score.toFixed(2)}] ${hit._source.title}`);
+                console.log(`     Highlights:`, Object.keys(hit.highlight || {}));
+                if (hit.highlight) {
+                    if (hit.highlight.title) {
+                        console.log(`     Title: ${hit.highlight.title[0]}`);
+                    }
+                    if (hit.highlight.keyword) {
+                        console.log(`     Keyword: ${hit.highlight.keyword.join(', ')}`);
+                    }
+                }
+            });
+        } else {
+            console.log('⚠️ No results found with min_score >= ' + dynamicMinScore);
+        }
 
         const documentIds = response.hits.hits.map(hit => hit._id);
 
@@ -451,7 +518,7 @@ const findSimilarDocuments = async (sourceDoc, userId, limit = 5) => {
         const sourceDocEmbedding = docInElasticsearch._source.content_vector;
         const semanticQuery = {
             script_score: {
-                query: moreLikeThisQuery, 
+                query: moreLikeThisQuery,
                 script: {
                     source: "cosineSimilarity(params.queryVector, 'content_vector') + 1.0",
                     params: {
