@@ -37,13 +37,13 @@ const createEditApproval = async (editApprovalData) => {
     if (!documentOrgId) {
       const document = await Document.findById(editApprovalData.doc);
       if (document) {
-        await assignEditApproval(
-          editApproval._id,
-          document.organization || null
-        );
+        // await assignEditApproval(
+        //   editApproval._id,
+        //   document.organization || null
+        // );
       }
     } else {
-      await assignEditApproval(editApproval._id, documentOrgId);
+      // await assignEditApproval(editApproval._id, documentOrgId);
     }
   } catch (error) {
     console.error(

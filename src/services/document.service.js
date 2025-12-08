@@ -666,8 +666,9 @@ const getRecommendedDocuments = async ({ payload, page = 1, limit = 10 }) => {
               ],
             },
           },
-          { term: { user: user._id.toString() } },
         ],
+        minimum_should_match: 1,
+        must_not: [{ term: { user: user._id.toString() } }],
       },
     };
     if (sharedDocIds.length > 0) {
@@ -696,7 +697,7 @@ const getRecommendedDocuments = async ({ payload, page = 1, limit = 10 }) => {
     .slice(0, 10)
     .map((x) => x.document.toString());
 
-  const excludeIds = new Set([...favoriteDocIds, ...readDocIds]);
+  const excludeIds = new Set([...favoriteDocIds]);
 
   const seedIds = [...favoriteDocIds, ...readDocIds];
   let authorSeeds = [];

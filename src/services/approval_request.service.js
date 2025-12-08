@@ -76,19 +76,19 @@ const combineChecking = async (documentId, approvalRequestId) => {
       await embeddinngDocument(document);
       await checkSimilarity(documentId, approvalRequestId);
     } else {
-      await assignApprovalRequest(
-        approvalRequestId,
-        document.organization || null
-      );
+      // await assignApprovalRequest(
+      //   approvalRequestId,
+      //   document.organization || null
+      // );
       return approvalRequest;
     }
   } catch (error) {
     console.error(`Lỗi trong combineChecking: ${error.message}`);
     const document = await Document.findById(documentId);
-    await assignApprovalRequest(
-      approvalRequestId,
-      document.organization || null
-    );
+    // await assignApprovalRequest(
+    //   approvalRequestId,
+    //   document.organization || null
+    // );
     return;
   }
 };
@@ -98,10 +98,10 @@ const checkSimilarity = async (documentId, approvalRequestId) => {
   //Xử lý trước nếu tương đồng cao thì đánh dấu rồi return luôn chứ ko thông qua AI
   try {
     if (!["PDF", "WORD"].includes(document.file_type)) {
-      await assignApprovalRequest(
-        approvalRequestId,
-        document.organization || null
-      );
+      // await assignApprovalRequest(
+      //   approvalRequestId,
+      //   document.organization || null
+      // );
       return approvalRequest;
     }
 
@@ -120,11 +120,11 @@ const checkSimilarity = async (documentId, approvalRequestId) => {
       document.description.summary_by_ai = "Tài liệu tương đồng cao";
       await document.save();
 
-      // Tự động gán approval request cho admin có ít pending request nhất
-      await assignApprovalRequest(
-        approvalRequest._id,
-        document.organization || null
-      );
+      // // Tự động gán approval request cho admin có ít pending request nhất
+      // await assignApprovalRequest(
+      //   approvalRequest._id,
+      //   document.organization || null
+      // );
       return approvalRequest;
     }
     // nếu ko có thì đưa thêm tên của subject rồi xử lý AI
@@ -139,10 +139,10 @@ const checkSimilarity = async (documentId, approvalRequestId) => {
       `Lỗi khi xử lý tương đồng cao cho document ${document._id}:`,
       error
     );
-    await assignApprovalRequest(
-      approvalRequest._id,
-      document.organization || null
-    );
+    // await assignApprovalRequest(
+    //   approvalRequest._id,
+    //   document.organization || null
+    // );
     return approvalRequest;
   }
 };
@@ -210,11 +210,11 @@ const processDocumentWithAI = async (
         await doc.save();
       }
 
-      // Gán approval request cho admin có ít pending request nhất
-      await assignApprovalRequest(
-        approvalRequest._id,
-        document.organization || null
-      );
+      // // Gán approval request cho admin có ít pending request nhất
+      // await assignApprovalRequest(
+      //   approvalRequest._id,
+      //   document.organization || null
+      // );
 
       await approvalRequest.save();
     }
@@ -230,10 +230,10 @@ const processDocumentWithAI = async (
         approvalRequest.ai_reason = `Lỗi khi xử lý AI: ${error.message}`;
         await approvalRequest.save();
 
-        await assignApprovalRequest(
-          approvalRequest._id,
-          document.organization || null
-        );
+        // await assignApprovalRequest(
+        //   approvalRequest._id,
+        //   document.organization || null
+        // );
       }
     } catch (updateError) {
       console.error("Lỗi khi cập nhật approval request:", updateError);
