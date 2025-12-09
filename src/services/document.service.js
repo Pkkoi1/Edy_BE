@@ -42,6 +42,8 @@ const { notifyDocumentRemoved } = require("./notification.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 const e = require("express");
+const { Worker } = require("worker_threads");
+const path = require("path");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -1306,22 +1308,39 @@ const createDocument = async (data) => {
 };
 
 const embeddinngDocument = async (document) => {
-  try {
-    const result = await processDocumentAndCreateEmbedding(
-      document.url,
-      document.file_type
-    );
-    document.content_vector = result.embedding;
-    try {
-      await indexDocument(document);
-    } catch (error) {
-      console.error("Lỗi khi đánh index document:", error);
-    }
-    return document;
-  } catch (error) {
-    console.error("Lỗi khi tạo embedding cho document:", error);
-    throw new Error("Không thể tạo embedding cho tài liệu");
-  }
+  const workerPath = path.join(__dirname, "../workers/embedding.worker.js");
+
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(workerPath, {
+      workerData: { url: document.url, fileType: document.file_type },
+    });
+
+    worker.on("message", async (msg) => {
+      if (msg.ok) {
+        document.content_vector = msg.result.embedding;
+        try {
+          await indexDocument(document);
+        } catch (error) {
+          console.error("Lỗi khi đánh index document:", error);
+        }
+        resolve(document);
+      } else {
+        console.error("Lỗi worker embedding:", msg.error);
+        reject(new Error("Không thể tạo embedding cho tài liệu"));
+      }
+    });
+
+    worker.on("error", (err) => {
+      console.error("Worker embedding error:", err);
+      reject(err);
+    });
+
+    worker.on("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(`Worker thoát với mã ${code}`));
+      }
+    });
+  });
 };
 
 const deleteDocument = async (documentId, userId, reason) => {

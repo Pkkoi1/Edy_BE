@@ -74,7 +74,9 @@ const combineChecking = async (documentId, approvalRequestId) => {
 
     if (canCreateEmbedding(document.file_type, document.url)) {
       await embeddinngDocument(document);
+      console.log("Tạo embedding thành công");
       await checkSimilarity(documentId, approvalRequestId);
+      console.log("Kiểm tra tương đồng thành công");
     } else {
       // await assignApprovalRequest(
       //   approvalRequestId,

@@ -162,11 +162,11 @@ const searchDocuments = async (query, accessFilter, options = {}) => {
             }
         });
 
-        console.log(`📊 ES returned ${response.hits.hits.length} results out of ${response.hits.total.value} total`);
+        console.log(`ES returned ${response.hits.hits.length} results out of ${response.hits.total.value} total`);
         
-        // ✅ Log chi tiết top results
+        // Log chi tiết top results
         if (response.hits.hits.length > 0) {
-            console.log('📋 Top results:');
+            console.log('Top results:');
             response.hits.hits.forEach((hit, index) => {
                 console.log(`  ${index + 1}. [Score: ${hit._score.toFixed(2)}] ${hit._source.title}`);
                 console.log(`     Highlights:`, Object.keys(hit.highlight || {}));
@@ -728,8 +728,8 @@ const findSimilarDocumentsForAdmin = async (sourceDocId, limit = 10) => {
             };
         }
 
-        console.log(`✅ Found ${documentIds.length} similar documents for admin`);
-        console.log('📊 Scores:', scores);
+        console.log(`Found ${documentIds.length} similar documents for admin`);
+        console.log('Scores:', scores);
 
         return { documentIds, scores };
 

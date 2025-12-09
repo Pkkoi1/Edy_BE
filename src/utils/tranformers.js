@@ -277,8 +277,6 @@ async function processDocumentWithGeminiAI(url, fileType, documentMetadata) {
             const endChunk = text.substring(text.length - endLength).trim();
 
             textToProcess = `[PHẦN ĐẦU]\n${startChunk}\n\n[...]\n\n[PHẦN GIỮA]\n${middleChunk}\n\n[...]\n\n[PHẦN CUỐI]\n${endChunk}`;
-
-            console.log(textToProcess)
         }
 
         const userTitle = documentMetadata.title || '';
