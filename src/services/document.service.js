@@ -38,6 +38,7 @@ const {
   updateDownloadCount,
 } = require("./document_statistics.service");
 const { logActivity } = require("./activity_log.service");
+const { notifyDocumentRemoved } = require("./notification.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 const e = require("express");
@@ -1379,14 +1380,44 @@ const deleteDocument = async (documentId, userId, reason) => {
 
 const deleteDocuments = async (documentIds, userId, reason) => {
   const results = [];
+  const successfulDeletes = [];
+
   for (const id of documentIds) {
     try {
-      await deleteDocument(id, userId, reason);
+      const doc = await deleteDocument(id, userId, reason);
       results.push({ id, success: true, message: "Deleted successfully" });
+      successfulDeletes.push(doc);
     } catch (error) {
       results.push({ id, success: false, error: error.message });
     }
   }
+
+  // Gửi thông báo cho chủ sở hữu các tài liệu bị xóa
+  for (const doc of successfulDeletes) {
+    try {
+      await notifyDocumentRemoved(doc.user, doc._id, reason);
+    } catch (error) {
+      console.error("Lỗi gửi thông báo xóa tài liệu:", error);
+    }
+  }
+
+  // Log activity cho việc xóa batch
+  if (successfulDeletes.length > 0) {
+    try {
+      await logActivity({
+        userId,
+        action: "DOCUMENTS_BATCH_DELETED",
+        targetType: "Document",
+        targetId: successfulDeletes[0]._id, // Sử dụng ID của document đầu tiên
+        targetTitle: `${successfulDeletes.length} tài liệu`,
+        description: `Đã xóa ${successfulDeletes.length} tài liệu cũ`,
+        metadata: { reason, documentIds: successfulDeletes.map((d) => d._id) },
+      });
+    } catch (error) {
+      console.error("Lỗi log activity xóa batch:", error);
+    }
+  }
+
   return results;
 };
 
