@@ -16,6 +16,7 @@ const {
   updateDocument,
   changeAllShareLink,
   getAllDocuments,
+  getOldDocuments,
   getSimilarDocuments,
   getSimilarDocumentsForAdmin,
   reactionDocument,
@@ -26,6 +27,7 @@ const {
   incrementViewCount,
   requestEditDocument,
   deleteDocument,
+  deleteDocuments,
 } = require("../services/document.service");
 const { getOrganizationById } = require("../services/organization.service");
 const {
@@ -60,6 +62,25 @@ exports.getAllDocuments = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Đã:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi: " + error.message,
+    });
+  }
+};
+
+exports.getOldDocuments = async (req, res) => {
+  try {
+    const { page = 1, limit = 5 } = req.query;
+
+    const result = await getOldDocuments({
+      payload: req.user,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       message: "Đã xảy ra lỗi: " + error.message,
     });
@@ -477,7 +498,11 @@ exports.approveDocument = async (req, res) => {
     res.json({ message: "Phê duyệt tài liệu thành công" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi phê duyệt tài liệu: " + error.message });
+    res
+      .status(500)
+      .json({
+        message: "Đã xảy ra lỗi khi phê duyệt tài liệu: " + error.message,
+      });
   }
 };
 
@@ -496,7 +521,11 @@ exports.rejectDocument = async (req, res) => {
     res.json({ message: "Từ chối tài liệu thành công" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Đã xảy ra lỗi khi từ chối tài liệu: " + error.message });
+    res
+      .status(500)
+      .json({
+        message: "Đã xảy ra lỗi khi từ chối tài liệu: " + error.message,
+      });
   }
 };
 
@@ -521,7 +550,10 @@ exports.requestEdit = async (req, res) => {
     console.error(error);
     res
       .status(500)
-      .json({ message: "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu: " + error.message });
+      .json({
+        message:
+          "Đã xảy ra lỗi khi yêu cầu chỉnh sửa tài liệu: " + error.message,
+      });
   }
 };
 
@@ -992,6 +1024,22 @@ exports.getDocumentReactions = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: error.message || "Lỗi server khi lấy thông tin tương tác",
+    });
+  }
+};
+
+exports.deleteDocuments = async (req, res) => {
+  try {
+    const { ids, reason } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Danh sách ID không hợp lệ" });
+    }
+    const result = await deleteDocuments(ids, req.user.userId, reason);
+    res.json({ message: "Xóa tài liệu hoàn tất", results: result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi xóa tài liệu: " + error.message,
     });
   }
 };

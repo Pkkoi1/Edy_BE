@@ -38,6 +38,7 @@ const {
   updateDownloadCount,
 } = require("./document_statistics.service");
 const { logActivity } = require("./activity_log.service");
+const { notifyDocumentRemoved } = require("./notification.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 const e = require("express");
@@ -116,6 +117,59 @@ const getAllDocuments = async ({
   const [documents, total] = await Promise.all([
     Document.find(query)
       .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike approved_by_ai"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" }),
+    Document.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const have_next = page < totalPages;
+
+  return {
+    documents,
+    total,
+    page,
+    totalPages,
+    have_next,
+  };
+};
+
+const getOldDocuments = async ({ payload, page = 1, limit = 5 }) => {
+  if (!(await hasDocumentManageRole(payload.accountId))) {
+    throw new Error("User does not have permission to manage documents");
+  }
+  const skip = (page - 1) * limit;
+
+  // Tài liệu cũ: createdAt > 6 tháng, và ít tương tác
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 1);
+
+  const query = {
+    status: "APPROVED",
+    is_deleted: false,
+    createdAt: { $lt: sixMonthsAgo },
+    view: { $lt: 10 },
+    download_count: { $lt: 5 },
+    comment_count: { $lt: 2 },
+    $expr: { $lt: [{ $add: ["$like", "$dislike"] }, 5] },
+  };
+
+  const [documents, total] = await Promise.all([
+    Document.find(query)
+      .sort({ createdAt: 1 }) // cũ nhất trước
       .skip(skip)
       .limit(limit)
       .select(
@@ -1322,6 +1376,49 @@ const deleteDocument = async (documentId, userId, reason) => {
   });
 
   return doc;
+};
+
+const deleteDocuments = async (documentIds, userId, reason) => {
+  const results = [];
+  const successfulDeletes = [];
+
+  for (const id of documentIds) {
+    try {
+      const doc = await deleteDocument(id, userId, reason);
+      results.push({ id, success: true, message: "Deleted successfully" });
+      successfulDeletes.push(doc);
+    } catch (error) {
+      results.push({ id, success: false, error: error.message });
+    }
+  }
+
+  // Gửi thông báo cho chủ sở hữu các tài liệu bị xóa
+  for (const doc of successfulDeletes) {
+    try {
+      await notifyDocumentRemoved(doc.user, doc._id, reason);
+    } catch (error) {
+      console.error("Lỗi gửi thông báo xóa tài liệu:", error);
+    }
+  }
+
+  // Log activity cho việc xóa batch
+  if (successfulDeletes.length > 0) {
+    try {
+      await logActivity({
+        userId,
+        action: "DOCUMENTS_BATCH_DELETED",
+        targetType: "Document",
+        targetId: successfulDeletes[0]._id, // Sử dụng ID của document đầu tiên
+        targetTitle: `${successfulDeletes.length} tài liệu`,
+        description: `Đã xóa ${successfulDeletes.length} tài liệu cũ`,
+        metadata: { reason, documentIds: successfulDeletes.map((d) => d._id) },
+      });
+    } catch (error) {
+      console.error("Lỗi log activity xóa batch:", error);
+    }
+  }
+
+  return results;
 };
 
 const updateDocument = async (id, data) => {
@@ -2670,11 +2767,13 @@ const incrementViewCount = async (documentId, userId) => {
 
 module.exports = {
   getAllDocuments,
+  getOldDocuments,
   getNewestDocuments,
   getFeaturedDocuments,
   getRecommendedDocuments,
   createDocument,
   deleteDocument,
+  deleteDocuments,
   updateDocument,
   getDocumentById,
   getDocumentsBySubject,

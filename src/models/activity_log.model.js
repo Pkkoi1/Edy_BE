@@ -21,6 +21,7 @@ const activityLogSchema = new mongoose.Schema(
         "DOCUMENT_APPROVED",
         "DOCUMENT_REJECTED",
         "DOCUMENT_DELETED",
+        "DOCUMENTS_BATCH_DELETED",
         "DOCUMENT_EDITED",
         "DOCUMENT_UPLOADED",
         "EDIT_REQUEST_CREATED",
@@ -41,6 +42,7 @@ const activityLogSchema = new mongoose.Schema(
         "USER_LOST_VIP",
         "ORGANIZATION_CREATED",
         "SUBJECT_CREATED",
+        "DOCUMENTS_BATCH_DELETED",
       ],
     },
 
