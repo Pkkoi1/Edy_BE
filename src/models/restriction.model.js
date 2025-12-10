@@ -14,7 +14,7 @@ const restrictionSchema = new mongoose.Schema({
   endAt: { type: Date, default: null }, // null = vĩnh viễn
   status: {
     type: String,
-    enum: ['ACTIVE', 'EXPIRED'],
+    enum: ['ACTIVE', 'DEACTIVATED','EXPIRED'],
     default: 'ACTIVE'
   }
 }, {

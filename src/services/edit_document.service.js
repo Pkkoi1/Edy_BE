@@ -39,6 +39,10 @@ const createEditDocument = async (documentId, editData, userId) => {
     document.status = "PENDING_EDIT";
     await document.save();
 
+    if(editData.public_mode === "PUBLIC" || editData.public_mode === "SHARE_ORGANIZATION"){
+      changeAllShareLink(userId, documentId, "INACTIVE");
+    }
+
     // Tạo approval cho edit document
     await createEditApproval({
       doc: documentId,

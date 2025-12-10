@@ -44,6 +44,7 @@ app.use(
     origin: [
       "http://localhost:5173", // local dev
       "https://edy-fe.vercel.app", // vercel production
+      "https://studysharevn.vercel.app"
     ],
     credentials: true,
     exposedHeaders: ["X-Filename", "X-Original-Title"],

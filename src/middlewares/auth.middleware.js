@@ -18,13 +18,13 @@ exports.requireUserRole = async (req, res, next) => {
 
     const now = new Date();
     const activeRestriction = await Restriction.findOne({
-        account: payload.accountId,
+        account_id: payload.accountId,
         type: 'LOGIN',
-        start_date: { $lte: now },
-        end_date: { $gte: now }
+        startAt: { $lte: now },
+        endAt: { $gte: now },
     });
     if (activeRestriction) {
-        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}` });
+        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.endAt}. Lý do: ${activeRestriction.reason}` });
     }
     req.user = payload;
     next();
@@ -44,13 +44,13 @@ exports.userOrUnauthenticated = async (req, res, next) => {
 
     const now = new Date();
     const activeRestriction = await Restriction.findOne({
-        account: payload.accountId,
+        account_id: payload.accountId,
         type: 'LOGIN',
-        start_date: { $lte: now },
-        end_date: { $gte: now }
+        startAt: { $lte: now },
+        endAt: { $gte: now },
     });
     if (activeRestriction) {
-        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}` });
+        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.endAt}. Lý do: ${activeRestriction.reason}` });
     }
     req.user = payload;
     next();
@@ -66,13 +66,13 @@ exports.requireLoggedIn = async (req, res, next) => {
     // Kiểm tra tài khoản có bị khóa không
     const now = new Date();
     const activeRestriction = await Restriction.findOne({
-        account: payload.accountId,
+        account_id: payload.accountId,
         type: 'LOGIN',
-        start_date: { $lte: now },
-        end_date: { $gte: now }
+        startAt: { $lte: now },
+        endAt: { $gte: now },
     });
     if (activeRestriction) {
-        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}` });
+        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.endAt}. Lý do: ${activeRestriction.reason}` });
     }
     req.user = payload;
     next();
@@ -88,13 +88,13 @@ exports.requireLoggedInRefresh = async (req, res, next) => {
     // Kiểm tra tài khoản có bị khóa không
     const now = new Date();
     const activeRestriction = await Restriction.findOne({
-        account: payload.accountId,
+        account_id: payload.accountId,
         type: 'LOGIN',
-        start_date: { $lte: now },
-        end_date: { $gte: now }
+        startAt: { $lte: now },
+        endAt: { $gte: now },
     });
     if (activeRestriction) {
-        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}` });
+        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.endAt}. Lý do: ${activeRestriction.reason}` });
     }
     req.user = payload;
     next();
@@ -112,13 +112,13 @@ exports.refreshToken = async (req, res, next) => {
     // Kiểm tra tài khoản có bị khóa không
     const now = new Date();
     const activeRestriction = await Restriction.findOne({
-        account: payload.accountId,
+        account_id: payload.accountId,
         type: 'LOGIN',
-        start_date: { $lte: now },
-        end_date: { $gte: now }
+        startAt: { $lte: now },
+        endAt: { $gte: now },
     });
     if (activeRestriction) {
-        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}` });
+        return res.status(403).json({ message: `Tài khoản bị hạn chế đến ${activeRestriction.endAt}. Lý do: ${activeRestriction.reason}` });
     }
 
     req.user = payload;

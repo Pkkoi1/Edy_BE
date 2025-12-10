@@ -74,6 +74,6 @@ exports.handleEditApproval = async (req, res) => {
       editApproval,
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ message: "Lỗi khi xử lý phê duyệt chỉnh sửa: " + error.message });
   }
 };

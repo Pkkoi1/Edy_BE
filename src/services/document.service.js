@@ -38,9 +38,12 @@ const {
   updateDownloadCount,
 } = require("./document_statistics.service");
 const { logActivity } = require("./activity_log.service");
+const { notifyDocumentRemoved } = require("./notification.service");
 const cloudinary = require("cloudinary").v2;
 const mongoose = require("mongoose");
 const e = require("express");
+const { Worker } = require("worker_threads");
+const path = require("path");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -119,7 +122,60 @@ const getAllDocuments = async ({
       .skip(skip)
       .limit(limit)
       .select(
-        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike"
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike approved_by_ai"
+      )
+      .populate({
+        path: "user",
+        select: "_id first_name last_name avatar doc_count",
+        populate: {
+          path: "organization",
+          select: "_id name",
+        },
+      })
+      .populate({ path: "organization", select: "_id name" })
+      .populate({ path: "subject", select: "_id name" }),
+    Document.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const have_next = page < totalPages;
+
+  return {
+    documents,
+    total,
+    page,
+    totalPages,
+    have_next,
+  };
+};
+
+const getOldDocuments = async ({ payload, page = 1, limit = 5 }) => {
+  if (!(await hasDocumentManageRole(payload.accountId))) {
+    throw new Error("User does not have permission to manage documents");
+  }
+  const skip = (page - 1) * limit;
+
+  // Tài liệu cũ: createdAt > 6 tháng, và ít tương tác
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 1);
+
+  const query = {
+    status: "APPROVED",
+    is_deleted: false,
+    createdAt: { $lt: sixMonthsAgo },
+    view: { $lt: 10 },
+    download_count: { $lt: 5 },
+    comment_count: { $lt: 2 },
+    $expr: { $lt: [{ $add: ["$like", "$dislike"] }, 5] },
+  };
+
+  const [documents, total] = await Promise.all([
+    Document.find(query)
+      .sort({ createdAt: 1 }) // cũ nhất trước
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "_id user title author cover_page published_year publisher page doc_type file_type intensive url organization subject level view download_count comment_count status public_mode createdAt last_approved_at updatedAt like dislike approved_by_ai"
       )
       .populate({
         path: "user",
@@ -666,8 +722,9 @@ const getRecommendedDocuments = async ({ payload, page = 1, limit = 10 }) => {
               ],
             },
           },
-          { term: { user: user._id.toString() } },
         ],
+        minimum_should_match: 1,
+        must_not: [{ term: { user: user._id.toString() } }],
       },
     };
     if (sharedDocIds.length > 0) {
@@ -696,7 +753,7 @@ const getRecommendedDocuments = async ({ payload, page = 1, limit = 10 }) => {
     .slice(0, 10)
     .map((x) => x.document.toString());
 
-  const excludeIds = new Set([...favoriteDocIds, ...readDocIds]);
+  const excludeIds = new Set([...favoriteDocIds]);
 
   const seedIds = [...favoriteDocIds, ...readDocIds];
   let authorSeeds = [];
@@ -1251,22 +1308,39 @@ const createDocument = async (data) => {
 };
 
 const embeddinngDocument = async (document) => {
-  try {
-    const result = await processDocumentAndCreateEmbedding(
-      document.url,
-      document.file_type
-    );
-    document.content_vector = result.embedding;
-    try {
-      await indexDocument(document);
-    } catch (error) {
-      console.error("Lỗi khi đánh index document:", error);
-    }
-    return document;
-  } catch (error) {
-    console.error("Lỗi khi tạo embedding cho document:", error);
-    throw new Error("Không thể tạo embedding cho tài liệu");
-  }
+  const workerPath = path.join(__dirname, "../workers/embedding.worker.js");
+
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(workerPath, {
+      workerData: { url: document.url, fileType: document.file_type },
+    });
+
+    worker.on("message", async (msg) => {
+      if (msg.ok) {
+        document.content_vector = msg.result.embedding;
+        try {
+          await indexDocument(document);
+        } catch (error) {
+          console.error("Lỗi khi đánh index document:", error);
+        }
+        resolve(document);
+      } else {
+        console.error("Lỗi worker embedding:", msg.error);
+        reject(new Error("Không thể tạo embedding cho tài liệu"));
+      }
+    });
+
+    worker.on("error", (err) => {
+      console.error("Worker embedding error:", err);
+      reject(err);
+    });
+
+    worker.on("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(`Worker thoát với mã ${code}`));
+      }
+    });
+  });
 };
 
 const deleteDocument = async (documentId, userId, reason) => {
@@ -1323,6 +1397,49 @@ const deleteDocument = async (documentId, userId, reason) => {
   return doc;
 };
 
+const deleteDocuments = async (documentIds, userId, reason) => {
+  const results = [];
+  const successfulDeletes = [];
+
+  for (const id of documentIds) {
+    try {
+      const doc = await deleteDocument(id, userId, reason);
+      results.push({ id, success: true, message: "Deleted successfully" });
+      successfulDeletes.push(doc);
+    } catch (error) {
+      results.push({ id, success: false, error: error.message });
+    }
+  }
+
+  // Gửi thông báo cho chủ sở hữu các tài liệu bị xóa
+  for (const doc of successfulDeletes) {
+    try {
+      await notifyDocumentRemoved(doc.user, doc._id, reason);
+    } catch (error) {
+      console.error("Lỗi gửi thông báo xóa tài liệu:", error);
+    }
+  }
+
+  // Log activity cho việc xóa batch
+  if (successfulDeletes.length > 0) {
+    try {
+      await logActivity({
+        userId,
+        action: "DOCUMENTS_BATCH_DELETED",
+        targetType: "Document",
+        targetId: successfulDeletes[0]._id, // Sử dụng ID của document đầu tiên
+        targetTitle: `${successfulDeletes.length} tài liệu`,
+        description: `Đã xóa ${successfulDeletes.length} tài liệu cũ`,
+        metadata: { reason, documentIds: successfulDeletes.map((d) => d._id) },
+      });
+    } catch (error) {
+      console.error("Lỗi log activity xóa batch:", error);
+    }
+  }
+
+  return results;
+};
+
 const updateDocument = async (id, data) => {
   // Không cho sửa trường is_deleted qua update này
   if ("is_deleted" in data) delete data.is_deleted;
@@ -1340,7 +1457,7 @@ const getDocumentById = async (id, userId) => {
     .populate({
       path: "user",
       select:
-        "_id first_name last_name avatar organization follower following doc_count",
+        "_id first_name last_name avatar organization follower following doc_count point rank_point strike",
       populate: {
         path: "organization",
         select: "_id name",
@@ -1686,14 +1803,14 @@ const getMyPendingDocuments = async (
 ) => {
   // Thu thập docIds từ ApprovalRequest được gán cho tôi
   const approvals = await ApprovalRequest.find({
-    assigned_to: userId,
+    // assigned_to: userId,
     status: "PENDING",
   }).select("doc");
   const docIdsFromApprovals = approvals.map((a) => a.doc);
 
   // Thu thập docIds từ EditApproval được gán cho tôi
   const editApprovals = await EditApproval.find({
-    assigned_to: userId,
+    // assigned_to: userId,
     status: "PENDING",
   }).select("doc");
   const docIdsFromEditApprovals = editApprovals.map((ea) => ea.doc);
@@ -1753,7 +1870,7 @@ const getMyPendingDocuments = async (
   const approvalsForPageDocs = await ApprovalRequest.find({
     doc: { $in: pageDocIds },
     status: "PENDING",
-    assigned_to: userId,
+    // assigned_to: userId,
   })
     .select("doc ai_violation_level createdAt")
     .sort({ createdAt: -1 });
@@ -1777,7 +1894,7 @@ const getMyPendingDocuments = async (
 
   return {
     documents: documentsWithViolation,
-    total,
+    total: documentsWithViolation.length,
     page,
     totalPages,
     have_next,
@@ -2669,11 +2786,13 @@ const incrementViewCount = async (documentId, userId) => {
 
 module.exports = {
   getAllDocuments,
+  getOldDocuments,
   getNewestDocuments,
   getFeaturedDocuments,
   getRecommendedDocuments,
   createDocument,
   deleteDocument,
+  deleteDocuments,
   updateDocument,
   getDocumentById,
   getDocumentsBySubject,

@@ -79,6 +79,7 @@ const documentSchema = new mongoose.Schema({
   delete_by_admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   delete_by_admin_reason: { type: String, default: null },
   delete_by_admin_at: { type: Date, default: null },
+  approved_by_ai: { type: Boolean, default: false },
   expiredAt: { type: Date, default: null },
 }, {
   timestamps: true

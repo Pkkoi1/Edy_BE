@@ -661,4 +661,336 @@ router.put(
   userController.updateUserStatus
 );
 
+/**
+ * @swagger
+ * /users/{userId}/restrictions:
+ *   get:
+ *     summary: Lấy lịch sử bị phạt của người dùng
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 restrictions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: ID của penalty
+ *                       user_id:
+ *                         type: string
+ *                         description: ID của người dùng bị phạt
+ *                       type:
+ *                         type: string
+ *                         enum: [POST, COMMENT, DOWNLOAD, LOGIN]
+ *                         description: Loại phạt
+ *                       reason:
+ *                         type: string
+ *                         description: Lý do phạt
+ *                       startAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Thời gian bắt đầu
+ *                       endAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         description: Thời gian kết thúc (null = vĩnh viễn)
+ *                       status:
+ *                         type: string
+ *                         enum: [ACTIVE, DEACTIVATED, EXPIRED]
+ *                         description: Trạng thái
+ *                       restricted_by:
+ *                         type: string
+ *                         description: Người áp dụng phạt
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Thời gian tạo
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.get(
+  "/:userId/restrictions",
+  requireLoggedIn,
+  userController.getUserRestrictions
+);
+
+/**
+ * @swagger
+ * /users/{userId}/violations:
+ *   get:
+ *     summary: Lấy lịch sử vi phạm của người dùng
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 violations:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: ID của violation
+ *                       user_id:
+ *                         type: string
+ *                         description: ID của người dùng vi phạm
+ *                       document:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Thông tin tài liệu vi phạm
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             description: ID tài liệu
+ *                           title:
+ *                             type: string
+ *                             description: Tiêu đề tài liệu
+ *                       comment:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Thông tin bình luận vi phạm
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             description: ID bình luận
+ *                           content:
+ *                             type: string
+ *                             description: Nội dung bình luận
+ *                       type:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                           enum: [SPAM_OR_MISLEADING, DUPLICATE, COPYRIGHT, INCORRECT_CATEGORY, PERSONAL_INFORMATION, LOW_QUALITY, INAPPROPRIATE, OTHER]
+ *                         description: Loại vi phạm
+ *                       report:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Thông tin báo cáo
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             description: ID báo cáo
+ *                           reason:
+ *                             type: string
+ *                             description: Lý do báo cáo
+ *                       strike:
+ *                         type: integer
+ *                         description: Số strike
+ *                       point_reduced:
+ *                         type: integer
+ *                         description: Điểm bị trừ
+ *                       resolved_by:
+ *                         type: string
+ *                         description: Người xử lý
+ *                       reason:
+ *                         type: string
+ *                         description: Lý do xử lý
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Thời gian tạo
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       404:
+ *         description: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.get(
+  "/:userId/violations",
+  requireLoggedIn,
+  userController.getUserViolations
+);
+
+/**
+ * @swagger
+ * /users/{userId}/suspend:
+ *   post:
+ *     summary: Khóa tài khoản người dùng (yêu cầu quyền quản lý người dùng)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng cần khóa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: "Vi phạm quy định cộng đồng"
+ *                 description: "Lý do khóa tài khoản"
+ *               duration_days:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 7
+ *                 description: "Thời hạn khóa (ngày). Nếu không cung cấp sẽ khóa vĩnh viễn"
+ *     responses:
+ *       200:
+ *         description: Khóa tài khoản thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Khóa tài khoản thành công"
+ *                 restriction:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: ID của restriction
+ *                     type:
+ *                       type: string
+ *                       example: "LOGIN"
+ *                     reason:
+ *                       type: string
+ *                       description: Lý do khóa
+ *                     startAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Thời gian bắt đầu khóa
+ *                     endAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       description: Thời gian kết thúc khóa
+ *                     status:
+ *                       type: string
+ *                       example: "ACTIVE"
+ *       400:
+ *         description: Dữ liệu không hợp lệ hoặc tài khoản đã bị khóa
+ *       401:
+ *         description: Chưa xác thực
+ *       403:
+ *         description: Không có quyền quản lý người dùng
+ *       500:
+ *         description: Lỗi server
+ */
+router.post(
+  "/:userId/suspend",
+  requireAdminPermission(["MANAGE_USER"]),
+  userController.suspendUser
+);
+
+/**
+ * @swagger
+ * /users/{userId}/unsuspend:
+ *   post:
+ *     summary: Mở khóa tài khoản người dùng (yêu cầu quyền quản lý người dùng)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của người dùng cần mở khóa
+ *     responses:
+ *       200:
+ *         description: Mở khóa tài khoản thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Mở khóa tài khoản thành công"
+ *                 restriction:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: ID của restriction
+ *                     type:
+ *                       type: string
+ *                       example: "LOGIN"
+ *                     reason:
+ *                       type: string
+ *                       description: Lý do khóa
+ *                     startAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Thời gian bắt đầu khóa
+ *                     endAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       description: Thời gian kết thúc khóa
+ *                     status:
+ *                       type: string
+ *                       example: "DEACTIVATED"
+ *       400:
+ *         description: Tài khoản không bị khóa
+ *       401:
+ *         description: Chưa xác thực
+ *       403:
+ *         description: Không có quyền quản lý người dùng
+ *       500:
+ *         description: Lỗi server
+ */
+router.post(
+  "/:userId/unsuspend",
+  requireAdminPermission(["MANAGE_USER"]),
+  userController.unsuspendUser
+);
+
 module.exports = router;

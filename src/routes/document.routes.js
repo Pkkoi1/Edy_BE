@@ -122,6 +122,36 @@ router.get(
 
 /**
  * @swagger
+ * /documents/old:
+ *   get:
+ *     summary: Lấy danh sách tài liệu cũ
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng tài liệu mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách tài liệu cũ thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ */
+router.get(
+  "/old",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.getOldDocuments
+);
+
+/**
+ * @swagger
  * /documents/newest:
  *   get:
  *     summary: Lấy danh sách tài liệu mới nhất
@@ -668,7 +698,7 @@ router.put(
   "/request-edit/:requestId",
   requireAdminPermission(["MANAGE_DOCUMENT"]),
   documentController.requestEdit
-)
+);
 
 /**
  * @swagger
@@ -707,7 +737,7 @@ router.put(
   "/request-edit-direct/:documentId",
   requireAdminPermission(["MANAGE_DOCUMENT"]),
   documentController.requestEditDirect
-)
+);
 
 /**
  * @swagger
@@ -1660,10 +1690,10 @@ router.post(
  *         description: Đã xảy ra lỗi khi cập nhật phiên chỉnh sửa
  */
 router.put(
-  '/edit/:editId',
+  "/edit/:editId",
   requireUserRole,
   editDocumentController.updateEditDocument
-)
+);
 
 /**
  * @swagger
@@ -1688,10 +1718,10 @@ router.put(
  *         description: Đã xảy ra lỗi khi xóa phiên chỉnh sửa
  */
 router.delete(
-  '/edit/:editId',
+  "/edit/:editId",
   requireUserRole,
   editDocumentController.deleteEditDocument
-)
+);
 
 /**
  * @swagger
@@ -1716,10 +1746,10 @@ router.delete(
  *         description: Đã xảy ra lỗi khi lấy phiên chỉnh sửa
  */
 router.get(
-  '/:documentId/edit',
+  "/:documentId/edit",
   requireUserRole,
   editDocumentController.getEditDocumentByOriginalDocument
-)
+);
 
 /**
  * @swagger
@@ -1744,10 +1774,10 @@ router.get(
  *         description: Đã xảy ra lỗi khi lấy phiên chỉnh sửa
  */
 router.get(
-  '/pending-edit-request/:documentId',
+  "/pending-edit-request/:documentId",
   requireAdminPermission(["MANAGE_DOCUMENT"]),
   editApprovalController.getEditApprovalByOriginalDocId
-)
+);
 /**
  * @swagger
  * /documents/approve-edit/{editApprovalId}:
@@ -1772,10 +1802,10 @@ router.get(
  *              action:
  *                type: enum
  *                enum: ['APPROVE', 'REJECT']
- *                description: Hành động của quản trị viên 
+ *                description: Hành động của quản trị viên
  *              message:
  *                type: string
- *                description: Lý do từ 
+ *                description: Lý do từ
  *    responses:
  *      200:
  *        description: Xử lý phiên chỉnh sửa thành công
@@ -1787,10 +1817,10 @@ router.get(
  *        description: Đã xảy ra lỗi khi xử lý phiên chỉnh sửa
  */
 router.put(
-  '/approve-edit/:editApprovalId',
+  "/approve-edit/:editApprovalId",
   requireAdminPermission(["MANAGE_DOCUMENT"]),
   editApprovalController.handleEditApproval
-)
+);
 
 /**
  * @swagger
@@ -1879,6 +1909,44 @@ router.post(
  *       404:
  *         description: Tài liệu không tồn tại
  */
-router.delete("/:documentId", requireUserRole, documentController.deleteDocument);
+/**
+ * @swagger
+ * /documents/batch:
+ *   delete:
+ *     summary: Xóa danh sách tài liệu
+ *     tags:
+ *       - Documents
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["652e1c8e2f8b9c0012345678", "652e1c8e2f8b9c0012345679"]
+ *               reason:
+ *                 type: string
+ *                 example: "Tài liệu cũ không còn sử dụng"
+ *     responses:
+ *       200:
+ *         description: Xóa tài liệu thành công
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ */
+router.delete(
+  "/batch",
+  requireAdminPermission(["MANAGE_DOCUMENT"]),
+  documentController.deleteDocuments
+);
+
+router.delete(
+  "/:documentId",
+  requireUserRole,
+  documentController.deleteDocument
+);
 
 module.exports = router;

@@ -36,15 +36,15 @@ const loginService = async ({ email, password }) => {
   // Kiểm tra restriction
   const now = new Date();
   const activeRestriction = await Restriction.findOne({
-    account: account._id,
+    account_id: account._id,
     type: "LOGIN",
-    start_date: { $lte: now },
-    end_date: { $gte: now },
+    startAt: { $lte: now },
+    endAt: { $gte: now },
   });
-
+  
   if (activeRestriction) {
     return {
-      error: `Tài khoản bị hạn chế đến ${activeRestriction.end_date}. Lý do: ${activeRestriction.reason}`,
+      error: `Tài khoản bị hạn chế đến ${activeRestriction.endAt}. Lý do: ${activeRestriction.reason}`,
       status: 403,
     };
   }

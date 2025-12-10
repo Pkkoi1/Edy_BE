@@ -90,8 +90,8 @@ async function parseDocx(buffer) {
  */
 async function createEmbedding(text) {
     try {
-        // Giới hạn độ dài text để tránh quá tải memory
-        const chunks = splitText(text, 500);
+        // Giới hạn độ dài text để tránh quá tải
+        const chunks = splitText(text, 200);
 
         const embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
             quantized: true,
@@ -277,8 +277,6 @@ async function processDocumentWithGeminiAI(url, fileType, documentMetadata) {
             const endChunk = text.substring(text.length - endLength).trim();
 
             textToProcess = `[PHẦN ĐẦU]\n${startChunk}\n\n[...]\n\n[PHẦN GIỮA]\n${middleChunk}\n\n[...]\n\n[PHẦN CUỐI]\n${endChunk}`;
-
-            console.log(textToProcess)
         }
 
         const userTitle = documentMetadata.title || '';

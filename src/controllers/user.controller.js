@@ -13,6 +13,10 @@ const {
   getUserPermissions,
   getUserContributions,
   updateUserStatus,
+  getUserRestrictions,
+  getUserViolations,
+  suspendUser,
+  unsuspendUser,
 } = require("../services/user.service");
 
 exports.getUsers = async (req, res) => {
@@ -326,6 +330,48 @@ exports.getUserContributions = async (req, res) => {
   }
 };
 
+exports.getUserRestrictions = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    const result = await getUserRestrictions(userId);
+    if (result.error) {
+      return res.status(404).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in getUserRestrictions controller:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy lịch sử bị phạt của người dùng",
+    });
+  }
+};
+
+exports.getUserViolations = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    const result = await getUserViolations(userId);
+    if (result.error) {
+      return res.status(404).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in getUserViolations controller:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi lấy lịch sử vi phạm của người dùng",
+    });
+  }
+};
+
 exports.getUserPermissions = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -372,5 +418,59 @@ exports.updateUserStatus = async (req, res) => {
     res
       .status(500)
       .json({ message: "Đã xảy ra lỗi khi cập nhật trạng thái người dùng" });
+  }
+};
+
+exports.suspendUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason, duration_days } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    if (!reason || reason.trim() === "") {
+      return res
+        .status(400)
+        .json({ message: "Vui lòng cung cấp lý do khóa tài khoản" });
+    }
+
+    const result = await suspendUser(
+      userId,
+      reason.trim(),
+      duration_days,
+      req.user.userId
+    );
+
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in suspendUser controller:", error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi khóa tài khoản" });
+  }
+};
+
+exports.unsuspendUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
+
+    const result = await unsuspendUser(userId);
+
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error in unsuspendUser controller:", error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi mở khóa tài khoản" });
   }
 };

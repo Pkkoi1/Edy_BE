@@ -65,6 +65,7 @@ const logActivity = async ({
         DOCUMENT_APPROVED: { color: "success", icon: "check-circle" },
         DOCUMENT_REJECTED: { color: "danger", icon: "x-circle" },
         DOCUMENT_DELETED: { color: "danger", icon: "trash" },
+        DOCUMENTS_BATCH_DELETED: { color: "danger", icon: "trash" },
         DOCUMENT_EDITED: { color: "info", icon: "edit" },
         DOCUMENT_UPLOADED: { color: "info", icon: "upload" },
         EDIT_REQUEST_CREATED: { color: "warning", icon: "edit" },

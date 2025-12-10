@@ -74,21 +74,23 @@ const combineChecking = async (documentId, approvalRequestId) => {
 
     if (canCreateEmbedding(document.file_type, document.url)) {
       await embeddinngDocument(document);
+      console.log("Tạo embedding thành công");
       await checkSimilarity(documentId, approvalRequestId);
+      console.log("Kiểm tra tương đồng thành công");
     } else {
-      await assignApprovalRequest(
-        approvalRequestId,
-        document.organization || null
-      );
+      // await assignApprovalRequest(
+      //   approvalRequestId,
+      //   document.organization || null
+      // );
       return approvalRequest;
     }
   } catch (error) {
     console.error(`Lỗi trong combineChecking: ${error.message}`);
     const document = await Document.findById(documentId);
-    await assignApprovalRequest(
-      approvalRequestId,
-      document.organization || null
-    );
+    // await assignApprovalRequest(
+    //   approvalRequestId,
+    //   document.organization || null
+    // );
     return;
   }
 };
@@ -98,10 +100,10 @@ const checkSimilarity = async (documentId, approvalRequestId) => {
   //Xử lý trước nếu tương đồng cao thì đánh dấu rồi return luôn chứ ko thông qua AI
   try {
     if (!["PDF", "WORD"].includes(document.file_type)) {
-      await assignApprovalRequest(
-        approvalRequestId,
-        document.organization || null
-      );
+      // await assignApprovalRequest(
+      //   approvalRequestId,
+      //   document.organization || null
+      // );
       return approvalRequest;
     }
 
@@ -120,11 +122,11 @@ const checkSimilarity = async (documentId, approvalRequestId) => {
       document.description.summary_by_ai = "Tài liệu tương đồng cao";
       await document.save();
 
-      // Tự động gán approval request cho admin có ít pending request nhất
-      await assignApprovalRequest(
-        approvalRequest._id,
-        document.organization || null
-      );
+      // // Tự động gán approval request cho admin có ít pending request nhất
+      // await assignApprovalRequest(
+      //   approvalRequest._id,
+      //   document.organization || null
+      // );
       return approvalRequest;
     }
     // nếu ko có thì đưa thêm tên của subject rồi xử lý AI
@@ -139,10 +141,10 @@ const checkSimilarity = async (documentId, approvalRequestId) => {
       `Lỗi khi xử lý tương đồng cao cho document ${document._id}:`,
       error
     );
-    await assignApprovalRequest(
-      approvalRequest._id,
-      document.organization || null
-    );
+    // await assignApprovalRequest(
+    //   approvalRequest._id,
+    //   document.organization || null
+    // );
     return approvalRequest;
   }
 };
@@ -210,11 +212,11 @@ const processDocumentWithAI = async (
         await doc.save();
       }
 
-      // Gán approval request cho admin có ít pending request nhất
-      await assignApprovalRequest(
-        approvalRequest._id,
-        document.organization || null
-      );
+      // // Gán approval request cho admin có ít pending request nhất
+      // await assignApprovalRequest(
+      //   approvalRequest._id,
+      //   document.organization || null
+      // );
 
       await approvalRequest.save();
     }
@@ -230,10 +232,10 @@ const processDocumentWithAI = async (
         approvalRequest.ai_reason = `Lỗi khi xử lý AI: ${error.message}`;
         await approvalRequest.save();
 
-        await assignApprovalRequest(
-          approvalRequest._id,
-          document.organization || null
-        );
+        // await assignApprovalRequest(
+        //   approvalRequest._id,
+        //   document.organization || null
+        // );
       }
     } catch (updateError) {
       console.error("Lỗi khi cập nhật approval request:", updateError);
@@ -254,6 +256,7 @@ const autoApproveByAI = async (approvalRequest, document, aiResult) => {
     await approvalRequest.save();
 
     document.status = "APPROVED";
+    document.approved_by_ai = true;
     document.last_approved_at = current;
 
     if (!document.description) {
@@ -357,7 +360,9 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
 
   const approvalRequest = await ApprovalRequest.findById(requestId);
   if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
-
+  if (approvalRequest.status !== "PENDING")
+    throw new Error("Yêu cầu phê duyệt đã được xử lý");
+  
   const user = await User.findById(approvalRequest.requester);
   if (!user) throw new Error("Người yêu cầu không tồn tại");
   const current = new Date();
@@ -373,6 +378,7 @@ const approveRequest = async (requestId, reviewerId, isIntensive) => {
 
   // Cập nhật document status
   document.status = "APPROVED";
+  document.approved_by_ai = false;
   document.last_approved_at = current;
 
   // Tăng doc_count cho user
@@ -576,7 +582,9 @@ const rejectRequest = async (requestId, reviewerId, message) => {
 
   const approvalRequest = await ApprovalRequest.findById(requestId);
   if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
-
+  if (approvalRequest.status !== "PENDING")
+    throw new Error("Yêu cầu phê duyệt đã được xử lý");
+  
   const current = new Date();
   approvalRequest.reviewed_by = reviewer._id;
   approvalRequest.reviewed_at = current;
@@ -590,6 +598,7 @@ const rejectRequest = async (requestId, reviewerId, message) => {
 
   // Reject document
   document.status = "REJECTED";
+  document.approved_by_ai = false;
   document.is_deleted = true;
   document.expiredAt = new Date(current.getTime() + 7 * 24 * 60 * 60 * 1000);
   document.is_delete_by_admin = true;
@@ -632,6 +641,8 @@ const requestEdit = async (requestId, reviewerId, message) => {
 
   const approvalRequest = await ApprovalRequest.findById(requestId);
   if (!approvalRequest) throw new Error("Yêu cầu phê duyệt không tồn tại");
+  if (approvalRequest.status !== "PENDING")
+    throw new Error("Yêu cầu phê duyệt đã được xử lý");
 
   const current = new Date();
   approvalRequest.reviewed_by = reviewer._id;
@@ -644,6 +655,7 @@ const requestEdit = async (requestId, reviewerId, message) => {
   if (!document) throw new Error("Tài liệu không tồn tại");
 
   document.status = "REQUESTED_EDIT";
+  document.approved_by_ai = false;
   await document.save();
 
   return approvalRequest;
