@@ -1803,14 +1803,14 @@ const getMyPendingDocuments = async (
 ) => {
   // Thu thập docIds từ ApprovalRequest được gán cho tôi
   const approvals = await ApprovalRequest.find({
-    assigned_to: userId,
+    // assigned_to: userId,
     status: "PENDING",
   }).select("doc");
   const docIdsFromApprovals = approvals.map((a) => a.doc);
 
   // Thu thập docIds từ EditApproval được gán cho tôi
   const editApprovals = await EditApproval.find({
-    assigned_to: userId,
+    // assigned_to: userId,
     status: "PENDING",
   }).select("doc");
   const docIdsFromEditApprovals = editApprovals.map((ea) => ea.doc);
@@ -1870,7 +1870,7 @@ const getMyPendingDocuments = async (
   const approvalsForPageDocs = await ApprovalRequest.find({
     doc: { $in: pageDocIds },
     status: "PENDING",
-    assigned_to: userId,
+    // assigned_to: userId,
   })
     .select("doc ai_violation_level createdAt")
     .sort({ createdAt: -1 });
@@ -1894,7 +1894,7 @@ const getMyPendingDocuments = async (
 
   return {
     documents: documentsWithViolation,
-    total,
+    total: documentsWithViolation.length,
     page,
     totalPages,
     have_next,
