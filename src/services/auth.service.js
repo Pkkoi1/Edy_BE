@@ -38,6 +38,7 @@ const loginService = async ({ email, password }) => {
   const activeRestriction = await Restriction.findOne({
     account_id: account._id,
     type: "LOGIN",
+    status: "ACTIVE",
     startAt: { $lte: now },
     endAt: { $gte: now },
   });
